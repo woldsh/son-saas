@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Firebase Admin SDK configuration
+// Last updated: 2026-02-28 (Triggered Vercel Redeploy)
 const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "property-management-syst-1c6c0";
 
 // Initialize Firebase Admin

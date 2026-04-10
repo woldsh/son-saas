@@ -6,12 +6,22 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '@/lib/firebase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
-import {
-    FiClipboard, FiCheckCircle, FiClock, FiArrowRight,
-    FiCalendar, FiBox, FiDatabase, FiSearch,
-    FiPlusCircle, FiLayers, FiAlertCircle, FiBarChart2,
-    FiPackage, FiTruck
-} from 'react-icons/fi';
+import { 
+    LayoutDashboard, 
+    ClipboardList, 
+    Box, 
+    AlertCircle, 
+    CheckCircle2, 
+    ArrowRight,
+    Search,
+    Package,
+    Truck,
+    BarChart3,
+    Clock,
+    Database,
+    Zap
+} from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function WorkspacePage() {
     const { user } = useAuth();
@@ -43,7 +53,6 @@ export default function WorkspacePage() {
                     setUserName(d.displayName || 'User');
                 }
 
-                // Pending requests
                 const requestsRef = collection(db!, 'Request_materials');
                 const pendingSnap = await getDocs(
                     query(requestsRef, where('status', 'in', [
@@ -53,7 +62,6 @@ export default function WorkspacePage() {
                     ]))
                 );
 
-                // Inventory stats
                 const materialsSnap = await getDocs(collection(db!, 'materials'));
                 let lowCount = 0;
                 materialsSnap.docs.forEach(doc => {
@@ -87,102 +95,214 @@ export default function WorkspacePage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-400"></div>
+                <div className="relative">
+                    <div className="w-12 h-12 rounded-full border-[3px] border-blue-100 animate-pulse"></div>
+                    <div className="absolute inset-0 border-t-[3px] border-blue-600 rounded-full animate-spin"></div>
+                </div>
             </div>
         );
     }
 
+    const containerVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { 
+            opacity: 1, 
+            y: 0,
+            transition: { duration: 0.5, staggerChildren: 0.1 }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0 }
+    };
+
     const quickActions = [
-        { label: 'View Requests', desc: 'Process material requests', href: '/workspace/view-requests', icon: FiClipboard, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Full Inventory', desc: 'Browse all items', href: '/workspace/full-inventory', icon: FiLayers, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-        { label: 'Low Stock', desc: 'Items needing restock', href: '/workspace/low-stock', icon: FiAlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
-        { label: 'Analytics', desc: 'Charts & reports', href: '/workspace/analytics', icon: FiBarChart2, color: 'text-sky-600', bg: 'bg-sky-50' },
-        { label: 'Search Material', desc: 'Find specific items', href: '/workspace/search-material', icon: FiSearch, color: 'text-violet-600', bg: 'bg-violet-50' },
-        { label: 'Receive Goods', desc: 'Log incoming shipments', href: '/workspace/receive-goods', icon: FiTruck, color: 'text-blue-500', bg: 'bg-blue-50' },
+        { label: 'View Requests', desc: 'Process material requests', href: '/workspace/approve-requests', icon: ClipboardList },
+        { label: 'Full Inventory', desc: 'Browse all items', href: '/workspace/full-inventory', icon: Box },
+        { label: 'Low Stock', desc: 'Items needing restock', href: '/workspace/low-stock', icon: AlertCircle },
+        { label: 'Analytics', desc: 'Charts & reports', href: '/workspace/analytics', icon: BarChart3 },
+        { label: 'Search Material', desc: 'Find specific items', href: '/workspace/search-material', icon: Search },
+        { label: 'Receive Goods', desc: 'Log incoming shipments', href: '/workspace/receive-goods', icon: Truck },
     ];
 
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-white">
-                <div className="max-w-6xl mx-auto px-6 md:px-10 py-10 space-y-10">
+            <div className="min-h-screen bg-[#F8FAFC]">
+                <motion.div 
+                    initial="hidden"
+                    animate="visible"
+                    variants={containerVariants}
+                    className="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-10"
+                >
 
-                    {/* Header */}
+                    {/* Header Section */}
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                        <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.25em] mb-2">
-                                {getRoleTitle()} &bull; {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                            </p>
+                        <motion.div variants={itemVariants}>
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
+                                    {getRoleTitle()}
+                                </span>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-widest">
+                                    {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                                </span>
+                            </div>
                             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
-                                Good {currentTime.getHours() < 12 ? 'Morning' : currentTime.getHours() < 17 ? 'Afternoon' : 'Evening'}, {userName.split(' ')[0]}
+                                Good {currentTime.getHours() < 12 ? 'Morning' : currentTime.getHours() < 17 ? 'Afternoon' : 'Evening'}, <span className="text-blue-600">{userName.split(' ')[0]}</span>
                             </h1>
-                        </div>
+                            <p className="mt-2 text-slate-500 font-medium">Here's an overview of your inventory operations today.</p>
+                        </motion.div>
+                        
+                        <motion.div variants={itemVariants} className="flex items-center gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <Clock className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div className="pr-4">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">System Time</p>
+                                <p className="text-lg font-black text-slate-900 leading-tight">
+                                    {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                </p>
+                            </div>
+                        </motion.div>
                     </div>
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                                    <FiClock className="text-lg text-amber-600" />
+                    {/* Operational Stats */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatCard 
+                            icon={Zap} 
+                            label="Pending Action" 
+                            value={stats.pendingRequests} 
+                            subText="Needs Review"
+                            accent="blue" 
+                            pulse={stats.pendingRequests > 0}
+                            variants={itemVariants}
+                        />
+                        <StatCard 
+                            icon={Database} 
+                            label="Catalogued" 
+                            value={stats.totalInventory} 
+                            subText="Total Materials"
+                            accent="slate" 
+                            variants={itemVariants}
+                        />
+                        <StatCard 
+                            icon={AlertCircle} 
+                            label="Critical Stock" 
+                            value={stats.lowStock} 
+                            subText="Below Threshold"
+                            accent="amber" 
+                            variants={itemVariants}
+                        />
+                        <StatCard 
+                            icon={CheckCircle2} 
+                            label="Completed" 
+                            value={stats.processedToday} 
+                            subText="Daily Throughput"
+                            accent="blue" 
+                            variants={itemVariants}
+                        />
+                    </div>
+
+                    {/* Main Content Area */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Quick Actions Grid */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <motion.div variants={itemVariants} className="flex items-center justify-between">
+                                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                                    <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                                    Operational Shortcuts
+                                </h2>
+                            </motion.div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {quickActions.map((action, idx) => (
+                                    <motion.div key={action.href} variants={itemVariants}>
+                                        <Link
+                                            href={action.href}
+                                            className="group flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300"
+                                        >
+                                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 transition-colors duration-300">
+                                                <action.icon className="w-6 h-6 text-blue-600 group-hover:text-white transition-colors duration-300" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-bold text-slate-800 text-[15px]">{action.label}</h3>
+                                                <p className="text-xs text-slate-400 mt-0.5">{action.desc}</p>
+                                            </div>
+                                            <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
+                                                <ArrowRight className="w-4 h-4" />
+                                            </div>
+                                        </Link>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Recent Alerts / Info Side Block */}
+                        <motion.div variants={itemVariants} className="space-y-6">
+                            <h2 className="text-xl font-black text-slate-900">System Notification</h2>
+                            <div className="bg-blue-600 rounded-[2rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-200">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                                <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-12 -mb-12 blur-xl"></div>
+                                
+                                <div className="relative z-10">
+                                    <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
+                                        <Zap className="w-6 h-6 text-white" />
+                                    </div>
+                                    <h3 className="text-xl font-bold mb-2">Inventory Sync Active</h3>
+                                    <p className="text-blue-100 text-sm leading-relaxed mb-6">
+                                        All stock levels are currently being synchronized with the central repository. Zero latency detected.
+                                    </p>
+                                    <button className="w-full py-3 bg-white text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-50 transition-colors">
+                                        Refresh Data
+                                    </button>
                                 </div>
-                                {stats.pendingRequests > 0 && (
-                                    <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
-                                )}
                             </div>
-                            <p className="text-3xl font-black text-slate-900">{stats.pendingRequests}</p>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Pending</p>
-                        </div>
-
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
-                            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center mb-4">
-                                <FiDatabase className="text-lg text-slate-600" />
-                            </div>
-                            <p className="text-3xl font-black text-slate-900">{stats.totalInventory}</p>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Total Items</p>
-                        </div>
-
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
-                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center mb-4">
-                                <FiAlertCircle className="text-lg text-orange-600" />
-                            </div>
-                            <p className="text-3xl font-black text-slate-900">{stats.lowStock}</p>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Low Stock</p>
-                        </div>
-
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mb-4">
-                                <FiCheckCircle className="text-lg text-blue-600" />
-                            </div>
-                            <p className="text-3xl font-black text-slate-900">{stats.processedToday}</p>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Processed Today</p>
-                        </div>
+                        </motion.div>
                     </div>
 
-                    {/* Quick Actions */}
-                    <div>
-                        <h2 className="text-lg font-black text-slate-900 mb-5">Quick Actions</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {quickActions.map((action) => (
-                                <Link
-                                    key={action.href}
-                                    href={action.href}
-                                    className="group flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-slate-300 hover:shadow-sm transition-all"
-                                >
-                                    <div className={`w-11 h-11 rounded-xl ${action.bg} flex items-center justify-center flex-shrink-0`}>
-                                        <action.icon className={`text-xl ${action.color}`} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-slate-800 text-sm">{action.label}</h3>
-                                        <p className="text-xs text-slate-400 mt-0.5">{action.desc}</p>
-                                    </div>
-                                    <FiArrowRight className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-
-                </div>
+                </motion.div>
             </div>
         </ProtectedRoute>
+    );
+}
+
+function StatCard({ icon: Icon, label, value, subText, accent, pulse, variants }: any) {
+    const isBlue = accent === 'blue';
+    const isAmber = accent === 'amber';
+    
+    return (
+        <motion.div 
+            variants={variants}
+            className="bg-white border border-slate-200 rounded-3xl p-6 hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300 group"
+        >
+            <div className="flex items-center justify-between mb-5">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors duration-300 ${
+                    isBlue ? 'bg-blue-50 group-hover:bg-blue-600' : 
+                    isAmber ? 'bg-amber-50 group-hover:bg-amber-500' : 
+                    'bg-slate-50 group-hover:bg-slate-800'
+                }`}>
+                    <Icon className={`w-6 h-6 transition-colors duration-300 ${
+                        isBlue ? 'text-blue-600 group-hover:text-white' : 
+                        isAmber ? 'text-amber-600 group-hover:text-white' : 
+                        'text-slate-600 group-hover:text-white'
+                    }`} />
+                </div>
+                {pulse && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 rounded-full">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-[9px] font-black text-red-600 uppercase tracking-wider">Live</span>
+                    </div>
+                )}
+            </div>
+            
+            <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]">{label}</p>
+                <div className="flex items-baseline gap-2">
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tight">{value}</h3>
+                    <span className="text-xs font-bold text-slate-400">{subText}</span>
+                </div>
+            </div>
+        </motion.div>
     );
 }

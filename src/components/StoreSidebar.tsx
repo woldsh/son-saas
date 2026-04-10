@@ -1,34 +1,52 @@
 'use client';
 
 import { useState } from 'react';
-
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useRequestNotification } from '../hooks/useRequestNotification';
+import { useUserNotifications } from '../hooks/useUserNotifications';
 import SidebarResizeHandle from './SidebarResizeHandle';
 import {
-    FaBox,
-    FaUsers,
-    FaPlusCircle,
-    FaList,
-    FaChartBar,
-    FaEnvelope,
-    FaUserTie,
-    FaTruckLoading,
-    FaUndo,
-    FaCar,
-    FaFileAlt,
-    FaExchangeAlt,
-    FaCog,
-    FaStore,
-    FaChartPie,
-    FaSearch,
-    FaClipboardCheck
-} from 'react-icons/fa';
-import { FiAlertTriangle, FiGrid, FiClipboard } from 'react-icons/fi';
+    LayoutDashboard,
+    CheckSquare,
+    ClipboardList,
+    FileText,
+    AlertTriangle,
+    Grid,
+    Clipboard,
+    Users,
+    BarChart,
+    FilePlus,
+    History,
+    Route,
+    FileBarChart,
+    MessageSquare,
+    Package,
+    User,
+    AlertCircle,
+    Wrench,
+    RefreshCw,
+    ArrowUpRight,
+    ArrowDownLeft,
+    Repeat,
+    Settings,
+    ChevronDown,
+    ChevronUp,
+    Store,
+    PlusCircle,
+    Layers,
+    Search,
+    RotateCcw,
+    Truck,
+    ClipboardCheck,
+    Briefcase,
+    Send,
+    UserCog
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface StoreSidebarProps {
     storeType: 'fixed' | 'consumable';
@@ -42,6 +60,8 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
     const { t } = useLanguage();
     const { userRole, department } = useAuth();
     const requestCount = useRequestNotification(userRole, department);
+    const { feedbackCount, transferCount } = useUserNotifications();
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     const handleLinkClick = () => {
         if (window.innerWidth < 768) {
@@ -49,137 +69,268 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
         }
     };
 
+    const toggleDropdown = (label: string) => {
+        setOpenDropdown(openDropdown === label ? null : label);
+    };
+
+    const sectionStyles = {
+        fixed: {
+            activeBg: 'bg-emerald-50',
+            activeText: 'text-emerald-600',
+            activeBorder: 'border-emerald-100',
+            accent: 'emerald',
+            gradient: 'from-emerald-600 to-teal-600'
+        },
+        consumable: {
+            activeBg: 'bg-blue-50',
+            activeText: 'text-blue-600',
+            activeBorder: 'border-blue-100',
+            accent: 'blue',
+            gradient: 'from-blue-600 to-indigo-600'
+        }
+    };
+
+    const styles = isFixed ? sectionStyles.fixed : sectionStyles.consumable;
+
     const menuItems = [
-        { label: t('dashboard'), href: basePath, icon: FaChartPie },
-        { label: t('view_requests'), href: `${basePath}/requests`, icon: FaBox },
-        { label: t('search_materials'), href: `${basePath}/search-material`, icon: FaSearch },
-        { label: t('employee_data'), href: `${basePath}/employee-data`, icon: FaUsers },
-        { label: isFixed ? t('register_asset') : t('register_item'), href: `${basePath}/add-items`, icon: FaPlusCircle },
-        { label: t('materials_list'), href: `${basePath}/materials-list`, icon: FaList },
-        { label: t('report_data'), href: `${basePath}/report-data`, icon: FaChartBar },
-        { label: t('messages'), href: `${basePath}/messages`, icon: FaEnvelope },
-        { label: t('request_materials'), href: `${basePath}/request-material`, icon: FaUserTie },
-        { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: FaTruckLoading },
-        { label: t('return_goods'), href: `${basePath}/return-goods`, icon: FaUndo },
-        { label: t('request_journey'), href: `${basePath}/request-journey`, icon: FaCar },
-        { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: FaExchangeAlt },
-        { label: t('clerk_report'), href: `${basePath}/clerk-report`, icon: FaFileAlt },
-        { label: 'Expiry Alerts', href: `${basePath}/expiry-alerts`, icon: FiAlertTriangle },
-        { label: 'Bin Management', href: `${basePath}/bin-management`, icon: FiGrid },
-        { label: 'Cycle Count', href: `${basePath}/cycle-count`, icon: FiClipboard },
+        { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
+        {
+            label: t('approvals') || "Approval",
+            icon: CheckSquare,
+            badge: requestCount,
+            subItems: [
+                { label: t('view_requests'), href: `${basePath}/requests`, icon: ClipboardList, badge: requestCount },
+            ],
+            hasDivider: false
+        },
+        {
+            label: t('stock_management') || "Stock Management",
+            icon: Package,
+            subItems: [
+                { label: t('search_materials'), href: `${basePath}/search-material`, icon: Search },
+                { label: isFixed ? t('register_asset') : t('register_item'), href: `${basePath}/add-items`, icon: PlusCircle },
+                { label: t('materials_list'), href: `${basePath}/materials-list`, icon: Layers },
+                { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
+                { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
+                { label: t('clerk_report'), href: `${basePath}/clerk-report`, icon: FileText },
+                { label: 'Expiry Alerts', href: `${basePath}/expiry-alerts`, icon: AlertTriangle },
+                { label: 'Bin Management', href: `${basePath}/bin-management`, icon: Grid },
+                { label: 'Cycle Count', href: `${basePath}/cycle-count`, icon: ClipboardCheck },
+            ],
+            hasDivider: false
+        },
+        { isHeader: true, label: t('personal_account') || "Personal Account" },
+        {
+            label: t('requisitions') || "Requisitions",
+            icon: ClipboardList,
+            subItems: [
+                { label: t('request_materials'), href: `${basePath}/request-material`, icon: FilePlus },
+                { label: t('my_requisition_history') || 'Requisitions', href: '/my-history', icon: History },
+                { label: t('request_journey'), href: `${basePath}/request-journey`, icon: Truck },
+                { label: t('verification_code'), href: `${basePath}/clerk-report`, icon: FileBarChart },
+                { label: t('feedback'), href: `${basePath}/feedback`, icon: MessageSquare, badge: feedbackCount },
+            ]
+        },
+        {
+            label: t('my_assets') || "My Assets",
+            icon: Briefcase,
+            subItems: [
+                { label: t('my_assets') || 'My Assets', href: '/my-assets', icon: Briefcase },
+            ]
+        },
+        {
+            label: t('material_transfer') || "Material Transfer",
+            icon: Send,
+            subItems: [
+                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Package },
+                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
+                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
+            ],
+            hasDivider: true
+        },
+        { label: t('manage_account') || "Manage Account", href: '/manage-account', icon: UserCog },
     ];
+
+    const HeaderIcon = Store;
 
     return (
         <>
             {/* Backdrop Overlay for Mobile */}
             {isOpen && (
-                <div className="fixed inset-0 bg-black/70 z-[140] lg:hidden backdrop-blur-lg transition-opacity duration-500" onClick={closeSidebar} />
+                <div
+                    className="fixed inset-0 bg-black/20 z-[140] lg:hidden transition-opacity duration-300"
+                    onClick={closeSidebar}
+                />
             )}
 
             {/* Sidebar */}
             <div
-                className={`fixed lg:sticky top-0 bg-white h-screen flex flex-col z-[150] overflow-hidden transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
-                ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-xl lg:shadow-none`}
+                className={`
+                fixed lg:sticky top-0
+                h-screen flex flex-col z-[150] overflow-hidden bg-[#FAFAFA]
+                transition-all duration-300
+                ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:border-none'}
+            `}
                 style={{ width: isOpen ? sidebarWidth : 0 }}
             >
-                {/* Premium Background Effects */}
-                <div className="absolute inset-0 bg-white" />
-                <div className={`absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(${isFixed ? '16,185,129' : '59,130,246'},0.05)_0%,_transparent_50%),radial-gradient(circle_at_80%_80%,_rgba(${isFixed ? '20,184,166' : '99,102,241'},0.05)_0%,_transparent_50%)]`} />
-
                 <div
-                    className="relative flex flex-col h-full flex-shrink-0 border-r border-slate-100 shadow-[20px_0_40px_-20px_rgba(0,0,0,0.05)]"
+                    className="relative flex flex-col h-full flex-shrink-0 border-r border-gray-200"
                     style={{ width: sidebarWidth }}
                 >
                     <SidebarResizeHandle />
 
                     {/* Header */}
-                    <div className="relative p-7 pb-6">
-                        <div className="relative flex items-center gap-4">
-                            <div className="relative group/logo cursor-pointer">
-                                <div className={`absolute -inset-2 bg-gradient-to-r ${isFixed ? 'from-emerald-500 to-teal-500' : 'from-blue-600 to-indigo-600'} rounded-2xl blur-xl opacity-20 group-hover/logo:opacity-40 transition-all duration-700 scale-90 group-hover/logo:scale-110`} />
-                                <div className="relative w-14 h-14 rounded-2xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 flex items-center justify-center transition-all duration-500 group-hover/logo:-translate-y-1">
-                                    <FaStore className={`text-2xl ${isFixed ? 'text-emerald-600' : 'text-blue-600'} drop-shadow-sm`} />
+                    <div className="px-6 pt-9 pb-7">
+                        <div className="flex items-center gap-3.5">
+                            <div className="relative">
+                                <div className={`absolute inset-0 bg-gradient-to-r ${styles.gradient} blur-xl rounded-full translate-y-1 opacity-20`}></div>
+                                <div className="relative w-[52px] h-[52px] rounded-[14px] bg-white shadow-[0_4px_12px_-2px_rgba(0,0,0,0.06)] flex items-center justify-center border border-gray-50/50">
+                                    
                                 </div>
                             </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-xl font-black text-slate-800 tracking-tight leading-tight">{t('store_keeper')}</h1>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <div className="relative">
-                                        <div className={`w-2 h-2 rounded-full ${isFixed ? 'bg-emerald-500' : 'bg-blue-500'} animate-pulse`} />
-                                    </div>
-                                    <p className={`text-[10px] font-black ${isFixed ? 'text-emerald-600/60' : 'text-blue-600/60'} uppercase tracking-[0.2em] font-mono`}>
-                                        {isFixed ? t('fixed_assets') : t('consumable_items')}
+                            <div className="flex flex-col min-w-0">
+                                <h2 className="text-[14px] font-black text-slate-700 leading-tight truncate -mb-0.5 uppercase">
+                                    {isFixed ? t('fixed_assets') : t('consumable_items')}
+                                </h2>
+                                <h3 className="text-[18px] font-black text-slate-900 leading-tight truncate">
+                                    {t('store_keeper')}
+                                </h3>
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                    <div className={`w-2 h-2 ${isFixed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.4)]'} rounded-full animate-pulse`}></div>
+                                    <p className={`text-[9px] font-black ${isFixed ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-[0.15em]`}>
+                                        ONLINE
                                     </p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Navigation */}
-                    <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-                        <style jsx global>{`
-                        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; transition: all 0.3s; }
-                        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-                        @keyframes slideInUp { from { opacity: 0; transform: translateY(15px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-                        .menu-item-premium { animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-                    `}</style>
-
+                    {/* Navigation Links */}
+                    <nav className="flex-1 overflow-y-auto py-1 px-4 space-y-0.5 custom-scrollbar">
                         {menuItems.map((item, index) => {
+                            if (item.isHeader) {
+                                return (
+                                    <div key={index} className="pt-4 pb-2 px-1">
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                            {item.label}
+                                        </p>
+                                    </div>
+                                );
+                            }
+
+                            const isDropdown = !!item.subItems;
+                            const isDropdownOpen = openDropdown === item.label;
                             const isActive = item.href === basePath
                                 ? pathname === basePath
-                                : pathname?.startsWith(item.href);
-                            const Icon = item.icon;
+                                : pathname?.startsWith(item.href || '#');
 
-                            // Dynamic colors based on store type
-                            const activeTx = isFixed ? 'text-emerald-600' : 'text-blue-600';
-                            const activeBg = isFixed ? 'bg-emerald-50' : 'bg-blue-50';
-                            const activeBorder = isFixed ? 'border-emerald-100/50' : 'border-blue-100/50';
-                            const activeShadow = isFixed ? 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.12)]' : 'shadow-[0_10px_25px_-5px_rgba(59,130,246,0.12)]';
-                            const hoverText = isFixed ? 'group-hover:text-emerald-500' : 'group-hover:text-blue-500';
-                            const indicatorBg = isFixed ? 'bg-emerald-500' : 'bg-blue-500';
+                            const Icon = item.icon as any;
 
                             return (
-                                <Link
-                                    key={index}
-                                    href={item.href}
-                                    onClick={handleLinkClick}
-                                    style={{ animationDelay: `${index * 40}ms` }}
-                                    className={`menu-item-premium relative flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group overflow-hidden
-                                        ${isActive ? `bg-white ${activeShadow} border ${activeBorder} ${activeTx}` : 'text-slate-500 hover:text-slate-900'}`}
-                                >
-                                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-r-full transition-all duration-500
-                                        ${isActive ? `${indicatorBg} opacity-100` : 'h-0 opacity-0 group-hover:h-3 group-hover:bg-slate-200 group-hover:opacity-100'}`} />
+                                <div key={index}>
+                                    {isDropdown ? (
+                                        <div className="space-y-0.5">
+                                            <button
+                                                onClick={() => toggleDropdown(item.label as string)}
+                                                className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-[12px] transition-all duration-200 group ${isDropdownOpen
+                                                    ? 'bg-white shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] text-slate-800 border border-gray-100/80 font-bold'
+                                                    : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent font-bold'
+                                                    }`}
+                                            >
+                                                <Icon className={`w-[22px] h-[22px] flex-shrink-0 ${isDropdownOpen ? 'text-slate-700' : 'text-slate-500'}`} strokeWidth={1.5} />
+                                                <span className="text-[15px] whitespace-nowrap flex-1 text-left flex items-center justify-between">
+                                                    {item.label}
+                                                    {(item as any).badge > 0 && !isDropdownOpen && (
+                                                        <div className={`mr-2 flex items-center justify-center min-w-[20px] h-5 px-1.5 ${isFixed ? 'bg-emerald-600 shadow-emerald-600/30' : 'bg-blue-600 shadow-blue-600/30'} rounded-full shadow-[0_0_15px_rgba(0,0,0,0.3)]`}>
+                                                            <span className="text-[10px] font-black text-white">{(item as any).badge}</span>
+                                                        </div>
+                                                    )}
+                                                </span>
+                                                {isDropdownOpen ? (
+                                                    <ChevronUp size={16} className="text-slate-400" />
+                                                ) : (
+                                                    <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-600" />
+                                                )}
+                                            </button>
 
-                                    <div className={`relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-500
-                                        ${isActive ? `${activeBg} shadow-inner` : `bg-slate-50/50 group-hover:${activeBg} group-hover:scale-110 group-hover:rotate-3`}`}>
-                                        <Icon className={`text-xl transition-all duration-500 ${isActive ? `${activeTx} scale-110` : `text-slate-400 ${hoverText}`}`} />
-                                    </div>
+                                            <AnimatePresence>
+                                                {isDropdownOpen && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                        transition={{ duration: 0.2 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="mt-1 space-y-0.5 pl-4">
+                                                            {item.subItems?.map((subItem, subIndex) => {
+                                                                const SubIcon = subItem.icon;
+                                                                const isSubActive = pathname === subItem.href;
 
-                                    <span className={`flex-1 text-sm tracking-tight transition-all duration-300 ${isActive ? 'font-black' : 'font-bold group-hover:translate-x-1'}`}>
-                                        {item.label}
-                                    </span>
-
-                                    {item.label === t('view_requests') && requestCount > 0 && (
-                                        <div className={`absolute right-12 top-1/2 -translate-y-1/2 flex items-center justify-center min-w-[20px] h-5 px-1.5 ${indicatorBg} rounded-full shadow-lg animate-pulse`}>
-                                            <span className="text-[10px] font-black text-white">{requestCount}</span>
+                                                                return (
+                                                                    <Link
+                                                                        key={subIndex}
+                                                                        href={subItem.href}
+                                                                        onClick={handleLinkClick}
+                                                                        className={`flex items-center gap-3.5 px-6 py-3 rounded-[12px] transition-all duration-200 ${isSubActive
+                                                                            ? `${styles.activeBg} ${styles.activeText} font-bold`
+                                                                            : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800 font-bold'
+                                                                            }`}
+                                                                    >
+                                                                        <SubIcon size={18} strokeWidth={1.5} className={isSubActive ? styles.activeText : 'text-slate-400'} />
+                                                                        <span className="text-[14px]">
+                                                                            {subItem.label}
+                                                                        </span>
+                                                                        {(subItem as any).badge > 0 && (
+                                                                            <div className={`ml-auto flex items-center justify-center min-w-[18px] h-4.5 px-1 ${isFixed ? 'bg-emerald-600' : 'bg-blue-600'} rounded-full`}>
+                                                                                <span className="text-[9px] font-black text-white">{(subItem as any).badge}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </Link>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
                                         </div>
+                                    ) : (
+                                        <Link
+                                            href={(item as any).href || '#'}
+                                            onClick={handleLinkClick}
+                                            className={`relative flex items-center gap-3.5 px-4 py-2.5 rounded-[12px] transition-all duration-200 ${isActive
+                                                ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-slate-800 border border-gray-100/80 font-bold'
+                                                : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent font-bold'
+                                                }`}
+                                        >
+                                            <Icon className={`w-[22px] h-[22px] flex-shrink-0 ${isActive ? 'text-slate-700' : 'text-slate-500'}`} strokeWidth={1.5} />
+                                            <span className="text-[15px] whitespace-nowrap flex-1">
+                                                {item.label}
+                                            </span>
+                                            {(item as any).badge > 0 && (
+                                                <div className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 ${isFixed ? 'bg-emerald-600 shadow-emerald-600/30' : 'bg-blue-600 shadow-blue-600/30'} rounded-full shadow-[0_0_15px_rgba(0,0,0,0.3)]`}>
+                                                    <span className="text-[10px] font-black text-white">{(item as any).badge}</span>
+                                                </div>
+                                            )}
+                                        </Link>
                                     )}
 
-                                    <div className={`transition-all duration-500 transform ${isActive ? `rotate-90 ${activeTx}` : 'opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0'}`}>
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
-                                </Link>
+                                    {(item as any).hasDivider && (
+                                        <div className="h-px bg-gray-200/60 my-3 mx-2"></div>
+                                    )}
+                                </div>
                             );
                         })}
                     </nav>
-
+                    
                 </div>
             </div>
-
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+            `}</style>
         </>
     );
 }

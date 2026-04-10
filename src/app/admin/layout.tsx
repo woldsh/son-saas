@@ -2,12 +2,13 @@
 
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import AdminSidebar from '@/components/AdminSidebar';
-import Header from '@/components/Header';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import { Loader2 } from 'lucide-react';
 import { InventoryProvider } from '@/contexts/InventoryContext';
+import Header from '@/components/Header';
 
 export default function AdminLayout({
     children,
@@ -49,11 +50,9 @@ export default function AdminLayout({
                         <AdminSidebar />
                         <div className="flex-1 flex flex-col min-w-0">
                             <div className="sticky top-0 z-40">
-                                <Header
-                                    title={t('system_administrator')}
-                                    subtitle={t('institutional_command_center')}
-                                />
+                                <Header title="Dashboard" />
                             </div>
+                            
                             <main className="flex-1 overflow-y-auto relative z-0">
                                 {children}
                             </main>

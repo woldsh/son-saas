@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { collection, onSnapshot, getDoc, doc, query, where, getDocs } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -11,6 +11,8 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  confirmResetPassword: (oobCode: string, newPassword: string) => Promise<void>;
   isAdmin: boolean;
   userRole: string | null;
   department: string | null;
@@ -178,6 +180,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    if (!auth) {
+      throw new Error('Authentication is currently unavailable.');
+    }
+    try {
+      await sendPasswordResetEmail(auth as any, email);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No user found with this email address.');
+      }
+      throw new Error(error.message || 'Failed to send password reset email.');
+    }
+  };
+
+  const confirmResetPassword = async (oobCode: string, newPassword: string) => {
+    if (!auth) {
+      throw new Error('Authentication is currently unavailable.');
+    }
+    try {
+      await confirmPasswordReset(auth as any, oobCode, newPassword);
+    } catch (error: any) {
+      if (error.code === 'auth/expired-action-code') {
+        throw new Error('This password reset link has expired. Please request a new one.');
+      }
+      if (error.code === 'auth/invalid-action-code') {
+        throw new Error('This password reset link is invalid or has already been used.');
+      }
+      if (error.code === 'auth/weak-password') {
+        throw new Error('The password is too weak. Please use a stronger password.');
+      }
+      throw new Error(error.message || 'Failed to reset password.');
+    }
+  };
+
   const logout = async () => {
     if (!auth) {
       router.push('/login');
@@ -197,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, userRole, department }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, resetPassword, confirmResetPassword, isAdmin, userRole, department }}>
       {children}
     </AuthContext.Provider>
   );

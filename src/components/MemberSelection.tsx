@@ -60,8 +60,8 @@ export default function MemberSelection({ onStartMeeting }: MemberSelectionProps
                 color: 'from-rose-500 to-red-600',
                 bg: 'bg-rose-50',
                 border: 'border-rose-100',
-                text: 'text-rose-700',
-                activeShadow: 'shadow-rose-200'
+                text: 'text-rose-700 font-black',
+                activeShadow: 'shadow-rose-300'
             },
             management: {
                 icon: <FaUserTie size={18} />,
@@ -85,9 +85,7 @@ export default function MemberSelection({ onStartMeeting }: MemberSelectionProps
     };
 
     const formatDepartmentName = (deptId: string) => {
-        return deptId.split('_').map(word =>
-            word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
+        return deptId.toUpperCase().split('_').join(' ');
     };
 
     useEffect(() => {

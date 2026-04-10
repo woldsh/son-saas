@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useUserAssetsAndFeedback } from '@/hooks/useUserAssetsAndFeedback';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import {
@@ -11,10 +13,20 @@ import {
     FiXCircle,
     FiActivity,
     FiBox,
+    FiPackage,
+    FiMessageSquare,
 } from 'react-icons/fi';
+import RequestDashboardCharts from '@/components/RequestDashboardCharts';
+import {
+    buildLastNMonthsStackedData,
+    countDashboardBuckets,
+    dashboardBucketsToPieData,
+} from '@/lib/requestChartUtils';
 
 export default function TeacherDashboardContent({ userName }: { userName: string }) {
     const { user } = useAuth();
+    const { t } = useLanguage();
+    const { assetCount, feedbackTotal } = useUserAssetsAndFeedback();
     const [stats, setStats] = useState({
         totalRequests: 0,
         pending: 0,
@@ -22,7 +34,18 @@ export default function TeacherDashboardContent({ userName }: { userName: string
         rejected: 0
     });
     const [recentRequests, setRecentRequests] = useState<any[]>([]);
+    const [allRequests, setAllRequests] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const bucketCounts = useMemo(
+        () => countDashboardBuckets(allRequests as { status?: unknown }[], 'teacher'),
+        [allRequests]
+    );
+    const pieData = useMemo(() => dashboardBucketsToPieData(bucketCounts, 'light'), [bucketCounts]);
+    const stackedBarData = useMemo(
+        () => buildLastNMonthsStackedData(allRequests, 'teacher', 6),
+        [allRequests]
+    );
 
     useEffect(() => {
         const fetchTeacherData = async () => {
@@ -38,19 +61,16 @@ export default function TeacherDashboardContent({ userName }: { userName: string
 
                 const snapshot = await getDocs(q);
                 const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const b = countDashboardBuckets(docs as { status?: unknown }[], 'teacher');
 
-                // Calculate Stats
-                const total = docs.length;
-                const pending = docs.filter((d: any) =>
-                    ['pending', 'forwarded_to_team_leader', 'approved_by_team_leader', 'approved_by_head', 'approved_by_coordinator'].includes(d.status)
-                ).length;
-                const approved = docs.filter((d: any) =>
-                    ['approved', 'completed', 'received', 'approved_by_md'].includes(d.status)
-                ).length;
-                const rejected = docs.filter((d: any) => d.status === 'rejected').length;
-
-                setStats({ totalRequests: total, pending, approved, rejected });
+                setStats({
+                    totalRequests: b.total,
+                    pending: b.pending,
+                    approved: b.approved,
+                    rejected: b.rejected,
+                });
                 setRecentRequests(docs.slice(0, 5)); // Get last 5 requests
+                setAllRequests(docs);
 
             } catch (error) {
                 console.error("Error fetching teacher data:", error);
@@ -67,11 +87,10 @@ export default function TeacherDashboardContent({ userName }: { userName: string
             <div className="p-8">
                 <div className="animate-pulse space-y-4">
                     <div className="h-8 bg-slate-200 rounded w-1/3"></div>
-                    <div className="grid grid-cols-4 gap-4">
-                        <div className="h-24 bg-slate-200 rounded"></div>
-                        <div className="h-24 bg-slate-200 rounded"></div>
-                        <div className="h-24 bg-slate-200 rounded"></div>
-                        <div className="h-24 bg-slate-200 rounded"></div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="h-24 bg-slate-200 rounded" />
+                        ))}
                     </div>
                 </div>
             </div>
@@ -85,13 +104,13 @@ export default function TeacherDashboardContent({ userName }: { userName: string
                 <h1 className="text-2xl font-bold text-slate-800">
                     Welcome back, {userName.split(' ')[0]}
                 </h1>
-                <p className="text-slate-500 text-sm mt-1">
-                    Teacher Dashboard
+                <p className="text-slate-500 text-sm mt-1 uppercase font-black">
+                    TEACHER DASHBOARD
                 </p>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <StatCard
                     label="Pending Requests"
                     value={stats.pending}
@@ -120,7 +139,34 @@ export default function TeacherDashboardContent({ userName }: { userName: string
                     color="text-blue-600"
                     bg="bg-blue-50"
                 />
+                <StatCard
+                    label={t('my_assets')}
+                    value={assetCount}
+                    icon={FiPackage}
+                    color="text-indigo-600"
+                    bg="bg-indigo-50"
+                    href="/dashboard/properties"
+                    hint={t('my_assets_dashboard_sub')}
+                />
+                <StatCard
+                    label={t('total_feedback')}
+                    value={feedbackTotal}
+                    icon={FiMessageSquare}
+                    color="text-sky-600"
+                    bg="bg-sky-50"
+                    href="/dashboard/feedback"
+                    hint={t('total_feedback_sub')}
+                />
             </div>
+
+            <RequestDashboardCharts
+                variant="light"
+                pieData={pieData}
+                stackedBarData={stackedBarData}
+                totalRequests={bucketCounts.total}
+                pieTitle="Request status"
+                barTitle="Last 6 months"
+            />
 
             {/* Quick Actions - Visual Banner */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -207,18 +253,46 @@ export default function TeacherDashboardContent({ userName }: { userName: string
 }
 
 // Helper Components
-function StatCard({ label, value, icon: Icon, color, bg }: any) {
-    return (
-        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
-            <div>
+function StatCard({
+    label,
+    value,
+    icon: Icon,
+    color,
+    bg,
+    href,
+    hint,
+}: {
+    label: string;
+    value: number;
+    icon: ComponentType<{ size?: number }>;
+    color: string;
+    bg: string;
+    href?: string;
+    hint?: string;
+}) {
+    const inner = (
+        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between h-full group-hover:border-slate-200 transition-colors">
+            <div className="min-w-0 pr-2">
                 <p className="text-sm font-medium text-slate-500">{label}</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+                {hint ? <p className="text-xs text-slate-400 mt-1 line-clamp-2">{hint}</p> : null}
             </div>
-            <div className={`p-3 rounded-lg ${bg} ${color}`}>
+            <div className={`p-3 rounded-lg shrink-0 ${bg} ${color}`}>
                 <Icon size={24} />
             </div>
         </div>
     );
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className="block rounded-xl group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+                {inner}
+            </Link>
+        );
+    }
+    return inner;
 }
 
 function ActionCard({ href, title, description, icon: Icon, color }: any) {

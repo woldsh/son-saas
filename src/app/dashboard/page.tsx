@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import TeacherDashboardContent from '@/components/TeacherDashboardContent';
 import DepartmentHeadDashboardContent from '@/components/DepartmentHeadDashboardContent';
+import AcademicCoordinatorDashboardContent from '@/components/AcademicCoordinatorDashboardContent';
 import {
     FiClipboard, FiBox, FiCheckCircle, FiClock, FiTrendingUp,
     FiActivity, FiFileText, FiArrowRight, FiCalendar, FiUser,
@@ -101,6 +102,11 @@ export default function DashboardPage() {
                 </div>
             </div>
         );
+    }
+
+    // --- ACADEMIC COORDINATOR DASHBOARD (White & Blue) ---
+    if (userRole === 'academic_coordinator') {
+        return <AcademicCoordinatorDashboardContent userName={userName} />;
     }
 
     // --- DEPARTMENT HEAD DASHBOARD (Sport Leader Style) ---

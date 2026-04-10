@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import TeacherSidebar from '@/components/TeacherSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import UniversalCommissionReview from '@/components/UniversalCommissionReview';
@@ -14,7 +14,7 @@ export default function TeacherACDecisionPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="AC Decision" subtitle="Commission Review Queue" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <UniversalCommissionReview />

@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import StoreSidebar from '@/components/StoreSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialList from '@/components/MaterialList';
@@ -13,7 +13,7 @@ export default function FixedMaterialListPage() {
                 <StoreSidebar storeType="fixed" />
 
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Fixed Asset Store" subtitle="Material Inventory Management" />
+                    
 
                     <main className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
                         <div className="max-w-7xl mx-auto space-y-8">

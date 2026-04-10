@@ -7,10 +7,11 @@ import { db } from '@/lib/firebase';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import ManagingDirectorSidebar from '@/components/ManagingDirectorSidebar';
 import ChiefSidebar from '@/components/ChiefSidebar';
-import Header from '@/components/Header';
+
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import { Loader2 } from 'lucide-react';
+import Header from '@/components/Header';
 
 export default function PortalLayout({
     children,
@@ -40,12 +41,11 @@ export default function PortalLayout({
             <div className="min-h-screen bg-white flex">
                 {isChief ? <ChiefSidebar /> : <ManagingDirectorSidebar />}
                 <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="sticky top-0 z-40">
+                        <Header title={isChief ? "Executive Portal" : "Managing Director Portal"} />
+                    </div>
                     <RequestNotificationBanner />
-                    <Header
-                        title={isChief ? "Chief Portal" : "Executive Portal"}
-                        subtitle={isChief ? "Institution Head" : "Managing Director Control Center"}
-                        isDark={false}
-                    />
+                    
                     <main className="flex-1 overflow-y-auto">
                         {children}
                     </main>

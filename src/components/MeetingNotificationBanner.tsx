@@ -20,15 +20,19 @@ export default function MeetingNotificationBanner() {
                 const role = userRole?.toLowerCase() || '';
                 const deptNormalized = (department || '').toLowerCase().replace(/\s+/g, '_');
 
-                const isHeadsOrAC = role.endsWith('_head') ||
+                const isLeaderOrAC = role.endsWith('_head') ||
                     role === 'academic_coordinator' ||
+                    role === 'procurement_team_leader' ||
+                    role === 'admin_leader' ||
                     data.invitedRoles.includes(`department_head_${deptNormalized}`);
 
-                const isInvited = (data.isPublic && isHeadsOrAC) ||
+                const isInvited = (data.isPublic && isLeaderOrAC) ||
                     data.invitedRoles.includes(role) ||
                     data.invitedRoles.includes(`department_head_${deptNormalized}`) ||
                     (role.endsWith('_head') && data.invitedRoles.includes(`department_head_${role.replace('_head', '')}`)) ||
-                    (role === 'academic_coordinator' && data.invitedRoles.includes('academic_coordinator'));
+                    (role === 'academic_coordinator' && data.invitedRoles.includes('academic_coordinator')) ||
+                    (role === 'procurement_team_leader' && data.invitedRoles.includes('procurement_team_leader')) ||
+                    (role === 'admin_leader' && data.invitedRoles.includes('admin_leader'));
 
                 if (isInvited) {
                     setMeeting(data);

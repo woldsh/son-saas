@@ -191,8 +191,15 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
     };
 
     const filteredRequests = requests.filter(req => {
-        const matchesSearch = req.requester_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesType = req.material_details.some(m => m.materialType === storeType);
+        const matchesSearch = (req.requester_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+        
+        // Normalize types for robust comparison (handles 'fixed_asset' vs 'Fixed Asset')
+        const normalizedStoreType = storeType.toLowerCase().replace(/[^a-z]/g, '');
+        const matchesType = req.material_details?.some(m => {
+            const itemType = (m.materialType || '').toLowerCase().replace(/[^a-z]/g, '');
+            return itemType.includes(normalizedStoreType) || normalizedStoreType.includes(itemType);
+        });
+
         return matchesSearch && matchesType;
     });
 

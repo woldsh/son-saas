@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import StockClerkSidebar from '@/components/StockClerkSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
@@ -14,7 +14,7 @@ export default function ViewRequestsPMTPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="View Requests (PMT)" subtitle="Consumable Material Requests" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <MaterialRequestView roleOverride="consumable_item_stock_clerk" materialTypeFilter="consumable" />

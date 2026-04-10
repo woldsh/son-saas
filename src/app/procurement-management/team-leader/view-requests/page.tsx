@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import ProcurementTeamLeaderSidebar from '@/components/ProcurementTeamLeaderSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
@@ -14,7 +14,7 @@ export default function TeamLeaderViewRequestsPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Material Withdrawals" subtitle="Team Leader Approval Center" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <MaterialRequestView roleOverride="team_leader" />

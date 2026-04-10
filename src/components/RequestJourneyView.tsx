@@ -236,102 +236,120 @@ export default function RequestJourneyView() {
 
                                         <div className="grid grid-cols-1 lg:grid-cols-8 gap-8 relative z-10">
                                             {JOURNEY_STEPS.filter(step => {
+                                                const userRole = userData?.userRole;
+                                                const TEAM_LEADER_ROLES = [
+                                                    'student_service_leader',
+                                                    'student_service_dormitory_leader',
+                                                    'student_service_sport_leader',
+                                                    'student_service_cafeteria_leader',
+                                                    'hrm_leader',
+                                                    'finance_leader',
+                                                    'admin_lead'
+                                                ];
+                                                const isSpecializedTeamLeader = TEAM_LEADER_ROLES.includes(userRole);
+
+                                                if (isSpecializedTeamLeader) {
+                                                    // Specialized Journey: MD -> Procurement TL -> Store Clerk -> Store
+                                                    // This corresponds to steps: md (4), team_leader (6), clerk (7), store (8)
+                                                    return ['md', 'team_leader', 'clerk', 'store'].includes(step.id);
+                                                }
+
                                                 // For Top-Level Leaders (SSL, HRM, Finance), skip to MD directly (no SSL step)
-                                                const isTopLeader = userData?.userRole === 'student_service_leader' ||
-                                                    userData?.userRole === 'hrm_leader' ||
-                                                    userData?.userRole === 'finance_leader';
+                                                const isTopLeader = userRole === 'student_service_leader' ||
+                                                    userRole === 'hrm_leader' ||
+                                                    userRole === 'finance_leader';
+                                                
+                                                // Existing logic for other role types...
                                                 if (isTopLeader && (step.id === 'submission' || step.id === 'student_service_leader' || step.id === 'dept_head' || step.id === 'coordinator')) return false;
 
-                                                // For Dorm/Sport/Cafeteria Leaders, skip regular employee steps, show SSL -> MD -> GS -> PTL -> Clerk -> Store
-                                                const isServiceLeader = userData?.userRole === 'student_service_dormitory_leader' ||
-                                                    userData?.userRole === 'student_service_sport_leader' ||
-                                                    userData?.userRole === 'student_service_cafeteria_leader';
+                                                // For Dorm/Sport/Cafeteria Leaders (old logic, keep for safety or merge if needed)
+                                                const isServiceLeader = userRole === 'student_service_dormitory_leader' ||
+                                                    userRole === 'student_service_sport_leader' ||
+                                                    userRole === 'student_service_cafeteria_leader';
 
                                                 // For HRM and Finance Employees/Leaders
-                                                const isHRMFlow = userData?.userRole?.includes('hrm');
-                                                const isFinanceFlow = userData?.userRole?.includes('finance');
+                                                const isHRMFlow = userRole?.includes('hrm');
+                                                const isFinanceFlow = userRole?.includes('finance');
 
                                                 if (isHRMFlow || isFinanceFlow) {
-                                                    // Hide submission (step 0), SSL (step 1), coordinator (step 3)
-                                                    // Step 2 (Dept Head) will be renamed to HRM/Finance Leader
                                                     if (step.id === 'submission' || step.id === 'student_service_leader' || step.id === 'coordinator') return false;
                                                 }
 
                                                 if (isServiceLeader && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator')) return false;
 
-                                                // For regular employees (teachers, dept heads, etc.) skip the Student Service Leader step
-                                                const isRegularEmployee = !isServiceLeader && !isTopLeader && userData?.userRole?.includes('teacher');
+                                                const isRegularEmployee = !isServiceLeader && !isTopLeader && (userRole?.includes('teacher') || userRole?.includes('employee') || userRole === 'standard_user');
                                                 if (isRegularEmployee && step.id === 'student_service_leader') return false;
 
-                                                // For Dept Head, skip ONLY the 'submission' step and student_service_leader
-                                                if (userData?.userRole?.includes('_head') && (step.id === 'submission' || step.id === 'student_service_leader')) return false;
+                                                if (userRole?.includes('_head') && (step.id === 'submission' || step.id === 'student_service_leader')) return false;
 
-                                                // For Academic Coordinator, skip 'submission', 'dept_head', and student_service_leader steps
-                                                if (userData?.userRole === 'academic_coordinator' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
+                                                if (userRole === 'academic_coordinator' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
 
-                                                // For Managing Director, skip 'submission', 'dept_head', student_service_leader, and 'coordinator' steps
-                                                const isMD = userData?.userRole === 'managing_director' || userData?.userRole === 'managing_director_leader';
+                                                const isMD = userRole === 'managing_director' || userRole === 'managing_director_leader';
                                                 if (isMD && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'student_service_leader')) return false;
 
-                                                // For Team Leader, skip early steps
-                                                if (userData?.userRole === 'procurement_team_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'md' || step.id === 'gs' || step.id === 'student_service_leader')) return false;
+                                                if (userRole === 'procurement_team_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'md' || step.id === 'gs' || step.id === 'student_service_leader')) return false;
 
-                                                // For General Service, skip early steps
-                                                if (userData?.userRole === 'general_service_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
+                                                if (userRole === 'general_service_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
 
                                                 return true;
                                             }).map((step, index) => {
                                                 // Calculate status using absolute index in original JOURNEY_STEPS
-                                                // This ensures correct status even when steps are filtered out
                                                 const currentStatusIndex = JOURNEY_STEPS.findIndex(s => s.status === request.status);
                                                 const thisStepIndex = JOURNEY_STEPS.findIndex(s => s.id === step.id);
 
                                                 let stepStatus = 'pending';
                                                 if (currentStatusIndex >= thisStepIndex) {
                                                     stepStatus = 'completed';
-                                                } else if (currentStatusIndex === thisStepIndex - 1) {
+                                                } else if (currentStatusIndex === thisStepIndex - 1 || (request.status === 'pending_managing_director' && step.id === 'md')) {
                                                     stepStatus = 'current';
                                                 }
 
-                                                // Special case: If status is 'pending' (0) and we are showing Coordinator (2) as first step for Dept Head
-                                                // We want Coordinator to be 'current' effectively if Dept Head auto-approved (so effectively status 1)
-                                                // But usually Dept Head submits -> status becomes 'approved_by_head' (1) if logic is correct.
-                                                // If logic is 'pending', we might see nothing current. 
-                                                // Let's assume request status handles this, or add a fallback if needed.
-
                                                 const Icon = step.icon;
-
                                                 let label = step.label;
                                                 let description = step.description;
 
-                                                if (userData?.userRole?.includes('_head') && step.id === 'dept_head') {
+                                                const userRole = userData?.userRole;
+                                                const TEAM_LEADER_ROLES = [
+                                                    'student_service_leader',
+                                                    'student_service_dormitory_leader',
+                                                    'student_service_sport_leader',
+                                                    'student_service_cafeteria_leader',
+                                                    'hrm_leader',
+                                                    'finance_leader',
+                                                    'admin_lead'
+                                                ];
+                                                const isSpecializedTeamLeader = TEAM_LEADER_ROLES.includes(userRole);
+
+                                                if (isSpecializedTeamLeader && step.id === 'md') {
+                                                    label = 'Submission (MD)';
+                                                    description = 'Request submitted to Managing Director';
+                                                }
+
+                                                if (userRole?.includes('_head') && step.id === 'dept_head') {
                                                     label = 'Submission';
                                                     description = 'Request submitted to academic coordinator';
                                                 }
 
-                                                const isHRMOrFinance = userData?.userRole?.includes('hrm') || userData?.userRole?.includes('finance');
-                                                if (isHRMOrFinance && step.id === 'dept_head') {
-                                                    label = isHRMOrFinance && userData?.userRole?.includes('leader') ? 'Submission' : 'Leader Approval';
-                                                    description = userData?.userRole?.includes('hrm') ? 'HRM Leader Review' : 'Finance Leader Review';
+                                                const isHRMOrFinance = userRole?.includes('hrm') || userRole?.includes('finance');
+                                                if (isHRMOrFinance && step.id === 'dept_head' && !isSpecializedTeamLeader) {
+                                                    label = isHRMOrFinance && userRole?.includes('leader') ? 'Submission' : 'Leader Approval';
+                                                    description = userRole?.includes('hrm') ? 'HRM Leader Review' : 'Finance Leader Review';
                                                 }
 
-                                                if ((userData?.userRole === 'academic_coordinator' || userData?.userRole === 'general_service_leader')) {
+                                                if ((userRole === 'academic_coordinator' || userRole === 'general_service_leader')) {
                                                     if (step.id === 'coordinator') {
                                                         label = 'Submission';
                                                         description = 'Request submitted to managing director';
                                                     }
-                                                    if (step.id === 'md') {
-                                                        label = 'Managing Director Authorization';
-                                                    }
                                                 }
 
-                                                const isMD = userData?.userRole === 'managing_director' || userData?.userRole === 'managing_director_leader';
+                                                const isMD = userRole === 'managing_director' || userRole === 'managing_director_leader';
                                                 if (isMD && step.id === 'md') {
                                                     label = 'Submission';
                                                     description = 'Request submitted to general service';
                                                 }
 
-                                                if (userData?.userRole === 'procurement_team_leader' && step.id === 'team_leader') {
+                                                if (userRole === 'procurement_team_leader' && step.id === 'team_leader') {
                                                     label = 'Submission';
                                                     description = 'Request submitted to store clerk';
                                                 }

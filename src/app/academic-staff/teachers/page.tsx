@@ -1,20 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserAssetsAndFeedback } from '@/hooks/useUserAssetsAndFeedback';
+import Link from 'next/link';
 import { useLanguage } from '@/contexts/LanguageContext';
-import Header from '@/components/Header';
 import TeacherSidebar from '@/components/TeacherSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import DashboardStats from '@/components/DashboardStats';
-import { LayoutGrid, Clock, CheckCircle2, Package, Activity, Inbox } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { LayoutGrid, Clock, CheckCircle2, Package, Activity, Inbox, MessageSquare } from 'lucide-react';
+import { motion } from 'framer-motion';
+import RequestDashboardCharts from '@/components/RequestDashboardCharts';
+import {
+    buildLastNMonthsStackedData,
+    countDashboardBuckets,
+    dashboardBucketsToPieData,
+} from '@/lib/requestChartUtils';
 
 export default function TeachersPage() {
     const { user } = useAuth();
     const { t } = useLanguage();
+    const { assetCount, feedbackTotal } = useUserAssetsAndFeedback();
     const [stats, setStats] = useState({
         pending: 0,
         approved: 0,
@@ -22,7 +30,18 @@ export default function TeachersPage() {
         total: 0
     });
     const [recentRequests, setRecentRequests] = useState<any[]>([]);
+    const [allRequests, setAllRequests] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const bucketCounts = useMemo(
+        () => countDashboardBuckets(allRequests as { status?: unknown }[], 'academic'),
+        [allRequests]
+    );
+    const pieData = useMemo(() => dashboardBucketsToPieData(bucketCounts, 'dark'), [bucketCounts]);
+    const stackedBarData = useMemo(
+        () => buildLastNMonthsStackedData(allRequests, 'academic', 6),
+        [allRequests]
+    );
 
     useEffect(() => {
         if (!user?.uid || !db) return;
@@ -47,6 +66,7 @@ export default function TeachersPage() {
             });
 
             setRecentRequests(docs.slice(0, 5));
+            setAllRequests(docs);
             setLoading(false);
         });
 
@@ -66,7 +86,7 @@ export default function TeachersPage() {
                 <TeacherSidebar />
 
                 <div className="flex-1 flex flex-col relative z-10 w-full overflow-hidden">
-                    <Header title={t('employee_portal')} subtitle={t('system_oversight')} isDark />
+                    
 
                     <main className="flex-1 px-4 lg:px-8 pb-12 w-full max-w-7xl mx-auto custom-scrollbar overflow-y-auto">
                         <motion.div
@@ -80,7 +100,7 @@ export default function TeachersPage() {
                             <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs">{t('real_time_inventory_msg')}</p>
                         </motion.div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-8 mb-12">
                             <DashboardStats
                                 title={t('active_requests')}
                                 value={stats.pending}
@@ -105,7 +125,43 @@ export default function TeachersPage() {
                                 color="emerald"
                                 delay={0.3}
                             />
+                            <Link href="/dashboard/properties" className="block rounded-[2.5rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]">
+                                <DashboardStats
+                                    title={t('my_assets')}
+                                    value={assetCount}
+                                    subtitle={t('my_assets_dashboard_sub')}
+                                    icon={Package}
+                                    color="blue"
+                                    delay={0.35}
+                                />
+                            </Link>
+                            <Link href="/dashboard/feedback" className="block rounded-[2.5rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]">
+                                <DashboardStats
+                                    title={t('total_feedback')}
+                                    value={feedbackTotal}
+                                    subtitle={t('total_feedback_sub')}
+                                    icon={MessageSquare}
+                                    color="rose"
+                                    delay={0.4}
+                                />
+                            </Link>
                         </div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.35 }}
+                            className="mb-12"
+                        >
+                            <RequestDashboardCharts
+                                variant="dark"
+                                pieData={pieData}
+                                stackedBarData={stackedBarData}
+                                totalRequests={bucketCounts.total}
+                                pieTitle={t('request_status')}
+                                barTitle={t('monthly_req_vol')}
+                            />
+                        </motion.div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                             {/* Recent Activity Section */}

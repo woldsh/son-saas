@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import GeneralServiceSidebar from '@/components/GeneralServiceSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
@@ -20,7 +20,7 @@ export default function GeneralServiceRequestsPage() {
                         <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-gradient-to-tr from-purple-100/50 to-transparent blur-3xl"></div>
                     </div>
 
-                    <Header title="Service Management" subtitle="Validated Request Oversight" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
                         <MaterialRequestView roleOverride="general_service" />

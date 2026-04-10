@@ -1,7 +1,7 @@
 'use client';
 
 import MigrateUserReportImages from '@/components/MigrateUserReportImages';
-import Header from '@/components/Header';
+
 import ProcurementTeamLeaderSidebar from '@/components/ProcurementTeamLeaderSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 
@@ -14,7 +14,7 @@ export default function MigrationPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Database Migration" subtitle="User_reports Image Update" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <MigrateUserReportImages />

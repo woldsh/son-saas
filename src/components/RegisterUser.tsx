@@ -29,7 +29,7 @@ interface RegisterUserProps {
 }
 
 const DEFAULT_ACADEMIC_DEPTS = [
-  { id: 'accounting_finance', label: 'Accounting and Finance' },
+  { id: 'accounting_finance', label: 'ACCOUNTING AND FINANCE' },
   { id: 'agribusiness', label: 'Agribusiness' },
   { id: 'animal_science', label: 'Animal Science' },
   { id: 'computer_science', label: 'Computer Science' },
@@ -556,7 +556,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
 
                       {academicSelection === 'department' && (
                         <div className="space-y-3">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('department')}</label>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('department_label')}</label>
                           <select value={departmentSelection} onChange={(e) => setDepartmentSelection(e.target.value)} required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-xs font-bold text-slate-900">
                             <option value="">Select Faculty...</option>
                             {availableAcademicDepts.map((dept) => (

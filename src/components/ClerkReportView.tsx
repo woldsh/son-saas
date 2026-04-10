@@ -21,6 +21,7 @@ interface SentCodeRecord {
     material_details: MaterialDetail[];
     status: string;
     created_at: any;
+    isSeen?: boolean;
 }
 
 interface ClerkReportViewProps {
@@ -42,7 +43,7 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
         const fetchUserData = async () => {
             if (user?.uid && db) {
                 try {
-                    const userDoc = await getDoc(doc(db!, 'Users', user.uid));
+                    const userDoc = await getDoc(doc(db!, 'users', user.uid));
                     if (userDoc.exists()) {
                         setUserData(userDoc.data());
                     }
@@ -68,16 +69,35 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
         }
     };
 
+    // Mark notifications as seen when records are loaded
     useEffect(() => {
-        // Don't fetch if no user is logged in
+        if (!user?.uid || !records.length || !db) return;
+
+        const markAsSeen = async () => {
+            // Include both 'false' and 'undefined' (existing records)
+            const unseenRecords = records.filter(r => r.isSeen !== true);
+            if (unseenRecords.length === 0) return;
+
+            try {
+                const promises = unseenRecords.map(r => 
+                    updateDoc(doc(db!, 'Send_to_Users', r.id), { isSeen: true })
+                );
+                await Promise.all(promises);
+            } catch (err) {
+                console.error("Error marking handouts as seen:", err);
+            }
+        };
+
+        markAsSeen();
+    }, [records, user?.uid]);
+
+    useEffect(() => {
+        // ... previous useEffect ...
         if (!user?.uid || !db) {
             setLoading(false);
             return;
         }
 
-        // Determine if we should filter by requester_id
-        // Clerks and Store Keepers should see all records (to verify them)
-        // Others (Teachers, etc.) should only see their own records
         const isClerkOrStore =
             userData?.userRole?.includes('stock_clerk') ||
             userData?.userRole?.includes('store_keeper') ||
@@ -85,17 +105,14 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
 
         let q;
         if (isClerkOrStore) {
-            // Clerks see everything
             q = query(collection(db!, 'Send_to_Users'));
         } else {
-            // Individual users see only their own reports
             q = query(
                 collection(db!, 'Send_to_Users'),
                 where('requester_user_id', '==', user.uid)
             );
         }
 
-        // Safety Timeout to stop loading if Firestore hangs
         const timeoutId = setTimeout(() => {
             setLoading(false);
         }, 5000);
@@ -107,7 +124,6 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
                 ...doc.data()
             })) as SentCodeRecord[];
 
-            // Sort client-side to avoid needing a composite index
             const sortedData = data.sort((a, b) => {
                 const timeA = a.created_at?.seconds || 0;
                 const timeB = b.created_at?.seconds || 0;
@@ -118,7 +134,6 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
             setLoading(false);
         }, (error) => {
             clearTimeout(timeoutId);
-            console.error("Firestore Error in ClerkReportView:", error);
             setLoading(false);
         });
 
@@ -128,19 +143,15 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
         };
     }, [user?.uid, userData?.userRole]);
 
-    // Determine derived material type filter if not explicitly provided
     const effectiveMaterialTypeFilter = materialTypeFilter ||
         (userData?.stockType === 'fixed_asset' ? 'fixed_asset' :
             userData?.stockType === 'consumable' ? 'consumable' : undefined);
 
     const filteredRecords = records.filter(record => {
-        // 1. Filter by Search Term
         const matchesSearch =
             record.requester_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             record.verification_code.includes(searchTerm);
 
-        // 2. Filter by Material Type
-        // If effectiveMaterialTypeFilter is set, show record if it contains AT LEAST ONE item of that type
         const matchesType = !effectiveMaterialTypeFilter ||
             record.material_details.some(m => m.materialType === effectiveMaterialTypeFilter);
 

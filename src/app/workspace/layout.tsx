@@ -16,11 +16,13 @@ import TeacherSidebar from '@/components/TeacherSidebar';
 import AdminTeamLeaderSidebar from '@/components/AdminTeamLeaderSidebar';
 import ManagingDirectorSidebar from '@/components/ManagingDirectorSidebar';
 import GeneralServiceSidebar from '@/components/GeneralServiceSidebar';
-import Header from '@/components/Header';
+
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
+import MeetingNotificationBanner from '@/components/MeetingNotificationBanner';
 import { Loader2 } from 'lucide-react';
 import { isEmployeeRole, getDisplayNameForRole, isLeaderRole } from '@/utils/routeConfig';
+import Header from '@/components/Header';
 
 export default function WorkspaceLayout({
     children,
@@ -87,11 +89,12 @@ export default function WorkspaceLayout({
             <div className="min-h-screen bg-white flex">
                 {renderSidebar()}
                 <div className="flex-1 flex flex-col">
+                    <div className="sticky top-0 z-40">
+                        <Header title={getTitle()} />
+                    </div>
+                    <MeetingNotificationBanner />
                     <RequestNotificationBanner />
-                    <Header
-                        title={getTitle()}
-                        subtitle={department && isEmployeeRole(userRole) ? "Administrative Unit" : "Procurement Management"}
-                    />
+                    
                     <main className="flex-1 overflow-y-auto">
                         {children}
                     </main>

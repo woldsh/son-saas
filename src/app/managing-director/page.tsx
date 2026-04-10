@@ -1,5 +1,5 @@
 'use client';
-import Header from '@/components/Header';
+
 import ManagingDirectorLayout from '@/components/ManagingDirectorLayout';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -7,7 +7,7 @@ export default function ManagingDirectorPage() {
     const { t } = useLanguage();
     return (
         <ManagingDirectorLayout>
-            <Header title={t('managing_director')} subtitle={t('dashboard')} />
+            
 
             <div className="px-8 py-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

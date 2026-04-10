@@ -101,7 +101,7 @@ export default function AdminSidebar() {
                                         <Icon className={`text-xl transition-all duration-500 ${isActive ? 'text-blue-600 scale-110' : 'text-slate-400 group-hover:text-blue-500'}`} />
                                     </div>
 
-                                    <span className={`flex-1 text-sm tracking-tight transition-all duration-300 ${isActive ? 'font-black' : 'font-bold group-hover:translate-x-1'}`}>{item.label}</span>
+                                    <span className={`flex-1 text-[15px] tracking-tight transition-all duration-300 ${isActive ? 'font-black' : 'font-bold group-hover:translate-x-1'}`}>{item.label}</span>
 
                                     <div className={`transition-all duration-500 transform ${isActive ? 'rotate-90 text-blue-600' : 'opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0'}`}>
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -115,6 +115,7 @@ export default function AdminSidebar() {
                             );
                         })}
                     </nav>
+                    
                 </div>
             </div>
         </>

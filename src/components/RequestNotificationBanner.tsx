@@ -25,7 +25,7 @@ export default function RequestNotificationBanner() {
     useEffect(() => {
         if (!db || !userRole) return;
 
-        const role = userRole.toLowerCase();
+        const role = userRole.toLowerCase().replace(/\s+/g, '_');
         const requestsRef = collection(db!, 'Request_materials');
         let q;
 
@@ -43,7 +43,6 @@ export default function RequestNotificationBanner() {
         } else if (role === 'student_service_leader') {
             q = query(requestsRef, where('status', '==', 'pending_student_service_leader'));
         } else if (role.endsWith('_leader')) {
-            // Dynamic leaders (e.g. quality_assurance_leader)
             q = query(requestsRef, where('currentApproverRole', '==', userRole), where('status', '==', 'pending_department_leader'));
         } else if (role.endsWith('_head')) {
             let dept = department;
@@ -58,11 +57,13 @@ export default function RequestNotificationBanner() {
         } else if (role === 'general_service_leader') {
             q = query(requestsRef, where('status', 'in', ['approved_by_md', 'pending_general_service']));
         } else if (role === 'procurement_team_leader') {
-            q = query(requestsRef, where('status', 'in', ['forwarded_to_team_leader', 'pending_procurement']));
+            q = query(requestsRef, where('currentApproverRole', '==', 'procurement_team_leader'), where('status', 'in', ['forwarded_to_team_leader', 'pending_procurement']));
         } else if (role.includes('stock_clerk')) {
             q = query(requestsRef, where('currentApproverRole', '==', userRole), where('status', '==', 'approved_by_procurement_team_leader'));
         } else if (role.includes('store_keeper')) {
-            q = query(requestsRef, where('currentApproverRole', '==', userRole), where('status', '==', 'approved_by_clerk'));
+            // Store Keepers do not use this notification.
+            // Fulfillment is handled via Store Verification when the employee verifies their code.
+            return;
         }
 
         if (!q) return;
@@ -73,10 +74,9 @@ export default function RequestNotificationBanner() {
                 ...doc.data()
             })) as PendingRequest[];
 
-            // Detect new requests
             if (requests.length > lastSeenCount && lastSeenCount > 0) {
                 setIsNew(true);
-                setDismissed(false); // Re-show banner for new requests
+                setDismissed(false);
             }
             setLastSeenCount(requests.length);
             setPendingRequests(requests);
@@ -85,7 +85,6 @@ export default function RequestNotificationBanner() {
         return () => unsubscribe();
     }, [userRole, department]);
 
-    // Auto-hide after 15 seconds for non-new notifications
     useEffect(() => {
         if (pendingRequests.length > 0 && isNew) {
             const timer = setTimeout(() => setIsNew(false), 15000);
@@ -98,23 +97,47 @@ export default function RequestNotificationBanner() {
     const latestRequest = pendingRequests[0];
     const totalItems = pendingRequests.reduce((sum, r) => sum + (r.items?.length || 0), 0);
 
-    // Dynamic Base Path Logic
+    const normalizedRole = userRole?.toLowerCase().replace(/\s+/g, '_') || '';
     let basePath = '/admin-staff/team-leader';
-    if (userRole) {
-        if (userRole === 'academic_coordinator') basePath = '/dashboard';
-        else if (userRole.endsWith('_head') || userRole.endsWith('_teacher')) basePath = '/dashboard';
-        else if (userRole === 'managing_director' || userRole === 'chief') basePath = '/portal';
-        else if (userRole === 'general_service_leader') basePath = '/service';
-        else if (userRole === 'procurement_team_leader') basePath = '/procurement-management/team-leader';
-        else if (userRole.includes('stock_clerk')) {
-            basePath = userRole.includes('consumable') ? '/procurement-management/stock-clerk/consumable-material' : '/procurement-management/stock-clerk/fixed-material';
+    let approvalPath = '/view-requests';
+
+    if (normalizedRole) {
+        if (normalizedRole === 'academic_coordinator') {
+            basePath = '/dashboard';
+            approvalPath = '/approve-requests';
         }
-        else if (userRole.includes('store_keeper')) basePath = '/workspace'; // Or specific store path
+        else if (normalizedRole.endsWith('_head') || normalizedRole.endsWith('_teacher')) {
+            basePath = '/dashboard';
+            approvalPath = '/approve-requests';
+        }
+        else if (normalizedRole.includes('_leader') && !['managing_director_leader', 'general_service_leader', 'procurement_team_leader'].includes(normalizedRole)) {
+            basePath = '/admin-staff/team-leader';
+            approvalPath = '/approve-requests';
+        }
+        else if (normalizedRole === 'managing_director' || normalizedRole === 'chief' || normalizedRole === 'managing_director_leader') {
+            basePath = '/portal';
+            approvalPath = '/view-requests';
+        }
+        else if (normalizedRole === 'general_service_leader') {
+            basePath = '/service';
+            approvalPath = '/view-requests';
+        }
+        else if (normalizedRole === 'procurement_team_leader') {
+            basePath = '/workspace';
+            approvalPath = '/approve-requests';
+        }
+        else if (normalizedRole.includes('stock_clerk')) {
+            basePath = normalizedRole.includes('consumable') ? '/procurement-management/stock-clerk/consumable-material' : '/procurement-management/stock-clerk/fixed-material';
+            approvalPath = '/view-requests-pmt';
+        }
+        else if (normalizedRole.includes('store_keeper')) {
+            basePath = normalizedRole.includes('consumable') ? '/procurement-management/store/consumable-material' : '/procurement-management/store/fixed-material';
+            approvalPath = '/requests';
+        }
     }
 
     return (
         <div className={`relative group overflow-hidden transition-all duration-700 ${isNew ? 'animate-in slide-in-from-top-4' : ''}`}>
-            {/* Animated Glow Background */}
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 animate-gradient-x" />
 
             <div className="relative px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -123,7 +146,6 @@ export default function RequestNotificationBanner() {
                         <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
                             <FaBell className="text-white text-xl" />
                         </div>
-                        {/* Pulse ring for new notifications */}
                         {isNew && (
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
                                 <span className="text-white text-[10px] font-black">{pendingRequests.length}</span>
@@ -154,7 +176,7 @@ export default function RequestNotificationBanner() {
 
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <Link
-                        href={`${basePath}/view-requests`}
+                        href={`${basePath}${approvalPath}`}
                         className="flex-1 md:flex-none px-8 py-3 bg-white text-emerald-600 rounded-2xl font-black text-sm shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 group"
                     >
                         <FaBoxOpen className="group-hover:animate-bounce" />

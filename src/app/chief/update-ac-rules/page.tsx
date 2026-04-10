@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Header from '@/components/Header';
+
 import ChiefSidebar from '@/components/ChiefSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { db } from '@/lib/firebase';
@@ -176,7 +176,7 @@ export default function UpdateACRulesPage() {
                 <ChiefSidebar />
 
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Manage AC Rules" subtitle="Update or Remove Inventory Guardrails" />
+                    
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-10">
                         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">

@@ -8,11 +8,13 @@ import DormitoryLeaderSidebar from '@/components/DormitoryLeaderSidebar';
 import CafeteriaLeaderSidebar from '@/components/CafeteriaLeaderSidebar';
 import SportsLeaderSidebar from '@/components/SportsLeaderSidebar';
 import StudentServiceLeaderSidebar from '@/components/StudentServiceLeaderSidebar';
-import Header from '@/components/Header';
+
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import { getDisplayNameForRole } from '@/utils/routeConfig';
 import { InventoryProvider } from '@/contexts/InventoryContext';
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
+import MeetingNotificationBanner from '@/components/MeetingNotificationBanner';
+import Header from '@/components/Header';
 
 export default function TeamLeaderLayout({
     children,
@@ -91,11 +93,12 @@ export default function TeamLeaderLayout({
 
                     {/* Main Content */}
                     <div className="flex-1 flex flex-col">
+                        <div className="sticky top-0 z-40">
+                            <Header title={getLocalizedRoleName(userRole)} />
+                        </div>
+                        <MeetingNotificationBanner />
                         <RequestNotificationBanner />
-                        <Header
-                            title={getLocalizedRoleName(userRole || '')}
-                            subtitle={department ? "Administrative Unit" : (t('team_leadership' as any) || "Team Leadership")}
-                        />
+                        
                         <main className="flex-1 overflow-y-auto">
                             {children}
                         </main>

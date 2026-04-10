@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import Header from '@/components/Header';
+
 import StoreSidebar from '@/components/StoreSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import StoreRequestVerification from '@/components/StoreRequestVerification';
@@ -66,7 +66,7 @@ export default function WorkspaceHandoutPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Handout Verification" subtitle="Verify Codes & Deduct Inventory" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <StoreRequestVerification storeType={storeType} />

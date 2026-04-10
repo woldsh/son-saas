@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import AcademicCoordinatorSidebar from '@/components/AcademicCoordinatorSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import NeedACDecisionView from '@/components/NeedACDecisionView';
@@ -14,7 +14,7 @@ export default function CommissionReviewPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Commission Review" subtitle="Higher Executive Decisions Queue" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <NeedACDecisionView />

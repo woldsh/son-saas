@@ -1,7 +1,7 @@
 'use client';
 
-import MaterialRequestView from '@/components/MaterialRequestView';
+import MyRequisitionHistory from '@/components/MyRequisitionHistory';
 
 export default function WorkspaceViewRequestsPage() {
-    return <MaterialRequestView />;
+    return <MyRequisitionHistory />;
 }

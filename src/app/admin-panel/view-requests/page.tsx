@@ -1,7 +1,7 @@
 'use client';
 
-import MaterialRequestView from '@/components/MaterialRequestView';
+import MyRequisitionHistory from '@/components/MyRequisitionHistory';
 
 export default function AdminViewRequestsPage() {
-    return <MaterialRequestView />;
+    return <MyRequisitionHistory />;
 }

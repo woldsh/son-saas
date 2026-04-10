@@ -5,13 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, getDocs, updateDoc, doc, serverTimestamp, orderBy, getDoc
+    collection, query, where, getDocs, updateDoc, doc, serverTimestamp, orderBy
 } from 'firebase/firestore';
 import {
     FiDownloadCloud, FiCheckCircle, FiXCircle, FiClock, FiUser,
     FiMail, FiBox, FiArrowRight, FiPackage, FiFileText
 } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface TransferRecord {
     id: string;
@@ -35,7 +36,6 @@ export default function ReceiveGoodsPage() {
     const [historyTransfers, setHistoryTransfers] = useState<TransferRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
-    const [userEmail, setUserEmail] = useState('');
 
     useEffect(() => {
         const fetchTransfers = async () => {
@@ -43,7 +43,6 @@ export default function ReceiveGoodsPage() {
 
             try {
                 const email = user.email?.toLowerCase() || '';
-                setUserEmail(email);
 
                 const transfersRef = collection(db, 'Material_transfers');
 
@@ -93,7 +92,7 @@ export default function ReceiveGoodsPage() {
             const transfer = pendingTransfers.find(t => t.id === transferId);
             if (transfer) {
                 setPendingTransfers(prev => prev.filter(t => t.id !== transferId));
-                setHistoryTransfers(prev => [{ ...transfer, status: 'approved_by_receiver' }, ...prev]);
+                setHistoryTransfers(prev => [{ ...transfer, status: 'approved_by_receiver', updatedAt: { seconds: Date.now() / 1000 } }, ...prev]);
             }
         } catch (error) {
             console.error('Error approving transfer:', error);
@@ -117,7 +116,7 @@ export default function ReceiveGoodsPage() {
             const transfer = pendingTransfers.find(t => t.id === transferId);
             if (transfer) {
                 setPendingTransfers(prev => prev.filter(t => t.id !== transferId));
-                setHistoryTransfers(prev => [{ ...transfer, status: 'rejected_by_receiver' }, ...prev]);
+                setHistoryTransfers(prev => [{ ...transfer, status: 'rejected_by_receiver', updatedAt: { seconds: Date.now() / 1000 } }, ...prev]);
             }
         } catch (error) {
             console.error('Error rejecting transfer:', error);
@@ -128,194 +127,242 @@ export default function ReceiveGoodsPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'approved_by_receiver': return { label: t('transfer_approved'), color: 'bg-blue-100 text-blue-700', icon: FiCheckCircle };
-            case 'rejected_by_receiver': return { label: t('transfer_rejected'), color: 'bg-red-100 text-red-700', icon: FiXCircle };
-            case 'completed': return { label: t('transfer_completed'), color: 'bg-emerald-100 text-emerald-700', icon: FiCheckCircle };
-            default: return { label: status, color: 'bg-slate-100 text-slate-700', icon: FiClock };
+            case 'approved_by_receiver': return { label: t('transfer_approved') || 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: FiCheckCircle };
+            case 'rejected_by_receiver': return { label: t('transfer_rejected') || 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', icon: FiXCircle };
+            case 'completed': return { label: t('transfer_completed') || 'Completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: FiCheckCircle };
+            default: return { label: status, color: 'bg-slate-50 text-slate-700 border-slate-200', icon: FiClock };
         }
     };
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-12 min-h-[60vh]">
-                <div className="text-center space-y-4">
-                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
-                    <p className="text-slate-400 text-sm font-bold tracking-widest uppercase">{t('loading')}</p>
-                </div>
+            <div className="flex items-center justify-center p-12 min-h-screen bg-slate-50">
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center space-y-4"
+                >
+                    <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto" />
+                    <p className="text-slate-500 text-sm font-semibold tracking-wide">{t('loading')}</p>
+                </motion.div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30">
-            {/* Header */}
-            <div className="relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/5 via-teal-600/5 to-cyan-600/5" />
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-400/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
-
-                <div className="relative px-8 py-8">
+        <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* Header */}
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                        <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
                             <FiDownloadCloud className="text-2xl text-white" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('receive_goods')}</h1>
-                            <p className="text-slate-500 font-medium">{t('incoming_transfers')}</p>
+                            <h1 className="text-2xl font-bold text-slate-900">
+                                {t('receive_goods') || "Receive Goods"}
+                            </h1>
+                            <p className="text-sm font-medium text-slate-500 mt-1">
+                                {t('incoming_transfers') || "Manage materials transferred to your account"}
+                            </p>
                         </div>
                     </div>
-                </div>
-            </div>
+                </motion.div>
 
-            <div className="px-8 pb-8 space-y-8">
-                {/* Pending Transfers */}
-                <div className="bg-white rounded-3xl border border-slate-200/60 shadow-lg shadow-slate-200/50 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
+                {/* Pending Transfers Section */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                >
+                    <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                                <FiClock className="text-lg text-amber-600" />
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                                <FiClock className="text-lg" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-slate-800">{t('pending_transfers')}</h2>
-                                <p className="text-sm text-slate-500">{pendingTransfers.length} {t('items_label')}</p>
+                                <h2 className="text-lg font-semibold text-slate-900">{t('pending_transfers') || "Pending Transfers"}</h2>
+                                <p className="text-xs text-slate-500">{pendingTransfers.length} {t('items_label') || "Items"}</p>
                             </div>
-                            {pendingTransfers.length > 0 && (
-                                <span className="ml-auto px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-bold animate-pulse">
-                                    {pendingTransfers.length}
-                                </span>
-                            )}
                         </div>
+                        {pendingTransfers.length > 0 && (
+                            <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-xs font-semibold">
+                                Action Required
+                            </span>
+                        )}
                     </div>
 
                     {pendingTransfers.length === 0 ? (
                         <div className="p-12 text-center">
-                            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                                <FiDownloadCloud className="text-3xl text-slate-400" />
+                            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                <FiCheckCircle className="text-2xl text-slate-300" />
                             </div>
-                            <h3 className="font-bold text-slate-700 text-lg">{t('no_incoming_transfers')}</h3>
-                            <p className="text-slate-500 mt-1 max-w-md mx-auto">{t('no_incoming_desc')}</p>
+                            <h3 className="font-semibold text-slate-900 text-lg">{t('no_incoming_transfers') || "All caught up!"}</h3>
+                            <p className="text-slate-500 text-sm mt-1 max-w-sm mx-auto">
+                                {t('no_incoming_desc') || "You have no pending material transfers to review at this time."}
+                            </p>
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100">
-                            {pendingTransfers.map((transfer) => (
-                                <div key={transfer.id} className="p-6">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                            <FiUser className="text-xl text-blue-600" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-bold text-slate-800">{transfer.senderName}</span>
-                                                <FiArrowRight className="text-slate-400 text-sm" />
-                                                <span className="text-sm text-slate-500">{t('to_label')} {t('receiver_name')}</span>
-                                            </div>
-                                            <p className="text-sm text-slate-500 mb-3 flex items-center gap-1">
-                                                <FiMail className="text-xs" /> {transfer.senderEmail}
-                                            </p>
-
-                                            {/* Materials */}
-                                            <div className="flex flex-wrap gap-2 mb-3">
-                                                {transfer.materials?.map((item: any, idx: number) => (
-                                                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-sm font-medium text-slate-700">
-                                                        <FiBox className="text-xs text-slate-400" />
-                                                        {item.name} {item.model ? `(${item.model})` : ''} ×{item.quantity}
-                                                    </span>
-                                                ))}
-                                            </div>
-
-                                            {transfer.reason && (
-                                                <div className="flex items-start gap-2 mb-4 bg-slate-50 rounded-lg p-3">
-                                                    <FiFileText className="text-sm text-slate-400 mt-0.5 flex-shrink-0" />
-                                                    <p className="text-sm text-slate-600 italic">"{transfer.reason}"</p>
+                            <AnimatePresence>
+                                {pendingTransfers.map((transfer, index) => (
+                                    <motion.div 
+                                        key={transfer.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        className="p-6 hover:bg-slate-50/50 transition-colors"
+                                    >
+                                        <div className="flex flex-col md:flex-row items-start gap-6">
+                                            {/* Sender Info - Simple Box */}
+                                            <div className="flex items-start gap-4 min-w-[220px]">
+                                                <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 text-slate-600 font-bold text-sm">
+                                                    {transfer.senderName.charAt(0).toUpperCase()}
                                                 </div>
-                                            )}
-
-                                            {/* Action Buttons */}
-                                            <div className="flex items-center gap-3">
-                                                <button
-                                                    onClick={() => handleApprove(transfer.id)}
-                                                    disabled={processingId === transfer.id}
-                                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 transition-all disabled:opacity-50"
-                                                >
-                                                    {processingId === transfer.id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <FiCheckCircle className="text-base" />
-                                                    )}
-                                                    {t('approve_transfer')}
-                                                </button>
-                                                <button
-                                                    onClick={() => handleReject(transfer.id)}
-                                                    disabled={processingId === transfer.id}
-                                                    className="flex items-center gap-2 px-5 py-2.5 bg-white border-2 border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50"
-                                                >
-                                                    <FiXCircle className="text-base" />
-                                                    {t('reject_transfer')}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <span className="text-xs text-slate-400 flex-shrink-0">
-                                            {transfer.createdAt?.seconds
-                                                ? new Date(transfer.createdAt.seconds * 1000).toLocaleDateString()
-                                                : 'Recently'}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* History */}
-                {historyTransfers.length > 0 && (
-                    <div className="bg-white rounded-3xl border border-slate-200/60 shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                                    <FiClock className="text-lg text-violet-600" />
-                                </div>
-                                <h2 className="text-lg font-bold text-slate-800">{t('transfer_history')}</h2>
-                            </div>
-                        </div>
-
-                        <div className="divide-y divide-slate-100">
-                            {historyTransfers.map((transfer) => {
-                                const badge = getStatusBadge(transfer.status);
-                                const BadgeIcon = badge.icon;
-                                return (
-                                    <div key={transfer.id} className="p-5">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="font-bold text-slate-800">{transfer.senderName}</span>
-                                                    <FiArrowRight className="text-slate-400 text-sm" />
-                                                    <span className="text-sm text-slate-500">{t('to_label')} you</span>
+                                                <div>
+                                                    <p className="font-semibold text-slate-900 text-sm">{transfer.senderName}</p>
+                                                    <p className="text-xs text-slate-500 mt-0.5">{transfer.senderEmail}</p>
+                                                    <p className="text-xs text-slate-400 mt-1">
+                                                        {transfer.createdAt?.seconds ? new Date(transfer.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
+                                                    </p>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                            </div>
+
+                                            {/* Transfer Details */}
+                                            <div className="flex-1 min-w-0 w-full space-y-4">
+                                                <div className="flex flex-wrap gap-2">
                                                     {transfer.materials?.map((item: any, idx: number) => (
-                                                        <span key={idx} className="px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600">
-                                                            {item.name} ×{item.quantity}
-                                                        </span>
+                                                        <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm text-slate-700 shadow-sm">
+                                                            <FiBox className="text-slate-400 text-xs" />
+                                                            <span className="font-medium">{item.name} {item.model ? `(${item.model})` : ''}</span>
+                                                            <span className="text-slate-400 text-xs px-1">×{item.quantity}</span>
+                                                        </div>
                                                     ))}
                                                 </div>
-                                            </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${badge.color}`}>
-                                                    <BadgeIcon className="text-[10px]" /> {badge.label}
-                                                </span>
-                                                <span className="text-xs text-slate-400">
-                                                    {transfer.createdAt?.seconds
-                                                        ? new Date(transfer.createdAt.seconds * 1000).toLocaleDateString()
-                                                        : 'Recently'}
-                                                </span>
+
+                                                {transfer.reason && (
+                                                    <div className="flex items-start gap-2 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                        <FiFileText className="text-sm text-slate-400 mt-0.5" />
+                                                        <p className="text-sm text-slate-600">"{transfer.reason}"</p>
+                                                    </div>
+                                                )}
+
+                                                {/* Action Buttons */}
+                                                <div className="flex flex-wrap items-center gap-3 pt-2">
+                                                    <button
+                                                        onClick={() => handleApprove(transfer.id)}
+                                                        disabled={processingId === transfer.id}
+                                                        className={`px-6 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${processingId === transfer.id
+                                                                ? 'bg-blue-400 text-white cursor-not-allowed'
+                                                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                                                            }`}
+                                                    >
+                                                        {processingId === transfer.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <FiCheckCircle className="text-sm" />
+                                                        )}
+                                                        {t('approve_transfer') || "Accep Transfer"}
+                                                    </button>
+                                                    
+                                                    <button
+                                                        onClick={() => handleReject(transfer.id)}
+                                                        disabled={processingId === transfer.id}
+                                                        className={`px-6 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${processingId === transfer.id
+                                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm'
+                                                            }`}
+                                                    >
+                                                        {processingId === transfer.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <FiXCircle className="text-sm" />
+                                                        )}
+                                                        {t('reject_transfer') || "Reject"}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
                         </div>
-                    </div>
-                )}
+                    )}
+                </motion.div>
+
+                {/* History Section */}
+                <AnimatePresence>
+                    {historyTransfers.length > 0 && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                        >
+                            <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">
+                                        <FiPackage className="text-lg" />
+                                    </div>
+                                    <h2 className="text-lg font-semibold text-slate-900">{t('transfer_history') || "History Logs"}</h2>
+                                </div>
+                            </div>
+
+                            <div className="divide-y divide-slate-100">
+                                {historyTransfers.map((transfer, idx) => {
+                                    const badge = getStatusBadge(transfer.status);
+                                    const BadgeIcon = badge.icon;
+                                    return (
+                                        <motion.div 
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                            key={transfer.id} 
+                                            className="p-5 hover:bg-slate-50/50 transition-colors"
+                                        >
+                                            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                                <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
+                                                    {/* Sender Basic */}
+                                                    <div className="flex items-center gap-3 min-w-[200px]">
+                                                        <span className="font-semibold text-slate-900 text-sm">{transfer.senderName}</span>
+                                                        <FiArrowRight className="text-slate-400 text-sm" />
+                                                        <span className="text-sm text-slate-500">You</span>
+                                                    </div>
+                                                    
+                                                    {/* Items Basic */}
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {transfer.materials?.map((item: any, i: number) => (
+                                                            <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 shadow-sm">
+                                                                {item.name} <span className="text-slate-400 ml-1">×{item.quantity}</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 w-full md:w-auto border-t md:border-t-0 border-slate-100 pt-3 md:pt-0">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border ${badge.color}`}>
+                                                        <BadgeIcon className="text-[10px]" /> {badge.label}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500">
+                                                        {transfer.updatedAt?.seconds
+                                                            ? new Date(transfer.updatedAt.seconds * 1000).toLocaleString()
+                                                            : 'Recently'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

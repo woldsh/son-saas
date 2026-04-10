@@ -82,7 +82,6 @@ export default function LandingPage() {
             <div className="hidden lg:flex items-center gap-1">
               {[
                 { label: t('navigation_home') || 'Home', href: '#' },
-                { label: t('features'), href: '#features' },
               ].map((item) => (
                 <Link
                   key={item.label}
@@ -392,147 +391,6 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-
-
-
-      {/* ===== WORKFLOWS ===== */}
-      <section id="features" className="py-28 relative z-10 px-6 lg:px-8 border-y bg-slate-50/50 border-slate-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-indigo-600 text-sm font-semibold tracking-wide mb-3">
-              {t('workflowsTag')}
-            </motion.p>
-            <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-5 text-slate-900">
-              {t('workflowsTitle')}{' '}
-              <span className="text-indigo-600">{t('workflowsTitle_2')}</span>
-            </motion.h2>
-            <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }} className="max-w-2xl mx-auto text-base text-slate-500">
-              {t('workflowsDesc')}
-            </motion.p>
-          </div>
-
-          <div className="space-y-20">
-            {/* Academic Flow */}
-            <div>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-cyan-50 text-cyan-600">
-                  <GraduationCap size={20} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900">{t('academicFlowLabel')}</h3>
-              </div>
-              <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
-                {[
-                  { label: 'flow_teacher', icon: <Users size={16} /> },
-                  { label: 'flow_dept_head', icon: <ShieldCheck size={16} /> },
-                  { label: 'flow_ac', icon: <Cpu size={16} /> },
-                  { label: 'flow_md', icon: <Building2 size={16} /> },
-                  { label: 'flow_gs', icon: <Layers size={16} /> },
-                  { label: 'flow_pmt', icon: <Package size={16} /> },
-                  { label: 'flow_clerk', icon: <MousePointer2 size={16} /> },
-                  { label: 'flow_keeper', icon: <Lock size={16} /> }
-                ].map((step, idx, arr) => (
-                  <div key={idx} className="flex flex-1 items-center gap-3 min-w-[140px] lg:min-w-0">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.06 }} viewport={{ once: true }}
-                      className="flex-1 rounded-xl p-4 border bg-white border-slate-200 hover:border-cyan-300 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-cyan-50 text-cyan-600">
-                        {step.icon}
-                      </div>
-                      <p className="text-[11px] font-semibold tracking-wide text-slate-600">{t(step.label as any)}</p>
-                    </motion.div>
-                    {idx < arr.length - 1 && <ChevronRight size={16} className="shrink-0 hidden lg:block text-slate-300" />}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Admin Flow */}
-            <div>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-50 text-indigo-600">
-                  <Building2 size={20} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900">{t('adminFlowLabel')}</h3>
-              </div>
-              <div className="flex flex-wrap lg:flex-nowrap items-center gap-3">
-                {[
-                  { label: 'flow_employee', icon: <Users size={16} /> },
-                  { label: 'flow_tl', icon: <Zap size={16} /> },
-                  { label: 'flow_md', icon: <Building2 size={16} /> },
-                  { label: 'flow_gs', icon: <Layers size={16} /> },
-                  { label: 'flow_pmt', icon: <Package size={16} /> },
-                  { label: 'flow_clerk', icon: <MousePointer2 size={16} /> },
-                  { label: 'flow_keeper', icon: <Lock size={16} /> }
-                ].map((step, idx, arr) => (
-                  <div key={idx} className="flex flex-1 items-center gap-3 min-w-[140px] lg:min-w-0">
-                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.06 }} viewport={{ once: true }}
-                      className="flex-1 rounded-xl p-4 border bg-white border-slate-200 hover:border-indigo-300 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-indigo-50 text-indigo-600">
-                        {step.icon}
-                      </div>
-                      <p className="text-[11px] font-semibold tracking-wide text-slate-600">{t(step.label as any)}</p>
-                    </motion.div>
-                    {idx < arr.length - 1 && <ChevronRight size={16} className="shrink-0 hidden lg:block text-slate-300" />}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      {/* ===== FOOTER ===== */}
-      <footer className="pt-20 pb-12 relative z-10 border-t bg-slate-50 border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-            <div className="md:col-span-2 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm bg-slate-900 text-white">DMU</div>
-                <div>
-                  <span className="text-[15px] font-bold tracking-tight text-slate-900">
-                    Property <span className="text-indigo-600 font-medium">System</span>
-                  </span>
-                  <p className="text-[10px] tracking-widest uppercase text-slate-400">Debremarkos University</p>
-                </div>
-              </div>
-              <p className="text-sm leading-relaxed max-w-xs text-slate-400">
-                Leading the digital transformation of Burie Campus. A vision of excellence in resource management.
-              </p>
-              <div className="flex gap-3">
-                {[FaFacebook, FaTwitter, FaLinkedin, FaYoutube].map((Icon, idx) => (
-                  <a key={idx} href="#" className="w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 text-slate-400 hover:text-white hover:bg-indigo-600 transition-all">
-                    <Icon size={16} />
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-5">
-              <h6 className="text-xs font-semibold tracking-wider uppercase text-slate-900">System Units</h6>
-              <ul className="space-y-3">
-                {['Procurement', 'Academic', 'Inventory', 'Executive'].map(item => (
-                  <li key={item}><a href="#" className="text-sm text-slate-400 hover:text-indigo-600 transition-colors">{item}</a></li>
-                ))}
-              </ul>
-            </div>
-            <div className="space-y-5">
-              <h6 className="text-xs font-semibold tracking-wider uppercase text-slate-900">Resources</h6>
-              <ul className="space-y-3">
-                {['User Guides', 'IT Support', 'Privacy Policy', 'Security'].map(item => (
-                  <li key={item}><a href="#" className="text-sm text-slate-400 hover:text-indigo-600 transition-colors">{item}</a></li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="pt-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-slate-400">&copy; 2025 Debremarkos University Burie Campus. Crafted by DMU Tech.</p>
-            <div className="flex gap-6 items-center">
-              <span className="flex items-center gap-1.5 text-xs text-indigo-600/50"><ShieldCheck size={12} /> Security Audited</span>
-              <span className="flex items-center gap-1.5 text-xs text-blue-600/50"><Globe2 size={12} /> Globally Accessible</span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
       {/* ===== MOBILE NAV ===== */}
       <AnimatePresence>
         {isMenuOpen && (
@@ -545,7 +403,6 @@ export default function LandingPage() {
             <div className="flex-1 flex flex-col items-center justify-center gap-6 pb-20">
               {[
                 { label: 'Home', href: '#' },
-                { label: 'Features', href: '#features' },
               ].map((item, idx) => (
                 <motion.a key={item.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * idx }}
                   href={item.href} onClick={() => setIsMenuOpen(false)}

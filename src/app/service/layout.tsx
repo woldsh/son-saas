@@ -2,10 +2,11 @@
 
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import GeneralServiceSidebar from '@/components/GeneralServiceSidebar';
-import Header from '@/components/Header';
+
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import { InventoryProvider } from '@/contexts/InventoryContext';
+import Header from '@/components/Header';
 
 export default function ServiceLayout({
     children,
@@ -19,8 +20,11 @@ export default function ServiceLayout({
                 <div className="min-h-screen bg-white flex">
                     <GeneralServiceSidebar />
                     <div className="flex-1 flex flex-col">
+                        <div className="sticky top-0 z-40">
+                            <Header title="Service Dashboard" />
+                        </div>
                         <RequestNotificationBanner />
-                        <Header title="Service Dashboard" subtitle="General Service" />
+                        
                         <main className="flex-1 overflow-y-auto">
                             {children}
                         </main>

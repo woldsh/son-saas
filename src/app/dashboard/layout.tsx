@@ -8,7 +8,7 @@ import { SidebarProvider } from '@/contexts/SidebarContext';
 import AcademicCoordinatorSidebar from '@/components/AcademicCoordinatorSidebar';
 import DepartmentHeadSidebar from '@/components/DepartmentHeadSidebar';
 import TeacherSidebar from '@/components/TeacherSidebar';
-import Header from '@/components/Header';
+
 import MeetingNotificationBanner from '@/components/MeetingNotificationBanner';
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { InventoryProvider } from '@/contexts/InventoryContext';
+import Header from '@/components/Header';
 
 export default function DashboardLayout({
     children,
@@ -73,11 +74,12 @@ export default function DashboardLayout({
                     <div className="min-h-screen bg-white flex">
                         {renderSidebar()}
                         <div className="flex-1 flex flex-col min-w-0">
-                            <MeetingNotificationBanner />
-                            <RequestNotificationBanner />
                             <div className="sticky top-0 z-40">
                                 <Header title={getTitle()} subtitle="Academic Staff" />
                             </div>
+                            <MeetingNotificationBanner />
+                            <RequestNotificationBanner />
+                            
                             <main className="flex-1 overflow-y-auto relative z-0">
                                 {children}
                             </main>

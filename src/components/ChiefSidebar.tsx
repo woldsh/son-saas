@@ -148,6 +148,7 @@ export default function ChiefSidebar() {
                             );
                         })}
                     </nav>
+                    
 
                 </div>
             </motion.div>

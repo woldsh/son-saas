@@ -13,6 +13,7 @@ import {
     FiPackage, FiTag
 } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserReportItem {
     id: string;
@@ -164,295 +165,362 @@ export default function ReturnGoodsPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'pending_receiver': return { label: t('pending_receiver_approval'), color: 'bg-amber-100 text-amber-700', icon: FiClock };
-            case 'approved_by_receiver': return { label: t('approved_by_receiver_label'), color: 'bg-blue-100 text-blue-700', icon: FiCheckCircle };
-            case 'rejected_by_receiver': return { label: t('rejected_by_receiver_label'), color: 'bg-red-100 text-red-700', icon: FiXCircle };
-            case 'completed': return { label: t('completed_label'), color: 'bg-emerald-100 text-emerald-700', icon: FiCheckCircle };
-            default: return { label: status, color: 'bg-slate-100 text-slate-700', icon: FiClock };
+            case 'pending_receiver': return { label: t('pending_receiver_approval') || 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: FiClock };
+            case 'approved_by_receiver': return { label: t('approved_by_receiver_label') || 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: FiCheckCircle };
+            case 'rejected_by_receiver': return { label: t('rejected_by_receiver_label') || 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', icon: FiXCircle };
+            case 'completed': return { label: t('completed_label') || 'Completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: FiCheckCircle };
+            default: return { label: status, color: 'bg-slate-50 text-slate-700 border-slate-200', icon: FiClock };
         }
     };
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-12 min-h-[60vh]">
-                <div className="text-center space-y-4">
-                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
-                    <p className="text-slate-400 text-sm font-bold tracking-widest uppercase">{t('loading')}</p>
-                </div>
+            <div className="flex items-center justify-center p-12 min-h-screen bg-slate-50">
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center space-y-4"
+                >
+                    <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto" />
+                    <p className="text-slate-500 text-sm font-semibold tracking-wide">{t('loading')}</p>
+                </motion.div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
-            {/* Header */}
-            <div className="relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-indigo-600/5 to-violet-600/5" />
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-400/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4" />
-
-                <div className="relative px-8 py-8">
+        <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* Header */}
+                <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                        <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
                             <FiRotateCcw className="text-2xl text-white" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('return_goods')}</h1>
-                            <p className="text-slate-500 font-medium">{t('select_materials')}</p>
+                            <h1 className="text-2xl font-bold text-slate-900">
+                                {t('return_goods') || "Transfer Goods"}
+                            </h1>
+                            <p className="text-sm font-medium text-slate-500 mt-1">
+                                {t('select_materials') || "Select materials from your inventory to transfer to someone else."}
+                            </p>
                         </div>
                     </div>
-                </div>
-            </div>
+                </motion.div>
 
-            <div className="px-8 pb-8 space-y-8">
                 {/* Success Banner */}
-                {submitted && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                            <FiCheckCircle className="text-2xl text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-emerald-800">{t('transfer_submitted')}</h3>
-                            <p className="text-sm text-emerald-600">{t('transfer_submitted_desc')}</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Materials from Store (User-Report with status 'accepted') */}
-                <div className="bg-white rounded-3xl border border-slate-200/60 shadow-lg shadow-slate-200/50 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                                    <FiPackage className="text-lg text-blue-600" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-800">{t('my_materials')}</h2>
-                                    <p className="text-sm text-slate-500">{materials.length} {t('items_label')}</p>
-                                </div>
+                <AnimatePresence>
+                    {submitted && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                            className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 flex items-center gap-4"
+                        >
+                            <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
+                                <FiCheckCircle className="text-xl" />
                             </div>
-                            {selectedIds.size > 0 && (
-                                <span className="px-4 py-1.5 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
-                                    {selectedIds.size} {t('selected_items')}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {materials.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                                <FiBox className="text-3xl text-slate-400" />
-                            </div>
-                            <h3 className="font-bold text-slate-700 text-lg">{t('no_materials_found')}</h3>
-                            <p className="text-slate-500 mt-1 max-w-md mx-auto">{t('no_materials_desc')}</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {materials.map((mat) => {
-                                const isSelected = selectedIds.has(mat.id);
-                                const isFixed = mat.materialType === 'fixed_asset' || mat.materialType === 'fixed';
-                                return (
-                                    <div
-                                        key={mat.id}
-                                        onClick={() => toggleMaterial(mat.id)}
-                                        className={`p-5 flex items-center gap-4 cursor-pointer transition-all duration-300 hover:bg-blue-50/50 ${isSelected ? 'bg-blue-50/80 border-l-4 border-blue-500' : 'border-l-4 border-transparent'
-                                            }`}
-                                    >
-                                        {/* Checkbox */}
-                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'border-2 border-slate-300'
-                                            }`}>
-                                            {isSelected && <FiCheckSquare className="text-sm" />}
-                                        </div>
-
-                                        {/* Image */}
-                                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-200">
-                                            {mat.image ? (
-                                                <img src={mat.image} alt={mat.materialName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <FiBox className="text-2xl text-slate-300" />
-                                            )}
-                                        </div>
-
-                                        {/* Details */}
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-slate-800 text-base">{mat.materialName}</h3>
-                                            <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
-                                                    <FiTag className="text-[10px] text-slate-400" />
-                                                    {mat.materialCode}
-                                                </span>
-                                                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${isFixed ? 'bg-indigo-50 text-indigo-600' : 'bg-cyan-50 text-cyan-600'}`}>
-                                                    {mat.materialType.replace(/_/g, ' ')}
-                                                </span>
-                                                <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold">
-                                                    {mat.quantity} {mat.unit}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                                                <span className="flex items-center gap-1">
-                                                    <FiClock className="text-[10px]" />
-                                                    {mat.acceptedAt
-                                                        ? new Date(mat.acceptedAt).toLocaleDateString()
-                                                        : 'Recently'}
-                                                </span>
-                                                <span className="text-slate-400">•</span>
-                                                <span>{mat.condition}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {/* Transfer Form */}
-                {materials.length > 0 && (
-                    <div className="bg-white rounded-3xl border border-slate-200/60 shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                                    <FiSend className="text-lg text-indigo-600" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-800">{t('transfer_to')}</h2>
-                                    <p className="text-sm text-slate-500">{t('enter_receiver_name')}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 space-y-5">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                                        <FiUser className="inline mr-2 text-slate-400" />{t('receiver_name')}
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={receiverName}
-                                        onChange={(e) => setReceiverName(e.target.value)}
-                                        placeholder={t('enter_receiver_name')}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder:text-slate-400"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                                        <FiMail className="inline mr-2 text-slate-400" />{t('receiver_email')}
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={receiverEmail}
-                                        onChange={(e) => setReceiverEmail(e.target.value)}
-                                        placeholder={t('enter_receiver_email')}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder:text-slate-400"
-                                    />
-                                </div>
-                            </div>
-
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">
-                                    <FiFileText className="inline mr-2 text-slate-400" />{t('transfer_reason')}
-                                </label>
-                                <textarea
-                                    value={reason}
-                                    onChange={(e) => setReason(e.target.value)}
-                                    placeholder={t('enter_transfer_reason')}
-                                    rows={3}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder:text-slate-400 resize-none"
-                                />
+                                <h3 className="font-semibold text-emerald-900">{t('transfer_submitted') || "Transfer Submitted"}</h3>
+                                <p className="text-sm text-emerald-700 mt-0.5">{t('transfer_submitted_desc') || "The receiver will be notified to approve the transfer."}</p>
                             </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                            {/* Selected items preview */}
-                            {selectedMaterials.length > 0 && (
-                                <div className="bg-blue-50 rounded-xl p-4">
-                                    <p className="text-sm font-bold text-blue-800 mb-2">{t('selected_items')} ({selectedMaterials.length})</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {selectedMaterials.map((item) => (
-                                            <span key={item.id} className="px-3 py-1.5 bg-white rounded-lg text-xs font-medium text-blue-700 border border-blue-200 shadow-sm">
-                                                {item.materialName} ({item.materialCode}) — {item.quantity} {item.unit}
-                                            </span>
-                                        ))}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left Column: My Materials */}
+                    <div className="lg:col-span-7 space-y-6">
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                            className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full"
+                        >
+                            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                                        <FiPackage className="text-lg" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900">{t('my_materials') || "My Inventory"}</h2>
+                                        <p className="text-xs text-slate-500">{materials.length} {t('items_label') || "Items"}</p>
                                     </div>
                                 </div>
-                            )}
+                                <AnimatePresence>
+                                    {selectedIds.size > 0 && (
+                                        <motion.span 
+                                            initial={{ scale: 0.9, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            exit={{ scale: 0.9, opacity: 0 }}
+                                            className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-sm font-semibold"
+                                        >
+                                            {selectedIds.size} Selected
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+                            </div>
 
-                            <button
-                                onClick={handleSubmit}
-                                disabled={submitting || selectedMaterials.length === 0 || !receiverName || !receiverEmail}
-                                className={`w-full py-4 rounded-xl font-bold text-white transition-all duration-300 flex items-center justify-center gap-3 ${submitting || selectedMaterials.length === 0 || !receiverName || !receiverEmail
-                                    ? 'bg-slate-300 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-0.5'
-                                    }`}
-                            >
-                                {submitting ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        {t('submitting_transfer')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <FiSend className="text-lg" />
-                                        {t('initiate_transfer')}
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                            {materials.length === 0 ? (
+                                <div className="p-12 text-center flex-1 flex flex-col items-center justify-center">
+                                    <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                        <FiBox className="text-2xl text-slate-300" />
+                                    </div>
+                                    <h3 className="font-semibold text-slate-900 text-lg">{t('no_materials_found') || "Empty Inventory"}</h3>
+                                    <p className="text-slate-500 text-sm mt-1 max-w-sm mx-auto">
+                                        {t('no_materials_desc') || "You don't have any materials assigned to you right now."}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[600px] custom-scrollbar p-2">
+                                    <AnimatePresence>
+                                        {materials.map((mat, index) => {
+                                            const isSelected = selectedIds.has(mat.id);
+                                            const isFixed = mat.materialType === 'fixed_asset' || mat.materialType === 'fixed';
+                                            return (
+                                                <motion.div
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    transition={{ delay: index * 0.05 }}
+                                                    key={mat.id}
+                                                    onClick={() => toggleMaterial(mat.id)}
+                                                    className={`p-4 m-2 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition-all border ${isSelected 
+                                                        ? 'bg-blue-50/50 border-blue-200' 
+                                                        : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
+                                                >
+                                                    {/* Checkbox & Image container */}
+                                                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected 
+                                                            ? 'bg-blue-600 border-blue-600 text-white' 
+                                                            : 'border border-slate-300 bg-white'}`}>
+                                                            {isSelected && <FiCheckSquare className="text-xs" />}
+                                                        </div>
+
+                                                        <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-200">
+                                                            {mat.image ? (
+                                                                <img src={mat.image} alt={mat.materialName} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <FiBox className="text-xl text-slate-300" />
+                                                            )}
+                                                        </div>
+                                                        
+                                                        <div className="flex-1 min-w-0 sm:hidden">
+                                                            <h3 className="font-semibold text-slate-900 text-sm truncate">{mat.materialName}</h3>
+                                                            <p className="text-xs text-slate-500 mt-0.5">{mat.quantity} {mat.unit}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Details for larger screens */}
+                                                    <div className="flex-1 min-w-0 hidden sm:block">
+                                                        <h3 className="font-semibold text-slate-900 text-sm truncate">{mat.materialName}</h3>
+                                                        <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-xs text-slate-600">
+                                                                <FiTag className="text-[10px] text-slate-400" /> {mat.materialCode}
+                                                            </span>
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide border ${isFixed ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-cyan-50 border-cyan-100 text-cyan-700'}`}>
+                                                                {mat.materialType.replace(/_/g, ' ')}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded text-xs font-semibold">
+                                                                {mat.quantity} {mat.unit}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+                        </motion.div>
                     </div>
-                )}
+
+                    {/* Right Column: Transfer Form */}
+                    <div className="lg:col-span-5 space-y-8">
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                        >
+                            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                                        <FiSend className="text-lg" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900">{t('transfer_to') || "Transfer Materials"}</h2>
+                                        <p className="text-xs text-slate-500">{t('enter_receiver_name') || "Enter recipient details"}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                {/* Selected indicator */}
+                                <AnimatePresence>
+                                    {selectedMaterials.length > 0 && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="bg-blue-50/50 rounded-xl p-4 border border-blue-100"
+                                        >
+                                            <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Items Ready</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedMaterials.map((item) => (
+                                                    <span key={item.id} className="px-2 py-1 bg-white rounded-md text-xs text-blue-700 border border-blue-200 flex items-center gap-1 shadow-sm">
+                                                        <FiBox className="text-[10px]" />
+                                                        {item.materialName} ({item.quantity})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-semibold text-slate-700">
+                                            {t('receiver_name') || "Receiver Name"}
+                                        </label>
+                                        <div className="relative">
+                                            <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                value={receiverName}
+                                                onChange={(e) => setReceiverName(e.target.value)}
+                                                placeholder="e.g. John Doe"
+                                                className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-800 placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-semibold text-slate-700">
+                                            {t('receiver_email') || "Receiver Email"}
+                                        </label>
+                                        <div className="relative">
+                                            <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                type="email"
+                                                value={receiverEmail}
+                                                onChange={(e) => setReceiverEmail(e.target.value)}
+                                                placeholder="e.g. john@example.com"
+                                                className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-800 placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-semibold text-slate-700">
+                                            {t('transfer_reason') || "Transfer Reason"} <span className="text-slate-400 font-normal">(Optional)</span>
+                                        </label>
+                                        <div className="relative">
+                                            <textarea
+                                                value={reason}
+                                                onChange={(e) => setReason(e.target.value)}
+                                                placeholder="Why are these items being transferred?"
+                                                rows={3}
+                                                className="w-full px-4 py-2.5 bg-white rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-800 placeholder:text-slate-400 resize-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={submitting || selectedMaterials.length === 0 || !receiverName || !receiverEmail}
+                                    className={`w-full py-3 rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 ${submitting || selectedMaterials.length === 0 || !receiverName || !receiverEmail
+                                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                                        }`}
+                                >
+                                    {submitting ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            {t('submitting_transfer') || "Processing..."}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FiSend className="text-sm" />
+                                            {t('initiate_transfer') || "Initiate Transfer"}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
 
                 {/* Transfer History */}
-                {transfers.length > 0 && (
-                    <div className="bg-white rounded-3xl border border-slate-200/60 shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                                    <FiClock className="text-lg text-violet-600" />
+                <AnimatePresence>
+                    {transfers.length > 0 && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                        >
+                            <div className="px-6 py-5 border-b border-slate-200 flex items-center gap-3 bg-slate-50/50">
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600">
+                                    <FiClock className="text-lg" />
                                 </div>
-                                <h2 className="text-lg font-bold text-slate-800">{t('transfer_history')}</h2>
+                                <h2 className="text-lg font-semibold text-slate-900">{t('transfer_history') || "Past Initiated Transfers"}</h2>
                             </div>
-                        </div>
 
-                        <div className="divide-y divide-slate-100">
-                            {transfers.map((transfer) => {
-                                const badge = getStatusBadge(transfer.status);
-                                const BadgeIcon = badge.icon;
-                                return (
-                                    <div key={transfer.id} className="p-5">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <FiArrowRight className="text-slate-400" />
-                                                    <span className="font-bold text-slate-800">{transfer.receiverName}</span>
-                                                    <span className="text-sm text-slate-500">({transfer.receiverEmail})</span>
+                            <div className="divide-y divide-slate-100">
+                                {transfers.map((transfer, idx) => {
+                                    const badge = getStatusBadge(transfer.status);
+                                    const BadgeIcon = badge.icon;
+                                    return (
+                                        <motion.div 
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                            key={transfer.id} 
+                                            className="p-5 hover:bg-slate-50/50 transition-colors"
+                                        >
+                                            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                                <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
+                                                    <div className="flex flex-col gap-1 min-w-[200px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-slate-500">To:</span>
+                                                            <span className="font-semibold text-slate-900 text-sm">{transfer.receiverName}</span>
+                                                        </div>
+                                                        <span className="text-xs text-slate-500">{transfer.receiverEmail}</span>
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {transfer.materials?.map((item: any, i: number) => (
+                                                            <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 shadow-sm flex items-center gap-1">
+                                                                <FiBox className="text-[10px] text-slate-400" />
+                                                                {item.name} <span className="text-slate-400">×{item.quantity}</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                                    {transfer.materials?.map((item: any, idx: number) => (
-                                                        <span key={idx} className="px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600">
-                                                            {item.name} ({item.materialCode}) ×{item.quantity}
-                                                        </span>
-                                                    ))}
+
+                                                <div className="flex items-center gap-3 w-full md:w-auto border-t md:border-t-0 border-slate-100 pt-3 md:pt-0">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border ${badge.color}`}>
+                                                        <BadgeIcon className="text-[10px]" /> {badge.label}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500">
+                                                        {transfer.createdAt?.seconds
+                                                            ? new Date(transfer.createdAt.seconds * 1000).toLocaleDateString()
+                                                            : 'Recently'}
+                                                    </span>
                                                 </div>
-                                                {transfer.reason && (
-                                                    <p className="text-sm text-slate-500 italic">"{transfer.reason}"</p>
-                                                )}
                                             </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${badge.color}`}>
-                                                    <BadgeIcon className="text-[10px]" /> {badge.label}
-                                                </span>
-                                                <span className="text-xs text-slate-400">
-                                                    {transfer.createdAt?.seconds
-                                                        ? new Date(transfer.createdAt.seconds * 1000).toLocaleDateString()
-                                                        : 'Recently'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

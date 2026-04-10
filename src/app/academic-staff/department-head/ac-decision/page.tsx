@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import DepartmentHeadSidebar from '@/components/DepartmentHeadSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import UniversalCommissionReview from '@/components/UniversalCommissionReview';
@@ -14,7 +14,7 @@ export default function DeptHeadACDecisionPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Need AC decision" subtitle="Departmental Commission Tracking" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <UniversalCommissionReview viewType="department" />

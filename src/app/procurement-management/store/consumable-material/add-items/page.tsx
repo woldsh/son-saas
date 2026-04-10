@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Header from '@/components/Header';
+
 import StoreSidebar from '@/components/StoreSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import AddItemForm from '@/components/AddItemForm';
@@ -13,7 +13,7 @@ export default function AddConsumableMaterialPage() {
                 <StoreSidebar storeType="consumable" />
 
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Register Consumable Material" subtitle="Store Management" />
+                    
 
                     <main className="flex-1 overflow-y-auto p-4 md:p-8">
                         <AddItemForm type="consumable" />

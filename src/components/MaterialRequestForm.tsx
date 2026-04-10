@@ -453,7 +453,7 @@ export default function MaterialRequestForm() {
     const categories = ['All', ...Array.from(new Set(materials.map(m => m.category || 'Uncategorized')))];
 
     const filteredMaterials = materials.filter(m => {
-        const matchesSearch = m.materialName.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = m.materialName.toLowerCase().startsWith(searchTerm.toLowerCase());
         const matchesCategory = selectedCategory === 'All' || m.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import ProcurementTeamLeaderSidebar from '@/components/ProcurementTeamLeaderSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import EmployeeReportView from '@/components/EmployeeReportView';
@@ -14,7 +14,7 @@ export default function TeamLeaderEmployeeReportPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Employee Report" subtitle="Team Leader Panel" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <EmployeeReportView />

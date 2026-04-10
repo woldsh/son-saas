@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import TeacherSidebar from '@/components/TeacherSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import ClerkReportView from '@/components/ClerkReportView';
@@ -14,7 +14,7 @@ export default function TeacherClerkReportPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="Clerk Report" subtitle="Verification Codes" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <ClerkReportView />

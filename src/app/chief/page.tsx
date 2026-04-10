@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Header from '@/components/Header';
+
 import ChiefSidebar from '@/components/ChiefSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,8 +32,8 @@ export default function ChiefPage() {
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const stats = [
-        { label: t('total_requests'), value: '154', sub: t('updated_just_now'), icon: FiGrid, color: 'bg-blue-600', textColor: 'text-blue-600', lightColor: 'bg-blue-50' },
-        { label: t('pending_requests'), value: '12', sub: t('critical_label'), icon: FiClock, color: 'bg-amber-600', textColor: 'text-amber-600', lightColor: 'bg-amber-50' },
+        { label: t('total_requests_dashboard'), value: '154', sub: t('updated_just_now'), icon: FiGrid, color: 'bg-blue-600', textColor: 'text-blue-600', lightColor: 'bg-blue-50' },
+        { label: t('pending_requests_dashboard'), value: '12', sub: t('critical_label'), icon: FiClock, color: 'bg-amber-600', textColor: 'text-amber-600', lightColor: 'bg-amber-50' },
         { label: t('accepted_requests'), value: '138', sub: t('successfully_processed'), icon: FiCheckSquare, color: 'bg-emerald-600', textColor: 'text-emerald-600', lightColor: 'bg-emerald-50' },
     ];
 
@@ -64,7 +64,7 @@ export default function ChiefPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen relative overflow-y-auto custom-scrollbar">
-                    <Header title={t('institution_command')} subtitle={t('chief_executive_overview')} />
+                    
 
                     <main className="flex-1 px-10 py-8 relative z-10">
                         {/* Welcome Hero */}

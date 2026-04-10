@@ -1,7 +1,7 @@
 'use client';
 
 import VerifyMaterialRequest from '@/components/VerifyMaterialRequest';
-import Header from '@/components/Header';
+
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';

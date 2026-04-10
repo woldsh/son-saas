@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import StoreSidebar from '@/components/StoreSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
@@ -14,7 +14,7 @@ export default function StoreConsumableRequestsPage() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                    <Header title="View Requests" subtitle="Consumable Material Requests" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar">
                         <MaterialRequestView roleOverride="consumable_item_store_keeper" materialTypeFilter="consumable" />

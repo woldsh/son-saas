@@ -1,6 +1,6 @@
 'use client';
 
-import Header from '@/components/Header';
+
 import DepartmentHeadSidebar from '@/components/DepartmentHeadSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
@@ -20,7 +20,7 @@ export default function ViewRequestsPage() {
                         <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-gradient-to-tr from-amber-100/50 to-transparent blur-3xl"></div>
                     </div>
 
-                    <Header title="Incoming Requisitions" subtitle="Department Head Oversight" />
+                    
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
                         <MaterialRequestView />

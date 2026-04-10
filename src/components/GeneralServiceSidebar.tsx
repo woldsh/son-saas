@@ -27,7 +27,6 @@ export default function GeneralServiceSidebar() {
         { label: t('view_requests'), href: `${basePath}/view-requests`, icon: FaClipboardList },
         { label: t('request_material_label'), href: `${basePath}/request-material`, icon: FaUserTie },
         { label: t('request_journey'), href: `${basePath}/request-journey`, icon: FaCar },
-        { label: t('messages'), href: `${basePath}/messages`, icon: FaEnvelope },
         { label: t('reports'), href: `${basePath}/reports`, icon: FaFileAlt },
         { label: t('clerk_report'), href: `${basePath}/clerk-report`, icon: FaFileAlt },
     ];
@@ -129,6 +128,7 @@ export default function GeneralServiceSidebar() {
                             );
                         })}
                     </nav>
+                    
                 </div>
             </div>
         </>

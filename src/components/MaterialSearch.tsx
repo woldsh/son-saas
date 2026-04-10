@@ -19,7 +19,10 @@ interface MaterialSearchProps {
     onCancel: () => void;
 }
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchProps) {
+    const { userRole, department } = useAuth();
     const [materials, setMaterials] = useState<Material[]>([]);
     const [filteredMaterials, setFilteredMaterials] = useState<Material[]>([]);
     const [loading, setLoading] = useState(true);
@@ -32,16 +35,55 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
         try {
             const materialsRef = collection(db as any, 'materials');
             const unsubscribe = onSnapshot(materialsRef, (snapshot) => {
-                const data: Material[] = snapshot.docs.map(doc => {
+                const data: Material[] = [];
+
+                // Helper to check if user has access to a material document
+                const hasAccess = (d: any) => {
+                    if (d.visibleToAll || d.targetDepartment === 'all' || !d.targetDepartment) {
+                        return true; // Global / legacy visibility
+                    }
+                    if (d.targetDepartment === department) {
+                        return true; // Match by exact department (e.g., 'computer_science')
+                    }
+                    if (d.targetDepartment === userRole) {
+                        return true; // Match by exact role (e.g., 'academic_coordinator')
+                    }
+                    if (userRole && userRole.includes(d.targetDepartment)) {
+                        return true; // Match by role prefix (e.g., 'computer_science_teacher' includes 'computer_science')
+                    }
+                    return false;
+                };
+
+                snapshot.docs.forEach(doc => {
                     const d = doc.data();
-                    return {
-                        id: doc.id,
-                        name: d.name || d.materialName || d.description || d.itemName || doc.id,
-                        category: d.category || d.type || 'Uncategorized',
-                        model: d.model || d.modelNumber || '',
-                        unit: d.unit || '',
-                        image: d.image || d.imageUrl || d.photo || '',
-                    };
+
+                    if (!hasAccess(d)) return; // Skip materials registered for other departments/roles
+
+                    // If it's a receipt from Model 19, extract out the individual received items
+                    if (d.items && Array.isArray(d.items) && (d.formType === 'receipt_for_articles' || d.items.length > 0 && !d.name)) {
+                        d.items.forEach((item: any, idx: number) => {
+                            if (item.description && typeof item.description === 'string' && item.description.trim()) {
+                                data.push({
+                                    id: `${doc.id}_${idx}`, // Create virtual ID for selection
+                                    name: item.description.trim(),
+                                    category: d.category || d.type || 'Registered Receipt',
+                                    model: item.model || '',
+                                    unit: item.unit || '',
+                                    image: item.imageUrl || item.image || '',
+                                });
+                            }
+                        });
+                    } else if (d.name || d.materialName || d.description || d.itemName) {
+                        // Standard single-material document
+                        data.push({
+                            id: doc.id,
+                            name: d.name || d.materialName || d.description || d.itemName,
+                            category: d.category || d.type || 'Uncategorized',
+                            model: d.model || d.modelNumber || '',
+                            unit: d.unit || '',
+                            image: d.image || d.imageUrl || d.photo || '',
+                        });
+                    }
                 });
                 data.sort((a, b) => a.name.localeCompare(b.name));
                 setMaterials(data);
@@ -61,16 +103,16 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
             setError('Failed to connect to database.');
             setLoading(false);
         }
-    }, []);
+    }, [userRole, department]);
 
     useEffect(() => {
         let res = materials;
         if (searchTerm) {
             const lower = searchTerm.toLowerCase();
             res = res.filter(m =>
-                (m.name?.toLowerCase().includes(lower)) ||
-                (m.model?.toLowerCase().includes(lower)) ||
-                (m.category?.toLowerCase().includes(lower))
+                (m.name?.toLowerCase().startsWith(lower)) ||
+                (m.model?.toLowerCase().startsWith(lower)) ||
+                (m.category?.toLowerCase().startsWith(lower))
             );
         }
         if (categoryFilter !== 'All') {
@@ -168,6 +210,17 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
                                             }}
                                             onMouseEnter={e => { (e.currentTarget as HTMLImageElement).style.transform = 'scale(1.05)'; }}
                                             onMouseLeave={e => { (e.currentTarget as HTMLImageElement).style.transform = 'scale(1)'; }}
+                                            onError={(e) => {
+                                                // Gracefully hide broken Cloudinary links or non-image files instead of showing 'alt' text
+                                                e.currentTarget.style.display = 'none';
+                                                if (e.currentTarget.parentElement) {
+                                                    e.currentTarget.parentElement.innerHTML = `
+                                                        <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8;">
+                                                            <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" height="48" width="48" xmlns="http://www.w3.org/2000/svg"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                                                        </div>
+                                                    `;
+                                                }
+                                            }}
                                         />
                                     ) : (
                                         <div style={{

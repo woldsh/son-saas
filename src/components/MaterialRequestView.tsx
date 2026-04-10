@@ -31,10 +31,14 @@ import {
     FiAlertCircle,
     FiInfo,
     FiArrowRight,
-    FiActivity
+    FiActivity,
+    FiGrid,
+    FiList
 } from 'react-icons/fi';
 import Image from 'next/image';
 import ReadOnlyPaperForm20 from './ReadOnlyPaperForm20';
+import ClerkModel22Form from './ClerkModel22Form';
+import MaterialRequestReviewModal from './MaterialRequestReviewModal';
 
 interface RequestItem {
     materialId: string;
@@ -53,6 +57,8 @@ interface RequestItem {
 interface RequestHistory {
     status: string;
     user: string;
+    userName?: string;
+    userRole?: string;
     timestamp: string;
     note: string;
 }
@@ -74,6 +80,8 @@ interface MaterialRequest {
     formType?: string; // 'paper_form_20' or undefined
     receiptNo?: string;
     signature?: string;
+    isAdjusted?: boolean;
+    isFeedbackSeen?: boolean;
 }
 
 interface MaterialRequestViewProps {
@@ -94,28 +102,65 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<{ text: string, type: 'coordinator' | 'chief' | 'md' | 'general' } | null>(null);
     const [selectedRequest, setSelectedRequest] = useState<MaterialRequest | null>(null);
+    const [model22Request, setModel22Request] = useState<MaterialRequest | null>(null);
     const pathname = usePathname();
     const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
     const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedRequests(filteredRequests.map(r => r.id));
+        } else {
+            setSelectedRequests([]);
+        }
+    };
+
+    // Rejection Modal State
+    const [rejectModalOpen, setRejectModalOpen] = useState(false);
+    const [requestToReject, setRequestToReject] = useState<MaterialRequest | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
+
+    // AC Adjustment State
+    const [modifiedRequests, setModifiedRequests] = useState<Record<string, RequestItem[]>>({});
+    const [adjustmentReasons, setAdjustmentReasons] = useState<Record<string, string>>({});
+
+    const handleItemQuantityChange = (requestId: string, itemIdx: number, newQty: number, originalItems: RequestItem[]) => {
+        const sanitizedQty = Math.max(0, newQty);
+        const currentModified = modifiedRequests[requestId] || JSON.parse(JSON.stringify(originalItems));
+        currentModified[itemIdx].quantity = sanitizedQty;
+        setModifiedRequests({
+            ...modifiedRequests,
+            [requestId]: currentModified
+        });
+    };
+
+    const isRequestAdjusted = (request: MaterialRequest) => {
+        const modified = modifiedRequests[request.id];
+        if (!modified) return false;
+        return modified.some((item, idx) => item.quantity !== request.items[idx].quantity);
+    };
+
 
     const filteredRequests = requests.filter(r => {
         // Search term filter
         const matchesSearch = r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.items.some(item => item.materialName.toLowerCase().includes(searchTerm.toLowerCase()));
+            r.items.some(item => (item.materialName || '').toLowerCase().includes(searchTerm.toLowerCase()) || (item.materialCode || '').toLowerCase().includes(searchTerm.toLowerCase()));
 
         // Material type filter (only show requests where ALL items match the filter type)
+        const normalizedFilter = (materialTypeFilter || '').toLowerCase().replace(/[^a-z]/g, '');
         const matchesMaterialType = !materialTypeFilter ||
             r.items.every(item => (item.materialType?.toLowerCase() || '') === materialTypeFilter.toLowerCase());
 
         return matchesSearch && matchesMaterialType;
     });
 
-    const effectiveRole = roleOverride || (
+    const rawRole = roleOverride || (
         pathname?.includes('/portal') ? 'managing_director' :
             pathname?.includes('/dashboard') ? (
                 userData?.userRole?.includes('_head') ? 'department_head' :
                     userData?.userRole === 'academic_coordinator' ? 'academic_coordinator' :
-                        'academic_coordinator'
+                        userData?.userRole || 'academic_coordinator'
             ) :
                 pathname?.includes('/service') ? 'general_service' :
                     pathname?.includes('/workspace') ? (
@@ -134,23 +179,56 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     userData?.userRole?.endsWith('_leader') ? 'dynamic_leader' :
                                                         'team_leader'
                         ) :
-                            // Check for Stock Clerk and Store Keeper specific roles in the URL or User Role?
-                            // This part ensures effectiveRole carries the full role name like 'consumable_item_stock_clerk'
-                            pathname?.includes('/procurement-management/stock-clerk') ? (
-                                userData?.userRole || 'stock_clerk'
+                            pathname?.includes('/admin-panel') ? (
+                                userData?.userRole === 'student_service_leader' ? 'student_service_leader' :
+                                    userData?.userRole === 'student_service_dormitory_leader' ? 'dormitory_leader' :
+                                        userData?.userRole === 'student_service_cafeteria_leader' ? 'cafeteria_leader' :
+                                            userData?.userRole === 'student_service_sport_leader' ? 'sports_leader' :
+                                                userData?.userRole === 'hrm_leader' ? 'hrm_leader' :
+                                                    userData?.userRole === 'finance_leader' ? 'finance_leader' :
+                                                        userData?.userRole?.endsWith('_leader') ? 'dynamic_leader' :
+                                                            userData?.userRole?.includes('_head') ? 'department_head' :
+                                                                userData?.userRole || 'team_leader'
                             ) :
-                                pathname?.includes('/procurement-management/store') ? (
-                                    userData?.userRole || 'store_keeper'
+                                // Check for Stock Clerk and Store Keeper specific roles in the URL or User Role?
+                                // This part ensures effectiveRole carries the full role name like 'consumable_item_stock_clerk'
+                                pathname?.includes('/procurement-management/stock-clerk') ? (
+                                    userData?.userRole || 'stock_clerk'
                                 ) :
-                                    // Fallback to old path detection for compatibility
-                                    pathname?.includes('/managing-director') ? 'managing_director' :
-                                        pathname?.includes('/academic-coordinator') ? 'academic_coordinator' :
-                                            pathname?.includes('/general-service') ? 'general_service' :
-                                                pathname?.includes('/stock-clerk') ? 'stock_clerk' :
-                                                    pathname?.includes('/team-leader') ? 'team_leader' :
-                                                        userData?.userRole?.includes('_head') ? 'department_head' :
-                                                            'academic_coordinator'
+                                    pathname?.includes('/procurement-management/store') ? (
+                                        userData?.userRole || 'store_keeper'
+                                    ) :
+                                        // Fallback to old path detection for compatibility
+                                        pathname?.includes('/managing-director') ? 'managing_director' :
+                                            pathname?.includes('/academic-coordinator') ? 'academic_coordinator' :
+                                                pathname?.includes('/general-service') ? 'general_service' :
+                                                    pathname?.includes('/stock-clerk') ? 'stock_clerk' :
+                                                        pathname?.includes('/team-leader') ? 'team_leader' :
+                                                            userData?.userRole?.includes('_head') ? 'department_head' :
+                                                                'academic_coordinator'
     );
+
+    const effectiveRole = rawRole.toLowerCase().replace(/\s+/g, '_');
+
+    const getRoleTitle = (role: string) => {
+        const roles: Record<string, string> = {
+            'managing_director': 'Managing Director',
+            'academic_coordinator': 'Academic Coordinator',
+            'department_head': 'Department Head',
+            'general_service': 'General Service',
+            'stock_clerk': 'Stock Clerk',
+            'store_keeper': 'Store Keeper',
+            'team_leader': 'Team Leader',
+            'procurement_team_leader': 'Procurement Team Leader',
+            'student_service_leader': 'Student Service Leader',
+            'dormitory_leader': 'Dormitory Leader',
+            'cafeteria_leader': 'Cafeteria Leader',
+            'sports_leader': 'Sports Leader',
+            'hrm_leader': 'HRM Leader',
+            'finance_leader': 'Finance Leader'
+        };
+        return roles[role] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
 
     useEffect(() => {
         // Fetch material images for fallback
@@ -225,16 +303,21 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 where('status', 'in', ['approved_by_md', 'pending_general_service'])
             );
         } else if (effectiveRole.includes('stock_clerk')) {
+            const clerkRoles = effectiveRole === 'stock_clerk' 
+                ? ['stock_clerk', 'fixed_asset_stock_clerk', 'consumable_item_stock_clerk'] 
+                : [effectiveRole];
             q = query(
                 collection(db!, 'Request_materials'),
-                where('currentApproverRole', '==', effectiveRole), // Filter by exact clerk role (consumable/fixed)
+                where('currentApproverRole', 'in', clerkRoles),
                 where('status', '==', 'approved_by_procurement_team_leader')
             );
         } else if (effectiveRole.includes('store_keeper')) {
+            // Store Keepers do NOT see requests here.
+            // Fulfillment happens only via the Store Verification page
+            // after the employee verifies their verification code.
             q = query(
                 collection(db!, 'Request_materials'),
-                where('currentApproverRole', '==', effectiveRole), // Filter by exact keeper role
-                where('status', '==', 'approved_by_clerk')
+                where('status', '==', '__none__')
             );
         } else if (effectiveRole === 'team_leader') {
             q = query(
@@ -257,9 +340,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             })) as MaterialRequest[];
 
             // Filter by material type for stock clerks and store keepers
-            if ((effectiveRole === 'stock_clerk' || effectiveRole === 'store_keeper') && materialTypeFilter) {
+            if ((effectiveRole.includes('stock_clerk') || effectiveRole.includes('store_keeper')) && materialTypeFilter) {
                 requestList = requestList.filter(request => {
-                    // Check if any item in the request matches the material type filter
                     const hasMatchingType = request.items?.some(item => {
                         const itemType = item.materialType?.toLowerCase() || '';
                         if (materialTypeFilter === 'fixed_asset') {
@@ -274,7 +356,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             }
 
             // Also filter by user's stockType from userData if materialTypeFilter not explicitly set
-            if ((effectiveRole === 'stock_clerk' || effectiveRole === 'store_keeper') && !materialTypeFilter && userData?.stockType) {
+            if ((effectiveRole.includes('stock_clerk') || effectiveRole.includes('store_keeper')) && !materialTypeFilter && userData?.stockType) {
                 requestList = requestList.filter(request => {
                     const hasMatchingType = request.items?.some(item => {
                         const itemType = item.materialType?.toLowerCase() || '';
@@ -296,12 +378,15 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             });
             setRequests(requestList);
             setLoading(false);
+        }, (error) => {
+            console.error("Firestore Error in MaterialRequestView:", error);
+            setLoading(false);
         });
 
         return () => unsubscribe();
     }, [userData, effectiveRole]);
 
-    const handleApprove = async (request: MaterialRequest, signature?: string) => {
+    const handleApprove = async (request: MaterialRequest, updatedItems?: RequestItem[], adjustmentNote?: string, signature?: string) => {
         if (!user || !userData || !db) return;
         setProcessingId(request.id);
 
@@ -329,6 +414,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: nextStatus,
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: `Approved by ${effectiveRole.replace('_', ' ')}. Forwarded to ${nextApproverName}.`
                         }
@@ -351,6 +438,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'pending_managing_director',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: 'Approved by Student Service Leader. Forwarded to Managing Director.'
                         }
@@ -379,6 +468,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'approved_by_head',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: 'Request approved by Department Head and forwarded to Academic Coordinator'
                         }
@@ -391,8 +482,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
                 await updateDoc(requestRef, updateData);
                 setSuccessMessage({
-                    text: "Successfully sent message",
-                    type: 'general'
+                    text: `Request approved and forwarded to Academic Coordinator (${nextApproverName})`,
+                    type: 'coordinator'
                 });
             } else if (effectiveRole === 'managing_director') {
                 const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
@@ -400,18 +491,26 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
                 const nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
 
+                const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
+
                 await updateDoc(requestRef, {
                     status: 'pending_procurement',
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
                     currentApproverRole: 'procurement_team_leader',
+                    items: finalItems,
+                    isAdjusted: !!finalAdjustmentNote,
+                    isFeedbackSeen: finalAdjustmentNote ? false : true,
                     history: [
                         ...request.history,
                         {
                             status: 'pending_procurement',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
-                            note: 'Approved by Managing Director. Forwarded to Procurement Team Leader.'
+                            note: finalAdjustmentNote || 'Approved by Managing Director. Forwarded to Procurement Team Leader.'
                         }
                     ]
                 });
@@ -432,6 +531,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'pending_procurement',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: 'Approved by General Service. Forwarded to Procurement Team Leader.'
                         }
@@ -464,6 +565,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'approved_by_procurement_team_leader',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: `Approved by Procurement Team Leader. Forwarded to ${nextApproverName}.`
                         }
@@ -495,6 +598,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'approved_by_clerk',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: `Approved by Stock Clerk. Forwarded to ${nextApproverName} and verification sent to employee.`
                         }
@@ -509,13 +614,13 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             requesterId: request.requesterId,
                             requesterName: request.requesterName,
                             department: request.department,
-                            materialId: item.materialId,
-                            materialName: item.materialName,
-                            materialCode: item.materialCode,
-                            quantity: item.quantity,
-                            unit: item.unit,
-                            materialType: item.materialType,
-                            condition: item.condition,
+                            materialId: item.materialId || '',
+                            materialName: item.materialName || '',
+                            materialCode: item.materialCode || '',
+                            quantity: item.quantity || 0,
+                            unit: item.unit || 'pcs',
+                            materialType: item.materialType || '',
+                            condition: item.condition || 'New',
                             image: item.image || '',
                             withdrawalDate: serverTimestamp(),
                             status: 'approved_by_clerk',
@@ -527,6 +632,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 {
                                     status: 'approved_by_clerk',
                                     user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
                                     timestamp: new Date().toISOString(),
                                     note: 'Approved by Stock Clerk. Awaiting employee verification.'
                                 }
@@ -543,16 +650,17 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         requester_user_id: request.requesterId,
                         requester_name: request.requesterName,
                         material_details: request.items.map(item => ({
-                            materialName: item.materialName,
-                            materialCode: item.materialCode,
-                            materialType: item.materialType,
-                            materialId: item.materialId,
-                            quantity: item.quantity,
-                            unit: item.unit
+                            materialName: item.materialName || '',
+                            materialCode: item.materialCode || '',
+                            materialType: item.materialType || '',
+                            materialId: item.materialId || '',
+                            quantity: item.quantity || 0,
+                            unit: item.unit || 'pcs'
                         })),
                         verification_code: code,
                         created_at: serverTimestamp(),
-                        status: 'ready_for_pickup'
+                        status: 'ready_for_pickup',
+                        isSeen: false
                     });
 
                     setSuccessMessage({
@@ -565,11 +673,14 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 }
             } else {
                 // Academic Coordinator Logic
-                const itemsWithACRule = request.items.filter(item => item.AC_decition === 'need AC decision');
+                const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
+                const itemsWithACRule = finalItems.filter(item => item.AC_decition === 'need AC decision');
 
                 if (itemsWithACRule.length > 0) {
                     await addDoc(collection(db!, 'Need_AC_decition'), {
                         ...request,
+                        items: finalItems,
                         originalRequestId: request.id,
                         coordinatorId: user.uid,
                         coordinatorName: userData.displayName || 'Academic Coordinator',
@@ -580,13 +691,18 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     await updateDoc(requestRef, {
                         status: 'forwarded_to_chief',
                         currentApproverRole: 'chief_executive',
+                        items: finalItems,
+                        isAdjusted: !!finalAdjustmentNote,
+                        isFeedbackSeen: finalAdjustmentNote ? false : true,
                         history: [
                             ...request.history,
                             {
                                 status: 'forwarded_to_chief',
                                 user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
-                                note: 'Fixed assets requiring Chief decision forwarded to executive collection.'
+                                note: finalAdjustmentNote || 'Quantity adjusted by Academic Coordinator'
                             }
                         ]
                     });
@@ -605,13 +721,18 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         currentApproverId: nextApproverId,
                         currentApproverName: nextApproverName,
                         currentApproverRole: 'procurement_team_leader',
+                        items: finalItems,
+                        isAdjusted: !!finalAdjustmentNote,
+                        isFeedbackSeen: finalAdjustmentNote ? false : true,
                         history: [
                             ...request.history,
                             {
                                 status: 'pending_procurement',
                                 user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
-                                note: 'Request approved by Academic Coordinator. Forwarded to Procurement Team Leader.'
+                                note: finalAdjustmentNote || 'Quantity adjusted by Academic Coordinator'
                             }
                         ]
                     });
@@ -678,6 +799,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             {
                                 status: 'approved_by_head',
                                 user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
                                 note: 'Bulk approved by Department Head'
                             }
@@ -717,6 +840,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 {
                                     status: 'forwarded_to_chief',
                                     user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
                                     timestamp: new Date().toISOString(),
                                     note: 'Fixed assets requiring Chief decision forwarded to executive collection (Bulk).'
                                 }
@@ -735,6 +860,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 {
                                     status: 'pending_procurement',
                                     user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
                                     timestamp: new Date().toISOString(),
                                     note: 'Request approved by Academic Coordinator (Bulk). Forwarded to Procurement Team Leader.'
                                 }
@@ -755,8 +882,53 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             {
                                 status: 'pending_procurement',
                                 user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
                                 note: 'Approved by Managing Director. Forwarded to Procurement Team Leader (Bulk).'
+                            }
+                        ]
+                    });
+                    approvedCount++;
+                } else if (effectiveRole === 'general_service') {
+                    // GS -> Procurement Team Leader
+                    batch.update(ref, {
+                        status: 'pending_procurement',
+                        currentApproverId: ptl.id,
+                        currentApproverName: ptl.name,
+                        currentApproverRole: 'procurement_team_leader',
+                        history: [
+                            ...req.history,
+                            {
+                                status: 'pending_procurement',
+                                user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
+                                timestamp: new Date().toISOString(),
+                                note: 'Approved by General Service. Forwarded to Procurement Team Leader (Bulk).'
+                            }
+                        ]
+                    });
+                    approvedCount++;
+                } else if (effectiveRole === 'team_leader') {
+                    // Procurement Team Leader -> Forward to Stock Clerk
+                    const firstItem = req.items[0];
+                    const type = firstItem?.materialType?.toLowerCase() || '';
+                    const isConsumable = type.includes('consumable');
+                    const clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+
+                    batch.update(ref, {
+                        status: 'approved_by_procurement_team_leader',
+                        currentApproverRole: clerkRole,
+                        history: [
+                            ...req.history,
+                            {
+                                status: 'approved_by_procurement_team_leader',
+                                user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
+                                timestamp: new Date().toISOString(),
+                                note: `Approved by Procurement Team Leader. Forwarded to ${isConsumable ? 'Consumable' : 'Fixed Asset'} Stock Clerk (Bulk).`
                             }
                         ]
                     });
@@ -781,6 +953,47 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         }
     };
 
+    const handleBulkReject = async () => {
+        if (!user || !userData || !db || selectedRequests.length === 0) return;
+
+        const reason = prompt(`Enter rejection reason for ${selectedRequests.length} requests:`);
+        if (!reason || !reason.trim()) return;
+
+        setIsBulkProcessing(true);
+        try {
+            const batch = writeBatch(db!);
+            for (const reqId of selectedRequests) {
+                const req = requests.find(r => r.id === reqId);
+                if (!req) continue;
+                const ref = doc(db!, 'Request_materials', reqId);
+                batch.update(ref, {
+                    status: 'rejected',
+                    isFeedbackSeen: false,
+                    history: [
+                        ...req.history,
+                        {
+                            status: 'rejected',
+                            user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
+                            timestamp: new Date().toISOString(),
+                            note: reason.trim()
+                        }
+                    ]
+                });
+            }
+            await batch.commit();
+            setSuccessMessage({ text: `Successfully rejected ${selectedRequests.length} requests`, type: 'general' });
+            setSelectedRequests([]);
+        } catch (error) {
+            console.error("Bulk reject error:", error);
+            alert("Failed to bulk reject requests.");
+        } finally {
+            setIsBulkProcessing(false);
+            setTimeout(() => setSuccessMessage(null), 5000);
+        }
+    };
+
     const toggleSelect = (id: string) => {
         setSelectedRequests(prev =>
             prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
@@ -795,33 +1008,46 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         }
     };
 
-    const handleReject = async (request: MaterialRequest) => {
+    const handleReject = (request: MaterialRequest) => {
         if (!user || !db) return;
-        const note = prompt("Please enter a reason for rejection:");
-        if (note === null) return;
+        setRequestToReject(request);
+        setRejectReason('');
+        setRejectModalOpen(true);
+    };
 
-        setProcessingId(request.id);
+    const confirmReject = async () => {
+        if (!user || !db || !requestToReject) return;
+        if (!rejectReason.trim()) {
+            alert("Please enter a valid reason for rejection.");
+            return;
+        }
+
+        setProcessingId(requestToReject.id);
+        const reason = rejectReason.trim();
+        setRejectModalOpen(false);
+
         try {
-            const requestRef = doc(db!, 'Request_materials', request.id);
+            const requestRef = doc(db!, 'Request_materials', requestToReject.id);
             const statusLabel = 'rejected';
 
             await updateDoc(requestRef, {
                 status: statusLabel,
+                isFeedbackSeen: false,
                 history: [
-                    ...request.history,
+                    ...requestToReject.history,
                     {
                         status: statusLabel,
                         user: user.uid,
+                        userName: userData?.displayName || user.email || 'Admin',
+                        userRole: getRoleTitle(effectiveRole),
                         timestamp: new Date().toISOString(),
-                        note: note || `Rejected by ${effectiveRole.replace('_', ' ')}`
+                        note: reason
                     }
                 ]
             });
-            setSuccessMessage({
-                text: "Successfully sent message",
-                type: 'general'
-            });
-            setTimeout(() => setSuccessMessage(null), 5000);
+            setRequestToReject(null);
+            setRejectReason('');
+            setSuccessMessage({ text: "Request rejected successfully", type: 'general' });
         } catch (error) {
             console.error("Error rejecting request:", error);
             alert("Failed to reject request.");
@@ -869,6 +1095,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         {
                             status: 'completed',
                             user: user.uid,
+                            userName: userData.displayName || 'Anonymous',
+                            userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: 'Material request validated and completed by Stock Clerk'
                         }
@@ -900,7 +1128,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
             // Step 4: Success Message
             setSuccessMessage({
-                text: "Successfully approved",
+                text: "Request validated and forwarded to Store Keeper. Verification code sent to employee.",
                 type: 'general'
             });
 
@@ -937,13 +1165,18 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 'blue';
 
     return (
-        <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="max-w-[1600px] mx-auto px-4 pb-4 space-y-6 animate-in fade-in duration-500">
             {selectedRequest && (
                 <ReadOnlyPaperForm20
                     request={selectedRequest}
                     onClose={() => setSelectedRequest(null)}
-                    onApprove={(signature) => {
-                        handleApprove(selectedRequest, signature);
+                    onApprove={(updatedItems: any[], sig, note) => {
+                        // Map updated quantities back to original items to preserve type safety and full metadata
+                        const finalizedItems = selectedRequest.items.map((orig, i) => ({
+                            ...orig,
+                            quantity: updatedItems[i]?.quantity ?? orig.quantity
+                        }));
+                        handleApprove(selectedRequest, finalizedItems, note, sig);
                         setSelectedRequest(null);
                     }}
                     onReject={() => {
@@ -952,6 +1185,28 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     }}
                     isProcessing={processingId === selectedRequest.id}
                     isDepartmentHead={effectiveRole === 'department_head'}
+                    isAcademicCoordinator={effectiveRole === 'academic_coordinator'}
+                    isManagingDirector={effectiveRole === 'managing_director'}
+                    isStockClerk={effectiveRole === 'stock_clerk' || effectiveRole.includes('stock_clerk')}
+                    onProcessModel22={() => {
+                        setModel22Request(selectedRequest);
+                        setSelectedRequest(null);
+                    }}
+                />
+            )}
+            {selectedRequest && selectedRequest.formType !== 'paper_form_20' && (
+                <MaterialRequestReviewModal
+                    request={selectedRequest}
+                    onClose={() => setSelectedRequest(null)}
+                    onApprove={() => {
+                        handleApprove(selectedRequest);
+                        setSelectedRequest(null);
+                    }}
+                    onReject={() => {
+                        handleReject(selectedRequest);
+                        setSelectedRequest(null);
+                    }}
+                    isProcessing={processingId === selectedRequest.id}
                 />
             )}
             {/* Notification Bar */}
@@ -971,60 +1226,80 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             )}
 
             {/* Header Section */}
-            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[2.5rem] border border-slate-200 relative overflow-hidden`}>
-
-                <div className="relative z-10">
-                    <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-blue-700 text-[10px] font-black uppercase tracking-[0.2em] mb-4 border border-blue-100`}>
-                        <FiActivity /> Security Protocol Active
+            <div className="flex flex-col gap-3 bg-white p-3 md:p-4 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="flex items-center gap-4">
+                        <h2 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-3">
+                            {effectiveRole === 'academic_coordinator' ? (
+                                <>Managerial <span className="text-blue-600">Review</span></>
+                            ) : effectiveRole === 'managing_director' ? (
+                                <>Executive <span className="text-blue-600">Approval</span></>
+                            ) : (
+                                <>Material <span className="text-blue-600">Requests</span></>
+                            )}
+                        </h2>
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-100">
+                            <FiActivity size={10} /> System Management
+                        </div>
                     </div>
-                    <h2 className="text-4xl font-black text-slate-800 tracking-tighter flex items-center gap-4">
-                        {effectiveRole === 'academic_coordinator' ? (
-                            <>Departmental <span className={`text-blue-600`}>Submissions</span></>
-                        ) : effectiveRole === 'managing_director' ? (
-                            <>Executive <span className={`text-blue-600`}>Directives</span></>
-                        ) : effectiveRole === 'general_service' ? (
-                            <>Validated <span className={`text-blue-600`}>Requests</span></>
-                        ) : effectiveRole === 'team_leader' ? (
-                            <>Procurement <span className={`text-blue-600`}>Oversight</span></>
-                        ) : (
-                            <>Pending <span className={`text-blue-600`}>Requests</span></>
-                        )}
-                    </h2>
-                    <p className="text-slate-500 font-bold mt-2 uppercase text-[10px] tracking-[0.3em] opacity-60">
-                        {effectiveRole === 'academic_coordinator' ? 'Coordinator Protocol: Budgetary & Rule Validation' :
-                            effectiveRole === 'managing_director' ? 'MD Protocol: Final Executive Authorization' :
-                                effectiveRole === 'general_service' ? 'Service Protocol: Final Material Processing' :
-                                    effectiveRole === 'team_leader' ? 'Team Leader Protocol: Administrative Verification' :
-                                        'Department Head Protocol: Review and Verify Requisitions'}
-                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* View Mode Toggle */}
+                        <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list'
+                                    ? 'bg-white text-blue-600 shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                            >
+                                <FiList className="text-base" /> List
+                            </button>
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid'
+                                    ? 'bg-white text-blue-600 shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                            >
+                                <FiGrid className="text-base" /> Grid
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => handleSelectAll(selectedRequests.length !== filteredRequests.length)}
+                            className={`px-6 py-2 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 flex items-center gap-2 ${selectedRequests.length === filteredRequests.length && filteredRequests.length > 0
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:text-blue-600'
+                                }`}
+                        >
+                            {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
+                                <><FiCheckCircle className="text-base" /> Deselect All</>
+                            ) : (
+                                <><div className="w-4 h-4 rounded-md border-2 border-current"></div> Select All</>
+                            )}
+                        </button>
+                    </div>
                 </div>
 
-                <div className="relative group w-full md:w-[28rem] z-10">
-                    <FiSearch className={`absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xl`} />
-                    <input
-                        type="text"
-                        placeholder="Search by teacher or material..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`w-full pl-14 pr-6 py-5 bg-white border-2 border-slate-100 rounded-3xl focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300`}
-                    />
+                <div className="relative group w-full z-10 border-t border-slate-100 pt-3 flex flex-col md:flex-row items-center gap-3">
+                    <div className="relative flex-1 w-full">
+                        <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xl" />
+                        <input
+                            type="text"
+                            placeholder="Search by requester or material name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-sm"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl whitespace-nowrap">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue:</span>
+                        <span className="text-[10px] font-black text-slate-700 uppercase">
+                            {filteredRequests.length} {filteredRequests.length === 1 ? 'Task' : 'Tasks'}
+                        </span>
+                    </div>
                 </div>
-                {(effectiveRole === 'department_head' || effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && (
-                    <button
-                        onClick={toggleSelectAll}
-                        className="px-6 py-5 bg-white border-2 border-slate-100 text-blue-600 rounded-[2rem] font-black uppercase text-xs tracking-widest hover:bg-blue-50 transition-all flex items-center gap-2"
-                    >
-                        {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
-                            <>
-                                <FiCheckCircle className="text-xl" /> Deselect All
-                            </>
-                        ) : (
-                            <>
-                                <div className="w-5 h-5 rounded-md border-2 border-current"></div> Select All
-                            </>
-                        )}
-                    </button>
-                )}
             </div>
 
             {/* Bulk Action Bar */}
@@ -1044,6 +1319,15 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             {isBulkProcessing ? 'Processing...' : 'Approve All'}
                             {!isBulkProcessing && <FiCheckCircle className="text-lg" />}
                         </button>
+                        <div className="h-8 w-px bg-slate-700"></div>
+                        <button
+                            onClick={handleBulkReject}
+                            disabled={isBulkProcessing}
+                            className="text-sm font-black uppercase tracking-widest hover:text-red-400 transition-colors flex items-center gap-2"
+                        >
+                            {isBulkProcessing ? 'Processing...' : 'Reject All'}
+                            {!isBulkProcessing && <FiXCircle className="text-lg" />}
+                        </button>
                         <button
                             onClick={() => setSelectedRequests([])}
                             className="text-slate-500 hover:text-white transition-colors"
@@ -1055,220 +1339,278 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             )}
 
             {filteredRequests.length === 0 ? (
-                <div className="bg-white border-2 border-dashed border-slate-200 rounded-[3rem] p-32 text-center space-y-6">
-                    <div className={`w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto text-slate-200 border-2 border-slate-100`}>
-                        <FiClock className="text-5xl" />
+                <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center space-y-4">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300 border border-slate-200">
+                        <FiClock className="text-3xl" />
                     </div>
-                    <div className="space-y-2">
-                        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Queue Clear</h3>
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No pending material requests require your attention.</p>
+                    <div className="space-y-1">
+                        <h3 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Queue Clear</h3>
+                        <p className="text-slate-400 font-semibold uppercase text-[9px] tracking-widest">No pending material requests require your attention.</p>
                     </div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-12">
+                <div className={viewMode === 'grid' ? "grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6" : "flex flex-col gap-4 mt-6"}>
                     {filteredRequests.map(request => (
                         <div
                             key={request.id}
-                            className={`group relative bg-white border-2 rounded-[3rem] transition-all duration-700 flex flex-col overflow-hidden ${effectiveRole === 'academic_coordinator' ? 'border-slate-100' :
-                                effectiveRole === 'managing_director' ? 'border-slate-100' :
-                                    effectiveRole === 'general_service' ? 'border-slate-100' :
-                                        effectiveRole === 'team_leader' ? 'border-slate-100' :
-                                            'border-slate-100'
+                            className={`group relative bg-white border border-slate-200 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 flex flex-col overflow-hidden ${viewMode === 'grid' ? 'rounded-[2rem] p-4' : 'rounded-2xl md:flex-row md:items-center'
                                 } ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
                         >
-                            {/* Removed glow/accent effects for pure white theme */}
-
-                            {/* Request Card Top Bar */}
-                            <div className="px-8 py-6 bg-white border-b border-slate-100 flex items-center justify-between relative z-10">
-                                <div className="flex items-center gap-4">
-                                    {(effectiveRole === 'department_head' || effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && (
-                                        <div className="mr-2">
+                            {viewMode === 'list' ? (
+                                <>
+                                    {/* LIST VIEW LAYOUT */}
+                                    <div className="flex-1 px-4 py-3 flex flex-col md:flex-row md:items-center gap-4">
+                                        <div className="flex items-center gap-4 min-w-[280px]">
                                             <input
                                                 type="checkbox"
                                                 checked={selectedRequests.includes(request.id)}
                                                 onChange={() => toggleSelect(request.id)}
                                                 className="w-5 h-5 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                             />
+                                            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
+                                                <FiUser className="text-xl text-slate-400 group-hover:text-blue-600" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="font-bold text-slate-900 text-base truncate tracking-tight">{request.requesterName}</h4>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                                                        {request.department?.replace('_', ' ')}
+                                                    </span>
+                                                    {request.formType === 'paper_form_20' && (
+                                                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
+                                                            Form 20
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className={`w-14 h-14 rounded-2xl bg-white border-2 border-slate-100 flex items-center justify-center transition-colors`}>
-                                        <FiUser className={`text-2xl text-blue-600`} />
-                                    </div>
-                                    <div>
-                                        <h4 className="font-black text-slate-800 text-lg tracking-tight group-hover:text-black transition-colors">{request.requesterName}</h4>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={`px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 text-[9px] font-black uppercase tracking-widest`}>
-                                                {request.department?.replace('_', ' ')}
-                                            </span>
-                                            {request.formType === 'paper_form_20' && (
-                                                <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest">
-                                                    Paper Form 20
+
+                                        <div className="flex-1 flex flex-wrap items-center gap-4">
+                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+                                                <div className={`w-2 h-2 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
+                                                    request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
+                                                    }`} />
+                                                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                                    {request.status.replace(/_/g, ' ')}
                                                 </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">
+                                                <FiCalendar className="text-slate-300" />
+                                                {request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) || 'N/A'}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            {request.formType === 'paper_form_20' ? (
+                                                <button
+                                                    onClick={() => setSelectedRequest(request)}
+                                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-500 transition-all flex items-center gap-2 whitespace-nowrap"
+                                                >
+                                                    Process Model 20
+                                                    <FiArrowRight />
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-widest opacity-60">
+                                                    <FiBox size={14} />
+                                                    {request.items.length} Items
+                                                </div>
                                             )}
                                         </div>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="mb-2">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-blue-700 text-[10px] font-black uppercase tracking-tighter border border-blue-200/50`}>
-                                            <FiCheckCircle className="text-xs" /> {request.status.replace(/_/g, ' ')}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-end gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white px-3 py-1.5 rounded-xl border border-slate-100/50">
-                                        <FiCalendar className={`text-blue-500`} />
-                                        {request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) || 'N/A'}
-                                    </div>
-                                </div>
-                            </div>
 
-                            {request.formType === 'paper_form_20' ? (
-                                <div className="p-8 flex flex-col items-center justify-center relative z-10 bg-slate-50/50">
-                                    <button
-                                        onClick={() => setSelectedRequest(request)}
-                                        className="w-full max-w-sm group/btn relative px-8 py-5 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-blue-500/20 hover:shadow-blue-600/40 hover:scale-[1.02] active:scale-95 transition-all overflow-hidden"
-                                    >
-                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
-                                        <span className="relative z-10 flex items-center justify-center gap-3">
-                                            View Request
-                                            <FiArrowRight className="text-lg group-hover/btn:translate-x-1 transition-transform" />
-                                        </span>
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Items List */}
-                                    <div className="p-8 flex-1 space-y-6 relative z-10">
-                                        <div className="space-y-4">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 flex items-center gap-3">
-                                                <FiBox className={`text-blue-500`} /> Material Payload ({request.items.length})
-                                            </p>
-                                            <div className="space-y-3">
-                                                {request.items.map((item, idx) => (
-                                                    <div key={idx} className={`group/item flex items-center justify-between p-4 bg-white rounded-3xl border-2 border-slate-100/50 hover:border-blue-200 transition-all`}>
-                                                        <div className="flex items-center gap-5">
-                                                            <div className="w-16 h-16 rounded-[1.25rem] bg-white border-2 border-slate-100 flex items-center justify-center relative overflow-hidden flex-shrink-0 transition-colors">
-                                                                {(item.image || materialImages[item.materialId]) ? (
-                                                                    <Image
-                                                                        src={item.image || materialImages[item.materialId]}
-                                                                        alt={item.materialName}
-                                                                        fill
-                                                                        className="object-cover transition-transform duration-700 group-hover/item:scale-110"
+                                    {request.formType !== 'paper_form_20' && (
+                                        <div className="px-4 pb-4 pt-1 border-t border-slate-50 bg-slate-50/20">
+                                            {/* Standard Item List - Nested */}
+                                            <div className="flex flex-col gap-3">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    {request.items.map((item, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 hover:border-blue-200 group/item transition-all">
+                                                            <div className="flex items-center gap-3 truncate">
+                                                                <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-100">
+                                                                    {item.image || materialImages[item.materialId] ? (
+                                                                        <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={40} height={40} className="rounded-lg object-cover" />
+                                                                    ) : <FiBox className="text-slate-200" />}
+                                                                </div>
+                                                                <div className="truncate">
+                                                                    <p className="text-sm font-bold text-slate-800 truncate">{item.materialName}</p>
+                                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{item.materialCode || 'No Code'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
+                                                                    <input
+                                                                        type="number"
+                                                                        value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
+                                                                        onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
+                                                                        className={`w-16 px-2 py-1 bg-slate-50 border rounded-lg text-right font-bold text-sm focus:border-blue-500 outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
+                                                                            ? 'text-rose-600 border-rose-200 bg-rose-50'
+                                                                            : 'text-slate-800 border-slate-200'
+                                                                            }`}
                                                                     />
                                                                 ) : (
-                                                                    <FiBox className="text-slate-200 h-full w-full p-4" />
+                                                                    <span className="text-sm font-black text-slate-700">{item.quantity}</span>
                                                                 )}
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.unit}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
+                                                    <div className="mt-2 p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-2">
+                                                        <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                                                            <FiAlertCircle /> Reason for Adjustment Required
+                                                        </label>
+                                                        <textarea
+                                                            value={adjustmentReasons[request.id] || ''}
+                                                            onChange={(e) => setAdjustmentReasons({ ...adjustmentReasons, [request.id]: e.target.value })}
+                                                            placeholder="Specify why quantities were changed..."
+                                                            className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/10 resize-none h-16"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center gap-3 pt-3">
+                                                    {effectiveRole.includes('stock_clerk') ? (
+                                                        <button onClick={() => setModel22Request(request)} className={`flex-1 py-3 bg-${themeColor}-600 hover:bg-${themeColor}-500 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all`}>
+                                                            Proceed to Model 22 <FiArrowRight />
+                                                        </button>
+                                                    ) : effectiveRole === 'general_service' ? (
+                                                        <button onClick={() => setSelectedRequest(request)} className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all">
+                                                            Process Service <FiArrowRight />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => setSelectedRequest(request)}
+                                                            className={`flex-1 py-3 rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${
+                                                                effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
+                                                                effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
+                                                                'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                            }`}
+                                                        >
+                                                            Process Request <FiArrowRight />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleReject(request)} className="px-4 py-3 bg-white border border-slate-200 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:bg-red-50 transition-all">
+                                                        <FiXCircle size={18} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {/* GRID VIEW LAYOUT */}
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedRequests.includes(request.id)}
+                                                onChange={() => toggleSelect(request.id)}
+                                                className="w-5 h-5 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                            />
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-blue-600">
+                                                <FiUser className="text-xl" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-800 text-lg tracking-tight">{request.requesterName}</h4>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{request.department?.replace('_', ' ')}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="flex items-center gap-2 mb-1 justify-end">
+                                                <div className={`w-2 h-2 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
+                                                    request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
+                                                    }`} />
+                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{request.status.replace(/_/g, ' ')}</span>
+                                            </div>
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none mt-1.5">{request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+
+                                    {request.formType === 'paper_form_20' ? (
+                                        <div className="bg-slate-50/50 rounded-3xl p-8 flex flex-col items-center justify-center border border-slate-100 border-dashed">
+                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
+                                                <FiArrowRight className="text-2xl text-blue-500" />
+                                            </div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Model 20 Requisition</p>
+                                            <button
+                                                onClick={() => setSelectedRequest(request)}
+                                                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-600/20 hover:bg-blue-500 transition-all"
+                                            >
+                                                Process Request
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Requested Items ({request.items.length})</p>
+                                            </div>
+                                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                                {request.items.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                                {item.image || materialImages[item.materialId] ? (
+                                                                    <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={40} height={40} className="object-cover" />
+                                                                ) : <FiBox className="text-slate-200" />}
                                                             </div>
                                                             <div>
-                                                                <p className="font-black text-slate-800 group-hover/item:text-black transition-colors">{item.materialName}</p>
-                                                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                                                    {(effectiveRole === 'stock_clerk' || effectiveRole === 'team_leader') && (
-                                                                        <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg font-mono">{item.materialCode}</span>
-                                                                    )}
-                                                                    <span className={`text-[10px] font-black bg-blue-600/10 text-blue-700 px-2.5 py-1 rounded-lg uppercase tracking-tighter border border-blue-200/50`}>{item.materialType?.replace('_', ' ')}</span>
-                                                                    {item.AC_decition === 'need AC decision' && (
-                                                                        <span className="text-[10px] font-black bg-red-500 text-white px-2.5 py-1 rounded-lg uppercase flex items-center gap-1.5">
-                                                                            <FiAlertCircle /> Commission Review
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                                                <p className="text-sm font-black text-slate-700">{item.materialName}</p>
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{item.materialCode || 'No Code'}</p>
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="flex flex-col items-end">
-                                                                <span className="text-lg font-black text-slate-800">{item.quantity}</span>
-                                                                <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.unit}</span>
-                                                            </div>
-                                                            <div className={`mt-2 px-2 py-0.5 rounded-lg inline-block text-[9px] font-black uppercase tracking-tighter border ${item.condition === 'New' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                                                                }`}>
-                                                                {item.condition}
-                                                            </div>
+                                                            {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
+                                                                <input
+                                                                    type="number"
+                                                                    value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
+                                                                    onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
+                                                                    className={`w-16 px-2 py-1 bg-white border rounded-lg text-right font-black text-sm focus:ring-2 focus:ring-blue-500/10 outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
+                                                                        ? 'text-rose-600 border-rose-200 bg-rose-50'
+                                                                        : 'text-slate-800 border-slate-200'
+                                                                        }`}
+                                                                />
+                                                            ) : (
+                                                                <p className="text-sm font-black text-slate-800">{item.quantity} <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-1">{item.unit}</span></p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-                                    </div>
 
-                                    {/* Actions */}
-                                    <div className="p-8 bg-white border-t border-slate-100 flex items-center gap-4 relative z-10">
-                                        {effectiveRole.includes('stock_clerk') || effectiveRole.includes('store_keeper') ? (
-                                            <>
+                                            {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
+                                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl space-y-2">
+                                                    <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                                                        <FiAlertCircle /> Reason for Adjustment Required
+                                                    </label>
+                                                    <textarea
+                                                        value={adjustmentReasons[request.id] || ''}
+                                                        onChange={(e) => setAdjustmentReasons({ ...adjustmentReasons, [request.id]: e.target.value })}
+                                                        placeholder="Specify why quantities were changed..."
+                                                        className="w-full bg-white border border-rose-200 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/10 resize-none h-16"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-auto">
                                                 <button
-                                                    onClick={() => handleApprove(request)}
-                                                    className={`flex-1 py-5 bg-${themeColor}-600 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] hover:bg-${themeColor}-500 transition-all shadow-[0_20px_40px_-10px_rgba(255,255,255,0)] hover:shadow-[0_20px_40px_-5px_rgba(6,182,212,0.3)] flex items-center justify-center gap-3 group/btn active:scale-95`}
-                                                >
-                                                    {processingId === request.id ? (
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                            <span>Processing...</span>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            {effectiveRole.includes('store_keeper') ? 'Finalize & Complete' : 'Validate & Forward'}
-                                                            <FiArrowRight className="group-hover/btn:translate-x-2 transition-transform text-lg" />
-                                                        </>
-                                                    )}
-                                                </button>
-                                                <button
-                                                    onClick={() => handleReject(request)}
-                                                    className="px-8 py-5 bg-white border-2 border-slate-100 text-slate-400 rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:border-red-500 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-3 group/reject"
-                                                >
-                                                    <FiXCircle className="text-2xl group-hover/reject:rotate-90 transition-transform duration-500" />
-                                                </button>
-                                            </>
-                                        ) : effectiveRole === 'general_service' ? (
-                                            <button
-                                                onClick={() => handleApprove(request)}
-                                                className={`flex-1 py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-3 group/btn relative overflow-hidden shadow-xl bg-violet-600 hover:bg-violet-500 text-white shadow-violet-600/20`}
-                                            >
-                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                                                {processingId === request.id ? (
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                        <span>Processing...</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="relative z-10 flex items-center gap-2">
-                                                        Acknowledge & Process
-                                                        <FiArrowRight className="group-hover/btn:translate-x-2 transition-transform text-lg" />
-                                                    </span>
-                                                )}
-                                            </button>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => handleApprove(request)}
-                                                    className={`flex-1 py-5 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-3 group/btn relative overflow-hidden shadow-xl ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
+                                                    onClick={() => effectiveRole.includes('stock_clerk') ? setModel22Request(request) : setSelectedRequest(request)}
+                                                    className={`flex-1 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${
+                                                        effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
                                                         effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                            effectiveRole === 'team_leader' ? 'bg-teal-600 hover:bg-teal-500 text-white shadow-teal-600/20' :
-                                                                'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20'
-                                                        }`}
+                                                        'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                    }`}
                                                 >
-                                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                                                    {processingId === request.id ? (
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                                            <span>Processing...</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="relative z-10 flex items-center gap-2">
-                                                            {effectiveRole === 'academic_coordinator' ? 'Authorize Requisition' :
-                                                                effectiveRole === 'managing_director' ? 'Execute Final Approval' :
-                                                                    effectiveRole === 'team_leader' ? 'Approved & Forwarded to Clerk' :
-                                                                        'Validated & Forwarded'}
-                                                            <FiCheckCircle className="text-lg group-hover/btn:scale-110 transition-transform" />
-                                                        </span>
-                                                    )}
+                                                    {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleReject(request)}
-                                                    className="px-8 py-5 bg-white border-2 border-slate-100 text-slate-400 rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:border-red-500 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-3 group/reject"
-                                                >
-                                                    <FiXCircle className="text-2xl group-hover/reject:rotate-90 transition-transform duration-500" />
+                                                <button onClick={() => handleReject(request)} className="px-5 py-4 bg-white border border-slate-200 text-slate-400 rounded-2xl hover:text-red-500 hover:border-red-500 hover:bg-red-50 transition-all group/reject">
+                                                    <FiXCircle size={20} className="group-hover/reject:rotate-90 transition-transform duration-300" />
                                                 </button>
-                                            </>
-                                        )}
-                                    </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -1276,34 +1618,82 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 </div>
             )}
 
-            {/* Protocol Card */}
-            <div className={`mt-12 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden border-b-[12px] border-blue-600`}>
-                <div className="flex flex-col md:flex-row items-center gap-10 relative z-10 text-center md:text-left">
-                    <div className={`w-28 h-28 bg-white/10 rounded-[2.5rem] flex items-center justify-center flex-shrink-0 border-2 border-white/20 animate-float`}>
-                        <FiInfo className={`text-5xl text-blue-400`} />
-                    </div>
-                    <div className="space-y-4">
-                        <div className={`inline-block px-4 py-1.5 rounded-full bg-white/10 text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] border border-white/20`}>
-                            Operational Policy
+
+
+            {model22Request && (
+                <ClerkModel22Form
+                    request={model22Request}
+                    onClose={() => setModel22Request(null)}
+                    onApprove={async (finalItems: RequestItem[]) => {
+                        await handleApprove(model22Request, finalItems);
+                    }}
+                />
+            )}
+
+            {/* Rejection Modal */}
+            {rejectModalOpen && requestToReject && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* decorative background element */}
+                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-rose-500/10 rounded-full blur-[40px] pointer-events-none" />
+
+                        <div className="flex items-center gap-4 mb-6 relative">
+                            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100 flex-shrink-0">
+                                <FiXCircle className="text-rose-600 text-xl" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight">Reject Request</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Provide Reason for Rejection</p>
+                            </div>
                         </div>
-                        <h4 className="text-3xl font-black tracking-tighter italic">
-                            {effectiveRole === 'academic_coordinator' ? 'Coordinator Validation Protocol' :
-                                effectiveRole === 'managing_director' ? 'Executive Approval Protocol' :
-                                    effectiveRole === 'general_service' ? 'Service Fulfillment Protocol' :
-                                        'Head Authorization Protocol'}
-                        </h4>
-                        <p className="text-slate-400 text-lg font-medium max-w-4xl leading-relaxed opacity-80">
-                            {effectiveRole === 'academic_coordinator'
-                                ? 'Review departmental requests for budgetary alignment and fixed asset governance. Your approval moves high-priority items to the Academic Commission for final executive decision.'
-                                : effectiveRole === 'managing_director'
-                                    ? 'As the Managing Director, your final authorization signals the formal commitment of resources. Approved requests are transmitted directly to the Procurement Unit for acquisition execution.'
-                                    : effectiveRole === 'general_service'
-                                        ? 'As General Service staff, you are responsible for the final processing and distribution of approved materials. Ensure all items are correctly cataloged and distributed to their respective departments.'
-                                        : 'As a Department Head, your approval signals that the requested materials are essential for departmental operations. Once approved, requests are transmitted to the Academic Coordinator.'}
-                        </p>
+
+                        <div className="space-y-4 relative">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                                    <FiUser size={14} className="text-slate-500" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Requester</p>
+                                    <p className="text-sm font-black text-slate-700 truncate">{requestToReject.requesterName}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Rejection Reason</label>
+                                <textarea
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                    placeholder="Please provide a clear reason for the requester..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-400 focus:bg-white transition-all resize-none h-32"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 justify-end mt-8 relative">
+                            <button
+                                onClick={() => {
+                                    setRejectModalOpen(false);
+                                    setRequestToReject(null);
+                                    setRejectReason('');
+                                }}
+                                className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 border-2 border-transparent transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmReject}
+                                disabled={!rejectReason.trim()}
+                                className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${!rejectReason.trim()
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-rose-500 text-white shadow-lg shadow-rose-500/30 hover:bg-rose-600 hover:shadow-rose-600/40 hover:-translate-y-0.5'
+                                    }`}
+                            >
+                                Confirm Reject
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <style jsx global>{`
                 @keyframes float {

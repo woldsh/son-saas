@@ -23,16 +23,25 @@ interface ReadOnlyPaperForm20Props {
         signature?: string; // Base64 signature
         headSignature?: string; // Department Head signature
         createdAt?: any;
+        status?: string;
+        history?: { status: string; note: string; timestamp: string; user: string }[];
     };
     onClose: () => void;
-    onApprove: (signature?: string) => void;
+    onApprove: (updatedItems: RequestItem[], signature?: string, adjustmentNote?: string) => void;
     onReject: () => void;
     isProcessing: boolean;
     isDepartmentHead?: boolean;
+    isAcademicCoordinator?: boolean;
+    isManagingDirector?: boolean;
+    isStockClerk?: boolean;
+    onProcessModel22?: () => void;
 }
 
-export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead }: ReadOnlyPaperForm20Props) {
-    const { receiptNo, requesterName, department, items, signature, headSignature, createdAt } = request;
+export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead, isAcademicCoordinator, isManagingDirector, isStockClerk, onProcessModel22 }: ReadOnlyPaperForm20Props) {
+    const { receiptNo, requesterName, department, items, signature, headSignature, createdAt, status, history } = request;
+
+    const rejectionNote = history?.filter(h => h.status === 'rejected').pop()?.note;
+    const canAdjust = isAcademicCoordinator || isManagingDirector;
 
     // Signature
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,8 +64,20 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
         dateYear = d.getFullYear().toString();
     }
 
+    // Editable items for AC/MD
+    const [editableItems, setEditableItems] = useState<RequestItem[]>(items);
+    const [adjustmentNote, setAdjustmentNote] = useState('');
+
+    const handleQuantityChange = (idx: number, val: string) => {
+        const newItems = [...editableItems];
+        newItems[idx] = { ...newItems[idx], quantity: Number(val) || 0 };
+        setEditableItems(newItems);
+    };
+
+    const isQuantityChanged = editableItems.some((item, idx) => item.quantity !== items[idx]?.quantity);
+
     // Fill empty rows to make it look like the paper form (min 7 rows)
-    const displayItems = [...items];
+    const displayItems = [...editableItems];
     while (displayItems.length < 7) {
         displayItems.push({ materialName: '', quantity: 0, model: '', remarks: '' });
     }
@@ -123,7 +144,13 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
             alert("Please sign the form before approving.");
             return;
         }
-        onApprove(signatureData || undefined);
+
+        if (canAdjust && isQuantityChanged && !adjustmentNote.trim()) {
+            alert("Please provide a reason for the quantity adjustment.");
+            return;
+        }
+
+        onApprove(editableItems, signatureData || undefined, adjustmentNote);
     };
 
     // Styles
@@ -149,7 +176,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
 
     const textStyle: React.CSSProperties = {
         color: '#0033aa', // Blue ink
-        fontFamily: "'Dancing Script', cursive", // Handwriting font
+        fontFamily: "'Comic Sans MS', 'Kalam', cursive", // Handwriting font
         fontSize: 16,
         fontWeight: 600,
     };
@@ -162,13 +189,15 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
             background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
-            display: 'flex', justifyContent: 'center', overflowY: 'auto',
+            display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto',
             padding: '40px 16px'
         }} onClick={onClose}>
             <div style={{
                 background: '#fff',
                 width: '100%', maxWidth: '210mm',
                 minHeight: '297mm',
+                height: 'max-content',
+                margin: '0 auto',
                 boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
                 padding: '48px 56px',
                 color: '#000',
@@ -198,6 +227,15 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                 </button>
 
                 {/* HEADER */}
+                {status === 'rejected' && rejectionNote && (
+                    <div className="print-hide" style={{ marginBottom: 24, padding: '16px 20px', background: '#fef2f2', border: '1px solid #f87171', borderRadius: 8 }}>
+                        <h4 style={{ color: '#b91c1c', margin: '0 0 4px', fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Request Rejected</h4>
+                        <p style={{ margin: 0, color: '#991b1b', fontSize: 13, lineHeight: 1.5 }}>
+                            <strong>Reason for Rejection:</strong> {rejectionNote}
+                        </p>
+                    </div>
+                )}
+
                 <div style={{ textAlign: 'center', marginBottom: 8 }}>
                     <p style={{ fontSize: 16, fontWeight: 700, letterSpacing: 1 }}>ሞዴል 20</p>
                 </div>
@@ -212,11 +250,10 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                 </div>
 
                 {/* DATE LINE */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-                    {blank('160px')}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 20 }}>
                     <span>ቀን</span>
                     <span style={{
-                        borderBottom: '1px solid #000', width: 120, textAlign: 'center', display: 'inline-block',
+                        borderBottom: '1px dotted #000', width: 140, textAlign: 'center', display: 'inline-block',
                         ...textStyle, fontSize: 18
                     }}>
                         {dateDay} / {dateYear}
@@ -226,9 +263,9 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
 
                 {/* BODY TEXT */}
                 <div style={{ marginBottom: 24 }}>
-                    <p>ለዲማርቃስ የዩኒቨርሲቲ ቡራ ካምፓስ</p>
+                    <p>ለደ/ማርቆስ ዩኒቨርሲቲ ቡሬ ካምፓስ</p>
                     <p style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-                        <span>እ ከዚህ ቤታች የፈረምኩት አቶ /ወ/ሮ/ሪት</span>
+                        <span>እኔ ከዚህ በታች የፈረምኩት አቶ /ወ/ሮ/ሪት</span>
                         <span style={{
                             flex: 1, borderBottom: '1px solid #000', textAlign: 'center',
                             minWidth: 120, paddingBottom: 2, ...textStyle, fontSize: 18
@@ -237,28 +274,27 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                         </span>
                     </p>
                     <p style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-                        <span>ከ</span>
+                        <span>ለ</span>
                         <span style={{
                             borderBottom: '1px solid #000', minWidth: 140, textAlign: 'center',
                             padding: '0 8px 2px', display: 'inline-block', ...textStyle, fontSize: 18
                         }}>
                             {department}
                         </span>
-                        <span>ክፍል አንጋልጉሎት ከዚህ ቀጥሎ በዝርዝር</span>
+                        <span>ክፍል አገልግሎት ከዚህ ቀጥሎ በዝርዝር</span>
                     </p>
-                    <p>የተመለከቱትን ዕቃዎች መዋ ሀንው እንዲሰጠኝ አሰባሰልው::</p>
+                    <p>የተመለከቱት ዕቃዎች ወጪ ሆነው እንዲሰጡኝ እጠይቃለሁ፡፡</p>
                 </div>
 
                 {/* TABLE */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24, border: '1.5px solid #000' }}>
                     <thead>
                         <tr>
-                            <th style={thStyle} rowSpan={2}>ተ.<br />ቁ</th>
-                            <th style={thStyle} rowSpan={2}>ብዛት</th>
+                            <th style={thStyle}>ተ.<br />ቁ</th>
+                            <th style={thStyle}>ብዛት</th>
                             <th style={{ ...thStyle, width: 200, minWidth: 100 }}>የዕቃው ዓይነት</th>
-                            <th style={thStyle} rowSpan={2}>ሞዴል</th>
-                            <th style={{ ...thStyle, whiteSpace: 'nowrap', borderRight: 'none' }}>የተጠየቀው ዕ.ቁ ቁጥር ቡዝቱ ሲያ ባለስልጣኑ</th>
-                            <th style={{ ...thStyle, whiteSpace: 'nowrap', borderLeft: 'none' }}>ማያሻሽላቸት ንምድ</th>
+                            <th style={thStyle}>ሞዴል</th>
+                            <th style={{ ...thStyle, fontSize: 10 }}>የተጠቀሰው ዕቃ ቁጥር በዝቶ ሲገኝ ባለስልጣኑ የሚያሻሽልበት አምድ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -266,7 +302,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                             <tr key={idx}>
                                 <td style={tdStyle}>{idx + 1}</td>
                                 <td style={tdStyle}>
-                                    {item.quantity ? <span style={textStyle}>{item.quantity}</span> : ''}
+                                    {item.quantity ? <span style={textStyle}>{items[idx]?.quantity}</span> : ''}
                                 </td>
                                 <td style={tdStyle}>
                                     {item.materialName ? <span style={textStyle}>{item.materialName}</span> : ''}
@@ -274,16 +310,48 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                                 <td style={tdStyle}>
                                     {item.model ? <span style={textStyle}>{item.model}</span> : ''}
                                 </td>
-                                <td style={{ ...tdStyle, borderRight: 'none' }}>
-                                    {item.remarks ? <span style={textStyle}>{item.remarks}</span> : ''}
+                                <td style={tdStyle}>
+                                    {canAdjust && item.materialName ? (
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={item.quantity || ''}
+                                            onChange={(e) => handleQuantityChange(idx, Math.max(0, parseInt(e.target.value) || 0).toString())}
+                                            style={{
+                                                width: '100%', border: 'none', background: '#f0f9ff',
+                                                textAlign: 'center', fontWeight: 'bold', fontSize: 18,
+                                                color: item.quantity !== items[idx]?.quantity ? '#e11d48' : '#0033aa',
+                                                fontFamily: "'Comic Sans MS', 'Kalam', cursive"
+                                            }}
+                                        />
+                                    ) : (
+                                        item.quantity !== items[idx]?.quantity ? <span style={{ ...textStyle, color: '#e11d48' }}>{item.quantity}</span> : ''
+                                    )}
                                 </td>
-                                <td style={{ ...tdStyle, borderLeft: 'none' }}></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
 
-                {/* SIGNATURES */}
+                {/* ADJUSTMENT REASON (AC OR MD) */}
+                {canAdjust && isQuantityChanged && (
+                    <div style={{ marginBottom: 20, padding: 16, backgroundColor: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 8 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#9a3412', marginBottom: 8 }}>
+                            Reason for Adjustment (Required)
+                        </label>
+                        <textarea
+                            value={adjustmentNote}
+                            onChange={(e) => setAdjustmentNote(e.target.value)}
+                            placeholder="Explain why the quantity was modified..."
+                            style={{
+                                width: '100%', height: 80, padding: 12, borderRadius: 6, border: '1.5px solid #fed7aa',
+                                fontSize: 14, outline: 'none', backgroundColor: '#fff'
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* SIGN REGION */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 40 }}>
                     {/* Requester */}
                     <div>
@@ -294,7 +362,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                             </span>
                         </div>
                         <div>
-                            <span style={{ fontWeight: 700 }}>ፈረምኩት</span>
+                            <span style={{ fontWeight: 700 }}>ፊርማ</span>
                             <div style={{ position: 'relative', height: 90, borderBottom: '2px solid #000', marginTop: 4 }}>
                                 {signature ? (
                                     // eslint-disable-next-line @next/next/no-img-element
@@ -375,23 +443,36 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                         Reject
                     </button>
                     <button
-                        onClick={handleApproveWithSignature}
-                        disabled={isProcessing}
+                        onClick={isStockClerk ? onProcessModel22 : handleApproveWithSignature}
+                        disabled={isProcessing || (canAdjust && isQuantityChanged && !adjustmentNote.trim())}
                         style={{
                             padding: '12px 48px', borderRadius: 8,
-                            background: isProcessing ? '#93c5fd' : '#2563eb',
+                            background: isProcessing || (canAdjust && isQuantityChanged && !adjustmentNote.trim()) ? '#93c5fd' : '#2563eb',
                             border: 'none',
                             color: '#fff', fontWeight: 700, cursor: isProcessing ? 'wait' : 'pointer',
                             fontSize: 14, textTransform: 'uppercase',
-                            boxShadow: '0 4px 14px rgba(37,99,235,0.3)'
+                            boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12
                         }}>
-                        {isProcessing ? 'Processing...' : 'Approve Request'}
+                        {isProcessing ? (
+                            <>
+                                <div style={{
+                                    width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)',
+                                    borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite'
+                                }}></div>
+                                Processing...
+                            </>
+                        ) : isStockClerk ? 'Process Model 22' : 'Approve Request'}
                     </button>
                 </div>
 
                 <style jsx global>{`
+                    @keyframes spin {
+                        from { transform: rotate(0deg); }
+                        to { transform: rotate(360deg); }
+                    }
                     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@300;400;500;600;700&display=swap');
-                    @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap');
                     @media print {
                         body * {
                             visibility: hidden;

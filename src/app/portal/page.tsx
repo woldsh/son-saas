@@ -71,8 +71,8 @@ export default function PortalPage() {
     }, [user]);
 
     const dashboardStats = [
-        { label: t('total_requests'), value: '1,280', sub: t('updated_just_now'), icon: FiGrid, color: 'bg-blue-600' },
-        { label: t('pending_requests'), value: '42', sub: t('awaiting_approval_sub'), icon: FiClock, color: 'bg-amber-500' },
+        { label: t('total_requests_dashboard'), value: '1,280', sub: t('updated_just_now'), icon: FiGrid, color: 'bg-blue-600' },
+        { label: t('pending_requests_dashboard'), value: '42', sub: t('awaiting_approval_sub'), icon: FiClock, color: 'bg-amber-500' },
         { label: t('accepted_requests'), value: '1,120', sub: t('successfully_processed'), icon: FiCheckSquare, color: 'bg-emerald-600' },
         { label: t('system_health'), value: '98%', sub: t('good'), icon: FiZap, color: 'bg-indigo-600' },
     ];

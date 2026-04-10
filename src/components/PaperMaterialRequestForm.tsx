@@ -39,6 +39,9 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
+    // Available items from Model 19 for autocomplete
+    const [availableItems, setAvailableItems] = useState<{ name: string, model: string }[]>([]);
+
     // Signature
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -64,6 +67,39 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             }
         }
     }, [user, department, userRole]);
+
+    useEffect(() => {
+        const fetchAvailableMaterials = async () => {
+            if (!db) return;
+            try {
+                const materialsSnap = await getDocs(collection(db, 'materials'));
+                const itemsMap = new Map<string, string>(); // name -> model
+
+                materialsSnap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.items && Array.isArray(data.items)) {
+                        // Check if this material is visible to this user's department
+                        const allowed = data.visibleToAll || data.targetDepartment === dept || data.targetDepartment === 'all';
+                        if (allowed || !dept) {
+                            data.items.forEach((item: any) => {
+                                if (item.description && typeof item.description === 'string' && item.description.trim()) {
+                                    if (!itemsMap.has(item.description.trim())) {
+                                        itemsMap.set(item.description.trim(), item.model || '');
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+
+                const uniqueItems = Array.from(itemsMap.entries()).map(([name, model]) => ({ name, model })).sort((a, b) => a.name.localeCompare(b.name));
+                setAvailableItems(uniqueItems);
+            } catch (err) {
+                console.error("Failed to fetch available materials:", err);
+            }
+        };
+        fetchAvailableMaterials();
+    }, [dept]);
 
     // Canvas setup
     useEffect(() => {
@@ -147,23 +183,41 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
 
         setIsSubmitting(true);
         try {
+            // Team Leader specialized workflow roles
+            const TEAM_LEADER_ROLES = [
+                'student_service_leader',
+                'student_service_dormitory_leader',
+                'student_service_sport_leader',
+                'student_service_cafeteria_leader',
+                'hrm_leader',
+                'finance_leader',
+                'admin_lead' // Generic fallback for admin-style leads
+            ];
+
             // Determine the correct approver role based on naming patterns
             let targetRole = 'department_head';
             let rolePrefix = '';
 
-            if (userRole) {
+            const isTeamLeaderSubmitting = userRole && TEAM_LEADER_ROLES.includes(userRole);
+            const isHeadSubmitting = userRole && userRole.endsWith('_head');
+
+            if (isTeamLeaderSubmitting) {
+                targetRole = 'managing_director';
+            } else if (userRole) {
                 if (userRole.endsWith('_teacher')) {
                     rolePrefix = userRole.replace('_teacher', '');
                     targetRole = `${rolePrefix}_head`;
                 } else if (userRole.endsWith('_employee')) {
                     rolePrefix = userRole.replace('_employee', '');
                     targetRole = `${rolePrefix}_leader`;
+                } else if (userRole.endsWith('_head')) {
+                    targetRole = 'academic_coordinator';
                 }
             }
 
             // Fallback for currentApproverRole categorization
-            let approverCategory = 'department_head';
-            if (targetRole.endsWith('_leader')) approverCategory = targetRole;
+            let approverCategory = isTeamLeaderSubmitting ? 'managing_director' : 'department_head';
+            if (!isTeamLeaderSubmitting && targetRole.endsWith('_leader')) approverCategory = targetRole;
 
             let currentApproverId = 'PENDING_APPROVER_ASSIGNMENT';
             let currentApproverName = targetRole.replace(/_/g, ' ').toUpperCase();
@@ -178,13 +232,13 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             if (!approversSnap.empty) {
                 // If multiple, try to match department
                 let bestMatch = approversSnap.docs[0];
-                if (dept) {
+                if (dept && !isTeamLeaderSubmitting) { // MD doesn't need dept match usually
                     const deptMatch = approversSnap.docs.find(d => d.data().department === dept);
                     if (deptMatch) bestMatch = deptMatch;
                 }
                 currentApproverId = bestMatch.id;
                 currentApproverName = bestMatch.data().displayName || currentApproverName;
-            } else if (dept) {
+            } else if (dept && !isTeamLeaderSubmitting) {
                 // Generic fallback search by department if role-specific search fails
                 const deptUsersQuery = query(
                     collection(db, 'users'),
@@ -202,6 +256,12 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 }
             }
 
+            // Define status and approver info based on submission role
+            const finalStatus = isTeamLeaderSubmitting ? 'pending_managing_director' : (isHeadSubmitting ? 'approved_by_head' : 'pending_department_leader');
+            const finalApproverRole = isTeamLeaderSubmitting ? 'managing_director' : (isHeadSubmitting ? 'academic_coordinator' : approverCategory);
+            const finalApproverId = isHeadSubmitting && !isTeamLeaderSubmitting ? 'PENDING_COORDINATOR' : currentApproverId;
+            const finalApproverName = isHeadSubmitting && !isTeamLeaderSubmitting ? 'Academic Coordinator' : currentApproverName;
+
             await addDoc(collection(db, 'Request_materials'), {
                 requesterId: user.uid,
                 requesterName: requesterName || user.displayName,
@@ -217,13 +277,26 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                     AC_decition: 'non',
                 })),
                 signature: signatureData,
-                status: 'pending_department_leader',
-                currentApproverRole: approverCategory,
-                currentApproverId: currentApproverId,
-                currentApproverName: currentApproverName,
+                status: finalStatus,
+                currentApproverRole: finalApproverRole,
+                currentApproverId: finalApproverId,
+                currentApproverName: finalApproverName,
                 createdAt: serverTimestamp(),
                 formType: 'paper_form_20',
-                history: [{ status: 'submitted', user: user.uid, timestamp: new Date().toISOString(), note: `ሞዴል 20 ቅጽ ቀርቧል:: Forwarded to ${currentApproverName} (${targetRole.replace(/_/g, ' ')})` }],
+                history: [
+                    {
+                        status: 'submitted',
+                        user: user.uid,
+                        timestamp: new Date().toISOString(),
+                        note: `ሞዴል 20 ቅጽ ቀርቧል:: Forwarded to ${finalApproverName} (${finalApproverRole.replace(/_/g, ' ')})`
+                    },
+                    ...(isHeadSubmitting && !isTeamLeaderSubmitting ? [{
+                        status: 'approved_by_head',
+                        user: user.uid,
+                        timestamp: new Date().toISOString(),
+                        note: `Auto-approved as requester is a Department Head.`
+                    }] : [])
+                ],
             });
             setShowSuccess(true);
             setTimeout(() => {
@@ -324,33 +397,32 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                     <input value={receiptNo} onChange={e => setReceiptNo(e.target.value)}
                         style={{
                             borderBottom: '1px solid #000', background: 'transparent', outline: 'none', width: 180, textAlign: 'center',
-                            color: '#0033aa', fontFamily: "'Dancing Script', cursive", fontSize: 18, fontWeight: 600
+                            color: '#0033aa', fontFamily: "'Comic Sans MS', 'Kalam', cursive", fontSize: 18, fontWeight: 600
                         }} />
                 </div>
 
                 {/* DATE LINE */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-                    {blank('160px')}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 20 }}>
                     <span>ቀን</span>
                     <input value={dateDay} onChange={e => setDateDay(e.target.value)}
                         style={{
-                            borderBottom: '1px solid #000', background: 'transparent', outline: 'none', width: 120, textAlign: 'center',
-                            color: '#0033aa', fontFamily: "'Dancing Script', cursive", fontSize: 18, fontWeight: 600
+                            borderBottom: '1px dotted #000', background: 'transparent', outline: 'none', width: 140, textAlign: 'center',
+                            color: '#0033aa', fontFamily: "'Comic Sans MS', 'Kalam', cursive", fontSize: 18, fontWeight: 600
                         }} />
                     <span>ዓ.ም</span>
                 </div>
 
                 {/* BODY TEXT */}
                 <div style={{ marginBottom: 24 }}>
-                    <p>ለዲማርቃስ የዩኒቨርሲቲ ቡራ ካምፓስ</p>
+                    <p>ለደ/ማርቆስ ዩኒቨርሲቲ ቡሬ ካምፓስ</p>
                     <p style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-                        <span>እ ከዚህ ቤታች የፈረምኩት አቶ /ወ/ሮ/ሪት</span>
+                        <span>እኔ ከዚህ በታች የፈረምኩት አቶ /ወ/ሮ/ሪት</span>
                         <span style={{
                             flex: 1,
                             borderBottom: '1px solid #000',
                             textAlign: 'center',
                             color: '#0033aa',
-                            fontFamily: "'Dancing Script', cursive",
+                            fontFamily: "'Comic Sans MS', 'Kalam', cursive",
                             fontSize: 18,
                             fontWeight: 600,
                             fontStyle: 'italic',
@@ -361,13 +433,13 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                         </span>
                     </p>
                     <p style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
-                        <span>ከ</span>
+                        <span>ለ</span>
                         <span style={{
                             borderBottom: '1px solid #000',
                             minWidth: 140,
                             textAlign: 'center',
                             color: '#0033aa',
-                            fontFamily: "'Dancing Script', cursive",
+                            fontFamily: "'Comic Sans MS', 'Kalam', cursive",
                             fontSize: 18,
                             fontWeight: 600,
                             fontStyle: 'italic',
@@ -376,17 +448,23 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                         }}>
                             {dept}
                         </span>
-                        <span>ክፍል አንጋልጉሎት ከዚህ ቀጥሎ በዝርዝር</span>
+                        <span>ክፍል አገልግሎት ከዚህ ቀጥሎ በዝርዝር</span>
                     </p>
-                    <p>የተመለከቱትን ዕቃዎች መዋ ሀንው እንዲሰጠኝ አሰባሰልው::</p>
+                    <p>የተመለከቱት ዕቃዎች ወጪ ሆነው እንዲሰጡኝ እጠይቃለሁ፡፡</p>
                 </div>
 
                 {/* TABLE */}
+                <datalist id="registered-items-list">
+                    {availableItems.map((ai, idx) => (
+                        <option key={idx} value={ai.name} />
+                    ))}
+                </datalist>
+
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24, border: '1.5px solid #000' }}>
                     <thead>
                         <tr>
-                            <th style={thStyle} rowSpan={2}>ተ.<br />ቁ</th>
-                            <th style={thStyle} rowSpan={2}>ብዛት</th>
+                            <th style={thStyle}>ተ.<br />ቁ</th>
+                            <th style={thStyle}>ብዛት</th>
                             <th style={{ ...thStyle, width: itemTypeWidth, position: 'relative', minWidth: 100 }}>
                                 የዕቃው ዓይነት
                                 <div
@@ -399,17 +477,14 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                                         width: 10,
                                         cursor: 'col-resize',
                                         zIndex: 10,
-                                        background: 'transparent' // transparent handle
+                                        background: 'transparent'
                                     }}
                                     className="resize-handle"
                                 />
                             </th>
-                            <th style={thStyle} rowSpan={2}>ሞዴል</th>
-                            <th style={{ ...thStyle, whiteSpace: 'nowrap', borderRight: 'none' }}>
-                                የተጠየቀው ዕ.ቁ ቁጥር ቡዝቱ ሲያ ባለስልጣኑ
-                            </th>
-                            <th style={{ ...thStyle, whiteSpace: 'nowrap', borderLeft: 'none' }}>
-                                ማያሻሽላቸት ንምድ
+                            <th style={thStyle}>ሞዴል</th>
+                            <th style={thStyle}>
+                                የተጠቀሰው ዕቃ ቁጥር በዝቶ ሲገኝ ባለስልጣኑ የሚያሻሽልበት አምድ
                             </th>
                         </tr>
                     </thead>
@@ -418,31 +493,37 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                             <tr key={item.id} className="hover-row">
                                 <td style={tdStyle}>{idx + 1}</td>
                                 <td style={tdStyle}>
-                                    <input value={item.quantity} onChange={e => updateItem(item.id, 'quantity', e.target.value)}
-                                        style={inputStyle} />
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={item.quantity}
+                                        onChange={e => updateItem(item.id, 'quantity', Math.max(0, parseInt(e.target.value) || 0).toString())}
+                                        style={inputStyle}
+                                    />
                                 </td>
                                 <td style={tdStyle}>
-                                    <input value={item.itemType} onChange={e => updateItem(item.id, 'itemType', e.target.value)}
-                                        style={inputStyle} />
+                                    <input
+                                        list="registered-items-list"
+                                        value={item.itemType}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            // Check if selected from dropdown and auto-fill model
+                                            const matched = availableItems.find(ai => ai.name === val);
+                                            if (matched && matched.model && !item.model) {
+                                                const newItems = items.map(i => i.id === item.id ? { ...i, itemType: val, model: matched.model } : i);
+                                                setItems(newItems);
+                                            } else {
+                                                updateItem(item.id, 'itemType', val);
+                                            }
+                                        }}
+                                        style={inputStyle}
+                                    />
                                 </td>
                                 <td style={tdStyle}>
                                     <input value={item.model} onChange={e => updateItem(item.id, 'model', e.target.value)}
                                         style={inputStyle} />
                                 </td>
-                                <td style={{ ...tdStyle, borderRight: 'none' }}>
-                                    <input value={item.remark} onChange={e => updateItem(item.id, 'remark', e.target.value)}
-                                        style={inputStyle} />
-                                </td>
-                                <td style={{ ...tdStyle, borderLeft: 'none', position: 'relative' }}>
-                                    <input style={inputStyle} />
-                                    {items.length > 1 && (
-                                        <button onClick={() => removeRow(item.id)}
-                                            style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', opacity: 0, fontSize: 12 }}
-                                            className="row-delete-btn">
-                                            <FiX />
-                                        </button>
-                                    )}
-                                </td>
+                                <td style={tdStyle}></td>
                             </tr>
                         ))}
                     </tbody>
@@ -467,7 +548,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                                 borderBottom: '1px solid #000',
                                 textAlign: 'center',
                                 color: '#0033aa',
-                                fontFamily: "'Dancing Script', cursive",
+                                fontFamily: "'Comic Sans MS', 'Kalam', cursive",
                                 fontSize: 20,
                                 fontWeight: 600,
                                 fontStyle: 'italic',
@@ -491,7 +572,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', touchAction: 'none' }} />
                                 {!isDrawing && !signatureData && (
                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: 0.15 }}>
-                                        <span style={{ fontSize: 18, fontFamily: "'Dancing Script', cursive", fontStyle: 'italic' }}>እዚህ ይፈርሙ</span>
+                                        <span style={{ fontSize: 18, fontFamily: "'Comic Sans MS', 'Kalam', cursive", fontStyle: 'italic' }}>እዚህ ይፈርሙ</span>
                                     </div>
                                 )}
                             </div>
@@ -530,7 +611,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
 
             <style jsx global>{`
                 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@300;400;500;600;700&display=swap');
-                @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap');
                 .hover-row:hover { background: #f8fafc; }
                 .hover-row:hover .row-delete-btn { opacity: 1 !important; }
                 @media print {

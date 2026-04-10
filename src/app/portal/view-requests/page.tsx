@@ -1,7 +1,7 @@
 'use client';
 
-import MaterialRequestView from '@/components/MaterialRequestView';
+import MyRequisitionHistory from '@/components/MyRequisitionHistory';
 
 export default function PortalViewRequestsPage() {
-    return <MaterialRequestView roleOverride="managing_director" />;
+    return <MyRequisitionHistory />;
 }

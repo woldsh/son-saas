@@ -20,7 +20,7 @@ export function useRequestNotification(userRole: string | null | undefined, depa
         const requestsRef = collection(db, 'Request_materials');
         let q;
 
-        const effectiveRole = userRole.toLowerCase();
+        const effectiveRole = userRole.toLowerCase().replace(/\s+/g, '_');
 
         if (effectiveRole.endsWith('_head')) {
             let dept = department;
@@ -69,10 +69,11 @@ export function useRequestNotification(userRole: string | null | undefined, depa
             );
         }
         else if (effectiveRole.includes('store_keeper')) {
+            // Store Keepers see count of items waiting for employee verification
+            const sendToUsersRef = collection(db, 'Send_to_Users');
             q = query(
-                requestsRef,
-                where('currentApproverRole', '==', userRole),
-                where('status', '==', 'approved_by_clerk')
+                sendToUsersRef,
+                where('status', 'in', ['ready_for_pickup', 'code_sent', 'shared_with_store'])
             );
         }
         else if (effectiveRole === 'student_service_dormitory_leader' || effectiveRole === 'dormitory_leader') {
@@ -100,7 +101,28 @@ export function useRequestNotification(userRole: string | null | undefined, depa
 
         if (q) {
             unsubscribe = onSnapshot(q, (snapshot) => {
-                setCount(snapshot.size);
+                if (effectiveRole.includes('store_keeper')) {
+                    // Filter in memory for store keepers by store type
+                    const storeType = effectiveRole.includes('consumable') ? 'consumable' : 'fixed_asset';
+                    const normalizedStoreType = storeType.replace(/[^a-z]/g, '');
+                    
+                    let validCount = 0;
+                    snapshot.docs.forEach(doc => {
+                        const data = doc.data();
+                        const matchesType = data.material_details?.some((m: any) => {
+                            const itemType = (m.materialType || '').toLowerCase().replace(/[^a-z]/g, '');
+                            return itemType.includes(normalizedStoreType) || normalizedStoreType.includes(itemType);
+                        });
+                        
+                        // Don't count handout_completed explicitly just in case query missed it
+                        if (matchesType && data.status !== 'handout_completed') {
+                            validCount++;
+                        }
+                    });
+                    setCount(validCount);
+                } else {
+                    setCount(snapshot.size);
+                }
             }, (error) => {
                 console.error("Error fetching notification count:", error);
             });

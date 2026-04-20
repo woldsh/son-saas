@@ -216,12 +216,17 @@ export default function RejectedRequestsFeedback() {
                         currentTabRequests.map((request, index) => {
                             const feedbackEntry = request.history?.filter(h => h.status === 'rejected' || h.note.includes('adjusted')).pop();
 
-                            const rawNote = feedbackEntry?.note || 'No reasoning provided.';
-                            const feedbackNote = rawNote
+                            const rawNote = feedbackEntry?.note || '';
+                            let feedbackNote = rawNote
                                 .replace(/^Quantity adjusted by .*?\. Note:\s*/i, '')
                                 .replace(/^Quantity adjusted by .*?\s*/i, '')
+                                .replace(/^Quantity adjusted\. Note:\s*/i, '')
                                 .replace(/^Note:\s*/i, '')
                                 .trim();
+                            
+                            if (!feedbackNote) {
+                                feedbackNote = 'No additional reasoning provided.';
+                            }
                             
                             let feedbackUser = feedbackEntry?.userRole || feedbackEntry?.rejectorRole || feedbackEntry?.userName;
                             if (!feedbackUser || /^[a-zA-Z0-9]{20,}$/.test(feedbackUser)) {

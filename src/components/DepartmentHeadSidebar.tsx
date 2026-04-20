@@ -8,9 +8,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { useRequestNotification } from '../hooks/useRequestNotification';
-import { useUserNotifications } from '../hooks/useUserNotifications';
+import { useRequestNotification } from '../hooks/useRequestNotification'
+import { useIsMobile } from '../hooks/useIsMobile';;
+import { useUserNotifications } from '../hooks/useUserNotifications'
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     PieChart,
     Package,
@@ -45,7 +47,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function DepartmentHeadSidebar() {
     const pathname = usePathname();
     const basePath = '/dashboard';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { userRole, department } = useAuth();
     const { t } = useLanguage();
     const [meetingInvite, setMeetingInvite] = useState<any>(null);
@@ -142,7 +145,7 @@ export default function DepartmentHeadSidebar() {
                 transition-all duration-300
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:border-none'}
             `}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 <div
                     className="relative flex flex-col h-full flex-shrink-0 border-r border-gray-200"
@@ -311,6 +314,12 @@ export default function DepartmentHeadSidebar() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
             `}</style>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

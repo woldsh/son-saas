@@ -6,8 +6,10 @@ import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useRequestNotification } from '../hooks/useRequestNotification';
+import { useRequestNotification } from '../hooks/useRequestNotification'
+import { useIsMobile } from '../hooks/useIsMobile';;
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     Package,
     RefreshCw,
@@ -35,7 +37,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function StudentServiceLeaderSidebar() {
     const pathname = usePathname();
     const basePath = '/admin-staff/team-leader';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { department, userRole } = useAuth();
     const requestCount = useRequestNotification(userRole, undefined);
@@ -111,7 +114,7 @@ export default function StudentServiceLeaderSidebar() {
                 transition-all duration-300
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:border-none'}
             `}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 <div
                     className="relative flex flex-col h-full flex-shrink-0 border-r border-gray-200"
@@ -133,7 +136,7 @@ export default function StudentServiceLeaderSidebar() {
                                     {department || 'administration'}
                                 </h2>
                                 <h3 className="text-[18px] font-bold text-slate-800 leading-tight truncate">
-                                    {t('student_service_leader')}
+                                    Student Service Vice Dean
                                 </h3>
                                 <div className="flex items-center gap-1.5 mt-1.5">
                                     <div className="w-2 h-2 bg-purple-500 rounded-full shadow-[0_0_6px_rgba(168,85,247,0.4)]"></div>
@@ -251,6 +254,12 @@ export default function StudentServiceLeaderSidebar() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
             `}</style>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

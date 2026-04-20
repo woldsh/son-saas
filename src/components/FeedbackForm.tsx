@@ -8,7 +8,7 @@ import { MessageSquare, Send, CheckCircle, AlertCircle, Sparkles } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function FeedbackForm() {
-    const { user, userRole, department, userData } = useAuth();
+    const { user, userRole, department } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState('');
@@ -21,6 +21,12 @@ export default function FeedbackForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!db) {
+            setError('Database connection is not available.');
+            return;
+        }
+
         if (!formData.subject.trim() || !formData.message.trim()) {
             setError('Please fill in both subject and message.');
             return;
@@ -32,7 +38,7 @@ export default function FeedbackForm() {
         try {
             await addDoc(collection(db, 'system_feedback'), {
                 userId: user?.uid || 'unknown',
-                userName: userData?.displayName || user?.email || 'Unknown User',
+                userName: user?.displayName || user?.email || 'Unknown User',
                 userRole: userRole || 'unknown',
                 department: department || 'unknown',
                 type: formData.type,
@@ -221,5 +227,5 @@ export default function FeedbackForm() {
 
 // Helper to adjust stroke width based on selection
 function maxStroke(isSelected: boolean) {
-    return isSelected ? 2.5 : 2;
+    return isSelected ? 4 : 2;
 }

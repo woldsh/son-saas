@@ -4,9 +4,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     Package,
     RefreshCw,
@@ -35,9 +37,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function EmployeeSidebar() {
     const pathname = usePathname();
     const basePath = '/admin-panel';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
-    const { department } = useAuth();
+    const { department, userRole } = useAuth();
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     const handleLinkClick = () => {
@@ -104,7 +107,7 @@ export default function EmployeeSidebar() {
                 transition-all duration-300
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:border-none'}
             `}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 <div
                     className="relative flex flex-col h-full flex-shrink-0 border-r border-gray-200"
@@ -122,13 +125,10 @@ export default function EmployeeSidebar() {
                                 </div>
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <h2 className="text-[14px] font-black text-slate-700 leading-tight truncate -mb-0.5 uppercase">
-                                    {department || 'department'}
-                                </h2>
-                                <h3 className="text-[18px] font-black text-slate-900 leading-tight truncate">
-                                    {t('employee') || 'Employee'}
+                                <h3 className="text-[18px] font-black text-slate-900 leading-tight truncate capitalize">
+                                    {department ? `${department.toLowerCase()} employee` : (userRole ? userRole.split('_').join(' ') : 'Staff Employee')}
                                 </h3>
-                                <div className="flex items-center gap-1.5 mt-1.5">
+                                <div className="flex items-center gap-1.5 mt-1">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_6px_rgba(59,130,246,0.4)]"></div>
                                     <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.15em]">
                                         ADMIN STAFF
@@ -239,6 +239,12 @@ export default function EmployeeSidebar() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
             `}</style>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

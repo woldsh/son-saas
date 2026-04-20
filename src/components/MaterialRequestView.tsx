@@ -494,14 +494,26 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
                 const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
 
+                const changes = finalItems.map((item, i) => {
+                    const original = request.items[i].quantity;
+                    return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
+                }).filter(Boolean);
+                const hasChanges = changes.length > 0;
+                
+                let noteToSave = 'Approved by Managing Director. Forwarded to Procurement Team Leader.';
+                if (hasChanges || finalAdjustmentNote) {
+                    const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
+                    noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
+                }
+
                 await updateDoc(requestRef, {
                     status: 'pending_procurement',
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
                     currentApproverRole: 'procurement_team_leader',
                     items: finalItems,
-                    isAdjusted: !!finalAdjustmentNote,
-                    isFeedbackSeen: finalAdjustmentNote ? false : true,
+                    isAdjusted: hasChanges || !!finalAdjustmentNote,
+                    isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                     history: [
                         ...request.history,
                         {
@@ -510,7 +522,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             userName: userData.displayName || 'Anonymous',
                             userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
-                            note: finalAdjustmentNote || 'Approved by Managing Director. Forwarded to Procurement Team Leader.'
+                            note: noteToSave
                         }
                     ]
                 });
@@ -675,6 +687,19 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 // Academic Coordinator Logic
                 const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
                 const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
+
+                const changes = finalItems.map((item, i) => {
+                    const original = request.items[i].quantity;
+                    return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
+                }).filter(Boolean);
+                const hasChanges = changes.length > 0;
+                
+                let noteToSave = 'Request approved by Academic Coordinator';
+                if (hasChanges || finalAdjustmentNote) {
+                    const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
+                    noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
+                }
+
                 const itemsWithACRule = finalItems.filter(item => item.AC_decition === 'need AC decision');
 
                 if (itemsWithACRule.length > 0) {
@@ -692,8 +717,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         status: 'forwarded_to_chief',
                         currentApproverRole: 'chief_executive',
                         items: finalItems,
-                        isAdjusted: !!finalAdjustmentNote,
-                        isFeedbackSeen: finalAdjustmentNote ? false : true,
+                        isAdjusted: hasChanges || !!finalAdjustmentNote,
+                        isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                         history: [
                             ...request.history,
                             {
@@ -702,7 +727,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 userName: userData.displayName || 'Anonymous',
                                 userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
-                                note: finalAdjustmentNote || 'Quantity adjusted by Academic Coordinator'
+                                note: noteToSave
                             }
                         ]
                     });
@@ -722,8 +747,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         currentApproverName: nextApproverName,
                         currentApproverRole: 'procurement_team_leader',
                         items: finalItems,
-                        isAdjusted: !!finalAdjustmentNote,
-                        isFeedbackSeen: finalAdjustmentNote ? false : true,
+                        isAdjusted: hasChanges || !!finalAdjustmentNote,
+                        isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                         history: [
                             ...request.history,
                             {
@@ -732,7 +757,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 userName: userData.displayName || 'Anonymous',
                                 userRole: getRoleTitle(effectiveRole),
                                 timestamp: new Date().toISOString(),
-                                note: finalAdjustmentNote || 'Quantity adjusted by Academic Coordinator'
+                                note: noteToSave
                             }
                         ]
                     });

@@ -6,9 +6,11 @@ import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useRequestNotification } from '../hooks/useRequestNotification';
-import { useUserNotifications } from '../hooks/useUserNotifications';
+import { useRequestNotification } from '../hooks/useRequestNotification'
+import { useIsMobile } from '../hooks/useIsMobile';;
+import { useUserNotifications } from '../hooks/useUserNotifications'
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     LayoutDashboard,
     CheckSquare,
@@ -56,7 +58,8 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
     const pathname = usePathname();
     const isFixed = storeType === 'fixed';
     const basePath = '/workspace';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { userRole, department } = useAuth();
     const requestCount = useRequestNotification(userRole, department);
@@ -171,7 +174,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                 transition-all duration-300
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:border-none'}
             `}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 <div
                     className="relative flex flex-col h-full flex-shrink-0 border-r border-gray-200"
@@ -185,7 +188,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                             <div className="relative">
                                 <div className={`absolute inset-0 bg-gradient-to-r ${styles.gradient} blur-xl rounded-full translate-y-1 opacity-20`}></div>
                                 <div className="relative w-[52px] h-[52px] rounded-[14px] bg-white shadow-[0_4px_12px_-2px_rgba(0,0,0,0.06)] flex items-center justify-center border border-gray-50/50">
-                                    
+                                    <HeaderIcon size={24} className={isFixed ? 'text-emerald-600' : 'text-blue-600'} strokeWidth={2.5} />
                                 </div>
                             </div>
                             <div className="flex flex-col min-w-0">
@@ -331,6 +334,12 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
             `}</style>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

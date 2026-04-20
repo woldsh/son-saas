@@ -7,14 +7,17 @@ import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useRequestNotification } from '../hooks/useRequestNotification';
+import { useRequestNotification } from '../hooks/useRequestNotification'
+import { useIsMobile } from '../hooks/useIsMobile';;
 import { FaChartPie, FaClipboardList, FaTools, FaUserTie, FaEnvelope, FaFileAlt, FaCog, FaCar } from 'react-icons/fa';
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 
 export default function GeneralServiceSidebar() {
     const pathname = usePathname();
     const basePath = '/service';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { userRole, department } = useAuth();
     const requestCount = useRequestNotification(userRole, department);
@@ -40,7 +43,7 @@ export default function GeneralServiceSidebar() {
             <div
                 className={`fixed lg:sticky top-0 h-screen flex flex-col z-[150] overflow-hidden transition-all duration-500 ease-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
 
                 {/* Ultra Premium White Mesh Gradient */}
@@ -131,6 +134,12 @@ export default function GeneralServiceSidebar() {
                     
                 </div>
             </div>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

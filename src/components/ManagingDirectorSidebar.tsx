@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useRequestNotification } from '../hooks/useRequestNotification';
+import { useRequestNotification } from '../hooks/useRequestNotification'
+import { useIsMobile } from '../hooks/useIsMobile';;
 import {
     LayoutDashboard,
     BarChart3,
@@ -33,11 +34,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 
 export default function ManagingDirectorSidebar() {
     const pathname = usePathname();
     const basePath = '/portal';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { userRole, department } = useAuth();
     const requestCount = useRequestNotification(userRole, department);
@@ -114,7 +117,7 @@ export default function ManagingDirectorSidebar() {
             <div
                 className={`fixed lg:sticky top-0 h-screen flex flex-col z-[150] transition-all duration-300 ease-in-out bg-white border-r border-slate-200/80 shadow-sm overflow-hidden
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 <div className="relative flex flex-col h-full overflow-hidden" style={{ width: sidebarWidth }}>
                     <SidebarResizeHandle />
@@ -253,6 +256,12 @@ export default function ManagingDirectorSidebar() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
             `}</style>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

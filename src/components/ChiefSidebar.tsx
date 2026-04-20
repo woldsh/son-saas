@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,11 +27,13 @@ import {
     FaEnvelope
 } from 'react-icons/fa';
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 
 export default function ChiefSidebar() {
     const pathname = usePathname();
     const basePath = '/portal';
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { userRole } = useAuth();
 
@@ -68,7 +71,7 @@ export default function ChiefSidebar() {
             <motion.div
                 initial={false}
                 animate={{
-                    width: isOpen ? sidebarWidth : 0,
+                    width: (isOpen && !isCollapsed) ? sidebarWidth : 0,
                     x: isOpen ? 0 : -sidebarWidth
                 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -152,6 +155,12 @@ export default function ChiefSidebar() {
 
                 </div>
             </motion.div>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

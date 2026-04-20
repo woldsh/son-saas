@@ -90,11 +90,11 @@ export function dashboardBucketsToPieData(
   counts: DashboardBucketCounts,
   variant: 'light' | 'dark'
 ): PieSlice[] {
-  // Pending + approved: blue family; rejected: red
+  // Distinct colors: amber for pending, emerald for approved, rose for rejected
   const colors =
     variant === 'dark'
-      ? { pending: '#7dd3fc', approved: '#3b82f6', rejected: '#ef4444' }
-      : { pending: '#60a5fa', approved: '#1d4ed8', rejected: '#dc2626' };
+      ? { pending: '#fbbf24', approved: '#34d399', rejected: '#fb7185' }
+      : { pending: '#f59e0b', approved: '#10b981', rejected: '#f43f5e' };
 
   const labels: Record<(typeof PIE_ORDER)[number], string> = {
     pending: 'Pending requests',

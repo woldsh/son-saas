@@ -52,7 +52,7 @@ export default function TeamLeaderLayout({
         }
     };
 
-    const getLocalizedRoleName = (role: string) => {
+    const getLocalizedRoleName = (role: string | null) => {
         // If department exists, use it to form a specific title
         if (department) {
             return `${department} Team Leader`;
@@ -92,7 +92,7 @@ export default function TeamLeaderLayout({
                     {renderSidebar()}
 
                     {/* Main Content */}
-                    <div className="flex-1 flex flex-col">
+                    <div className="flex-1 flex flex-col min-w-0">
                         <div className="sticky top-0 z-40">
                             <Header title={getLocalizedRoleName(userRole)} />
                         </div>
@@ -108,3 +108,4 @@ export default function TeamLeaderLayout({
         </SidebarProvider>
     );
 }
+

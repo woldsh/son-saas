@@ -88,7 +88,7 @@ export default function WorkspaceLayout({
             <IdleTimeoutGuard />
             <div className="min-h-screen bg-white flex">
                 {renderSidebar()}
-                <div className="flex-1 flex flex-col">
+                <div className="flex-1 flex flex-col min-w-0">
                     <div className="sticky top-0 z-40">
                         <Header title={getTitle()} />
                     </div>
@@ -103,3 +103,4 @@ export default function WorkspaceLayout({
         </SidebarProvider>
     );
 }
+

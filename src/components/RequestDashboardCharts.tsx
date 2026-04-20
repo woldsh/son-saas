@@ -48,9 +48,9 @@ export default function RequestDashboardCharts({
   const centerMuted = isDark ? '#94a3b8' : '#64748b';
   const centerStrong = isDark ? '#f8fafc' : '#0f172a';
 
-  const pendingFill = isDark ? '#7dd3fc' : '#60a5fa';
-  const approvedFill = isDark ? '#3b82f6' : '#1d4ed8';
-  const rejectedFill = isDark ? '#ef4444' : '#dc2626';
+  const pendingFill = isDark ? '#fbbf24' : '#f59e0b';
+  const approvedFill = isDark ? '#34d399' : '#10b981';
+  const rejectedFill = isDark ? '#fb7185' : '#f43f5e';
 
   const tooltipStyle = isDark
     ? {
@@ -83,18 +83,14 @@ export default function RequestDashboardCharts({
     active,
     payload,
     label,
-  }: {
-    active?: boolean;
-    payload?: { name: string; value: number; dataKey: string; color: string }[];
-    label?: string;
-  }) => {
+  }: any) => {
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload as StackedMonthRow | undefined;
-    const total = row?.total ?? payload.reduce((s, p) => s + Number(p.value ?? 0), 0);
+    const total = row?.total ?? payload.reduce((s: any, p: any) => s + Number(p.value ?? 0), 0);
     return (
       <div style={tooltipStyle} className="px-3 py-2 text-xs shadow-lg">
         <p className="font-semibold mb-1">{label}</p>
-        {payload.map((p) => (
+        {payload.map((p: any) => (
           <p key={p.dataKey} style={{ color: p.color }}>
             {p.name}: {p.value}
           </p>
@@ -123,13 +119,13 @@ export default function RequestDashboardCharts({
         <p
           className={`text-xs mb-4 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}
         >
-          Pending, approved, and rejected sum to{' '}
+          All dashboard statistics —{' '}
           <span className={isDark ? 'text-slate-300 font-semibold' : 'text-slate-800 font-semibold'}>
-            {totalRequests} total requests
+            {totalRequests} total
           </span>
         </p>
         {hasPie ? (
-          <div className="h-[280px] w-full min-w-0">
+          <div className="h-[360px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -141,6 +137,30 @@ export default function RequestDashboardCharts({
                   innerRadius={58}
                   outerRadius={88}
                   paddingAngle={2}
+                  label={(props: any) => {
+                    const { cx, cy, midAngle, outerRadius: oR, value, name } = props;
+                    const RADIAN = Math.PI / 180;
+                    const radius = oR + 24;
+                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill={isDark ? '#e2e8f0' : '#334155'}
+                        textAnchor={x > cx ? 'start' : 'end'}
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontWeight={600}
+                      >
+                        {name}: {value}
+                      </text>
+                    );
+                  }}
+                  labelLine={{
+                    stroke: isDark ? '#475569' : '#94a3b8',
+                    strokeWidth: 1,
+                  }}
                 >
                   {pieData.map((entry, i) => (
                     <Cell key={`cell-${i}`} fill={entry.fill} stroke="none" />
@@ -171,13 +191,18 @@ export default function RequestDashboardCharts({
                 </Pie>
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(value) => [Number(value ?? 0), 'Requests']}
+                  formatter={(value: any, name: any) => [Number(value ?? 0), name]}
                 />
                 <Legend
                   wrapperStyle={{ fontSize: 12 }}
-                  formatter={(value) => (
-                    <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{value}</span>
-                  )}
+                  formatter={(value) => {
+                    const entry = pieData.find((d) => d.name === value);
+                    return (
+                      <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                        {value}: <strong>{entry?.value ?? 0}</strong>
+                      </span>
+                    );
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -221,7 +246,7 @@ export default function RequestDashboardCharts({
                     <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{value}</span>
                   )}
                 />
-                <Bar dataKey="pending" stackId="req" name="Pending requests" fill={pendingFill} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" stackId="req" name="Pending Requests" fill={pendingFill} radius={[0, 0, 0, 0]} />
                 <Bar dataKey="approved" stackId="req" name="Approved" fill={approvedFill} radius={[0, 0, 0, 0]} />
                 <Bar
                   dataKey="rejected"

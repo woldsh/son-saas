@@ -43,7 +43,14 @@ export default function EmployeeDashboard({ userName }: { userName: string }) {
         () => countDashboardBuckets(allRequests as { status?: unknown }[], 'employee'),
         [allRequests]
     );
-    const pieData = useMemo(() => dashboardBucketsToPieData(bucketCounts, 'light'), [bucketCounts]);
+    const pieData = useMemo(() => [
+        { name: 'Pending Requests', value: bucketCounts.pending, fill: '#f59e0b' },
+        { name: 'Approved', value: bucketCounts.approved, fill: '#10b981' },
+        { name: 'Rejected', value: bucketCounts.rejected, fill: '#f43f5e' },
+        { name: 'Total Requests', value: bucketCounts.total, fill: '#3b82f6' },
+        { name: 'My Assets', value: assetCount, fill: '#6366f1' },
+        { name: 'Total Feedback', value: feedbackTotal, fill: '#0ea5e9' },
+    ].filter(d => d.value > 0), [bucketCounts, assetCount, feedbackTotal]);
     const stackedBarData = useMemo(
         () => buildLastNMonthsStackedData(allRequests, 'employee', 6),
         [allRequests]
@@ -165,8 +172,8 @@ export default function EmployeeDashboard({ userName }: { userName: string }) {
                 variant="light"
                 pieData={pieData}
                 stackedBarData={stackedBarData}
-                totalRequests={bucketCounts.total}
-                pieTitle="Request status"
+                totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
+                pieTitle="Dashboard Overview"
                 barTitle="Last 6 months"
             />
 

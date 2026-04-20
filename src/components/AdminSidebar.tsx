@@ -4,14 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { FaChartPie, FaUsers, FaUserPlus, FaUserCog, FaUserShield } from 'react-icons/fa';
 import SidebarResizeHandle from './SidebarResizeHandle';
+import SidebarCollapseButton from './SidebarCollapseButton';
 
 export default function AdminSidebar() {
     const pathname = usePathname();
-    const { isOpen, closeSidebar, sidebarWidth } = useSidebar();
+    const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
+    const isMobile = useIsMobile();
     const { t } = useLanguage();
 
     const handleLinkClick = () => {
@@ -34,7 +37,7 @@ export default function AdminSidebar() {
             <div
                 className={`fixed lg:sticky top-0 h-screen flex flex-col z-[150] overflow-hidden transition-all duration-500 ease-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-                style={{ width: isOpen ? sidebarWidth : 0 }}
+                style={{ width: isOpen ? ((isCollapsed && !isMobile) ? 0 : sidebarWidth) : 0 }}
             >
                 {/* Ultra Premium White Mesh Gradient */}
                 <div className="absolute inset-0 bg-white" />
@@ -118,6 +121,12 @@ export default function AdminSidebar() {
                     
                 </div>
             </div>
+
+
+            <SidebarCollapseButton />
+
+
         </>
     );
 }
+

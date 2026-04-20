@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 
 interface SidebarContextType {
     isOpen: boolean;
@@ -8,6 +8,8 @@ interface SidebarContextType {
     closeSidebar: () => void;
     sidebarWidth: number;
     setSidebarWidth: (width: number) => void;
+    isCollapsed: boolean;
+    toggleCollapse: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
@@ -21,16 +23,33 @@ export { MIN_WIDTH, MAX_WIDTH, DEFAULT_WIDTH };
 export function SidebarProvider({ children }: { children: ReactNode }) {
     const [isOpen, setIsOpen] = useState(true);
     const [sidebarWidth, setSidebarWidthState] = useState(DEFAULT_WIDTH);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
-    const toggleSidebar = () => setIsOpen(prev => !prev);
+    useEffect(() => {
+        const handleInitialResize = () => {
+            if (window.innerWidth < 1024) {
+                setIsOpen(false);
+            }
+        };
+        handleInitialResize();
+    }, []);
+
+    const toggleSidebar = () => setIsOpen(prev => {
+        if (!prev) setIsCollapsed(false); // Reset collapse when opening via hamburger
+        return !prev;
+    });
     const closeSidebar = () => setIsOpen(false);
+
+    const toggleCollapse = useCallback(() => {
+        setIsCollapsed(prev => !prev);
+    }, []);
 
     const setSidebarWidth = useCallback((width: number) => {
         setSidebarWidthState(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)));
     }, []);
 
     return (
-        <SidebarContext.Provider value={{ isOpen, toggleSidebar, closeSidebar, sidebarWidth, setSidebarWidth }}>
+        <SidebarContext.Provider value={{ isOpen, toggleSidebar, closeSidebar, sidebarWidth, setSidebarWidth, isCollapsed, toggleCollapse }}>
             {children}
         </SidebarContext.Provider>
     );

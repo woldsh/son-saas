@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -40,8 +40,56 @@ export default function LoginPage() {
   const { login, resetPassword } = useAuth();
   const router = useRouter();
 
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutEnd, setLockoutEnd] = useState<number | null>(null);
+
+  useEffect(() => {
+    const storedLockout = localStorage.getItem('loginLockoutEnd');
+    if (storedLockout) {
+      const expirationTime = parseInt(storedLockout, 10);
+      if (Date.now() < expirationTime) {
+        setLockoutEnd(expirationTime);
+        const minutesLeft = Math.ceil((expirationTime - Date.now()) / 60000);
+        setError(`Too many failed attempts. Please wait ${minutesLeft} minutes.`);
+      } else {
+        localStorage.removeItem('loginLockoutEnd');
+        localStorage.removeItem('loginFailedAttempts');
+      }
+    } else {
+      const storedAttempts = localStorage.getItem('loginFailedAttempts');
+      if (storedAttempts) {
+        setFailedAttempts(parseInt(storedAttempts, 10));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (lockoutEnd) {
+      timer = setInterval(() => {
+        if (Date.now() >= lockoutEnd) {
+          setLockoutEnd(null);
+          setFailedAttempts(0);
+          setError('');
+          localStorage.removeItem('loginLockoutEnd');
+          localStorage.removeItem('loginFailedAttempts');
+        } else {
+          const minutesLeft = Math.ceil((lockoutEnd - Date.now()) / 60000);
+          setError(`Too many failed attempts. Please wait ${minutesLeft} minutes.`);
+        }
+      }, 60000);
+    }
+    return () => clearInterval(timer);
+  }, [lockoutEnd]);
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (lockoutEnd && Date.now() < lockoutEnd) {
+      const minutesLeft = Math.ceil((lockoutEnd - Date.now()) / 60000);
+      setError(`Too many failed attempts. Please wait ${minutesLeft} minutes.`);
+      return;
+    }
+
     setError('');
     setMessage('');
     setLoading(true);
@@ -52,9 +100,25 @@ export default function LoginPage() {
       await login(email, password);
       // Redirection is handled by the parent component (src/app/login/page.tsx)
       // once AuthContext confirms the user is verified and active.
+      localStorage.removeItem('loginFailedAttempts');
+      localStorage.removeItem('loginLockoutEnd');
+      setFailedAttempts(0);
+      setLockoutEnd(null);
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Verification failed. Please check your credentials.');
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      localStorage.setItem('loginFailedAttempts', newAttempts.toString());
+      
+      if (newAttempts >= 5) {
+        const expiration = Date.now() + 30 * 60 * 1000;
+        setLockoutEnd(expiration);
+        localStorage.setItem('loginLockoutEnd', expiration.toString());
+        setError(`You have made 5 failed attempts. Please wait 30 minutes before trying again.`);
+      } else {
+        const remaining = 5 - newAttempts;
+        setError(`${err.message || 'Verification failed. Please check your credentials.'} (Warning: ${remaining} attempt${remaining === 1 ? '' : 's'} remaining)`);
+      }
       setLoading(false);
     }
   };
@@ -334,7 +398,7 @@ export default function LoginPage() {
                 <div className="pt-2 flex flex-col items-center gap-4">
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !!lockoutEnd}
                     className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-600/25 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2.5"
                   >
                     {loading ? (

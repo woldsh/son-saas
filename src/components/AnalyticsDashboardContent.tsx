@@ -33,9 +33,16 @@ export default function AnalyticsDashboardContent() {
             try {
                 // Fetch Requests
                 const requestsRef = collection(db, 'Request_materials');
-                const q = query(requestsRef, orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const snapshot = await getDocs(requestsRef);
+                const activeRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Fetch Completed/Handout requests (which are deleted from Request_materials and moved to Send_to_Users)
+                const sendToUsersRef = collection(db, 'Send_to_Users');
+                const sendToUsersSnap = await getDocs(sendToUsersRef);
+                const sendToUsersRequests = sendToUsersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // Combine them for aggregate analysis
+                const allRequests = [...activeRequests, ...sendToUsersRequests];
 
                 // Process Requests Trend (Last 7 Days)
                 const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -48,12 +55,25 @@ export default function AnalyticsDashboardContent() {
                     };
                 });
 
-                requests.forEach((req: any) => {
-                    if (req.createdAt) {
-                        const date = req.createdAt.split('T')[0];
-                        const dayStat = last7Days.find(d => d.date === date);
-                        if (dayStat) {
-                            dayStat.requests++;
+                allRequests.forEach((req: any) => {
+                    // Try createdAt or issued_date for trend mapping
+                    const timestampObj = req.createdAt || req.issued_date;
+                    if (timestampObj) {
+                        let dObj = null;
+                        if (typeof timestampObj === 'string') {
+                            dObj = new Date(timestampObj);
+                        } else if (timestampObj.toDate) {
+                            dObj = timestampObj.toDate();
+                        } else if (timestampObj instanceof Date) {
+                            dObj = timestampObj;
+                        }
+
+                        if (dObj && !isNaN(dObj.getTime())) {
+                            const date = dObj.toISOString().split('T')[0];
+                            const dayStat = last7Days.find(d => d.date === date);
+                            if (dayStat) {
+                                dayStat.requests++;
+                            }
                         }
                     }
                 });
@@ -61,15 +81,15 @@ export default function AnalyticsDashboardContent() {
 
                 // Process Department Data
                 const deptMap: { [key: string]: number } = {};
-                requests.forEach((req: any) => {
-                    const dept = req.department || 'Unknown';
+                allRequests.forEach((req: any) => {
+                    const dept = req.department || req.requester_department || 'Unknown';
                     deptMap[dept] = (deptMap[dept] || 0) + 1;
                 });
                 const colors = ['#2563eb', '#4f46e5', '#0ea5e9', '#06b6d4', '#3b82f6'];
                 const processedDeptData = Object.entries(deptMap)
                     .map(([name, value], index) => ({
                         name,
-                        value: Math.round((value / requests.length) * 100),
+                        value: Math.round((value / (allRequests.length || 1)) * 100),
                         color: colors[index % colors.length]
                     }))
                     .sort((a, b) => b.value - a.value)
@@ -83,14 +103,14 @@ export default function AnalyticsDashboardContent() {
                     'Pending': 0,
                     'Rejected': 0
                 };
-                requests.forEach((req: any) => {
-                    const s = req.status || '';
+                allRequests.forEach((req: any) => {
+                    const s = (req.status || '').toLowerCase();
                     if (s === 'completed' || s === 'delivered' || s.includes('handout')) statusMap['Completed']++;
-                    else if (s.includes('approved')) statusMap['Approved']++;
+                    else if (s.includes('approved') || s.includes('processed')) statusMap['Approved']++;
                     else if (s.includes('rejected')) statusMap['Rejected']++;
                     else statusMap['Pending']++;
                 });
-                const total = requests.length || 1;
+                const total = allRequests.length || 1;
                 const processedStatusData = [
                     { name: 'Completed', value: Math.round((statusMap.Completed / total) * 100), color: '#10b981' },
                     { name: 'Approved', value: Math.round((statusMap.Approved / total) * 100), color: '#3b82f6' },
@@ -137,9 +157,15 @@ export default function AnalyticsDashboardContent() {
 
                 // Calculate KPI Stats
                 setStats({
-                    totalRequests: requests.length,
-                    pendingApprovals: requests.filter((r: any) => r.status && r.status.includes('pending')).length,
-                    completedHandouts: requests.filter((r: any) => r.status === 'completed').length,
+                    totalRequests: allRequests.length,
+                    pendingApprovals: allRequests.filter((r: any) => {
+                        const s = (r.status || '').toLowerCase();
+                        return s.includes('pending');
+                    }).length,
+                    completedHandouts: allRequests.filter((r: any) => {
+                        const s = (r.status || '').toLowerCase();
+                        return s === 'completed' || s === 'delivered' || s.includes('handout');
+                    }).length,
                     totalItems: materialsSnap.size,
                     lowStock: lowStockCount,
                     outOfStock: outOfStockCount,

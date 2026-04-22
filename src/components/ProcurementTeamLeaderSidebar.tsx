@@ -125,6 +125,7 @@ export default function ProcurementTeamLeaderSidebar() {
         { isHeader: true, label: t('procurementLabel') || "Procurement Operations" },
         { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
         { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
+        { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
         {
             label: t('stock_alert'),
             icon: Bell,

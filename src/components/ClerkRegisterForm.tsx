@@ -248,7 +248,7 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
             if (!db) throw new Error('Firebase not initialized');
             await addDoc(collection(db, 'materials'), {
                 ...headerData,
-                materialType: isFixed ? 'clerk_fixed' : 'clerk_consumable',
+                materialType: isFixed ? 'fixed_asset' : 'consumable',
                 formType: 'receipt_for_articles',
                 items: filledRows,
                 grandTotalBirr: gBirr,

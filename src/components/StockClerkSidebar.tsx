@@ -38,7 +38,8 @@ import {
     ChevronDown,
     ChevronUp,
     Building2,
-    Eye
+    Eye,
+    Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -85,6 +86,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             icon: Package,
             subItems: [
                 { label: 'Register Material', href: `${basePath}/register-material`, icon: FilePlus },
+                { label: t('materials_list') || 'Materials List', href: `${basePath}/materials-list`, icon: Layers },
                 { label: t('clerk_report') || "Clerk Report", href: `${basePath}/store-clerk-report`, icon: FileText },
                 { label: 'Expiry Alerts', href: `${basePath}/expiry-alerts`, icon: AlertTriangle },
                 { label: 'Bin Management', href: `${basePath}/bin-management`, icon: Grid },

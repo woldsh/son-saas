@@ -11,16 +11,16 @@ import {
 } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { 
-    Search, 
-    Filter, 
-    Eye, 
-    Clock, 
-    CheckCircle2, 
-    XCircle, 
-    Package, 
-    Calendar, 
-    User, 
+import {
+    Search,
+    Filter,
+    Eye,
+    Clock,
+    CheckCircle2,
+    XCircle,
+    Package,
+    Calendar,
+    User,
     ClipboardList,
     LayoutDashboard,
     ChevronDown,
@@ -128,8 +128,8 @@ export default function MyRequisitionHistory() {
     const filteredRequests = requests.filter(r => {
         const matchesSearch = r.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
             r.items.some(item => item.materialName.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        const matchesStatus = statusFilter === 'all' || 
+
+        const matchesStatus = statusFilter === 'all' ||
             (statusFilter === 'pending' && stats.pending > 0 && ['pending', 'pending_department_leader', 'approved_by_head', 'approved_by_coordinator', 'forwarded_to_chief', 'pending_managing_director', 'pending_general_service', 'pending_procurement', 'forwarded_to_team_leader', 'approved_by_procurement_team_leader', 'approved_by_clerk'].includes(r.status)) ||
             (statusFilter === 'approved' && ['approved', 'approved_by_md'].includes(r.status)) ||
             (statusFilter === 'issued' && ['completed', 'received', 'issued'].includes(r.status)) ||
@@ -140,7 +140,7 @@ export default function MyRequisitionHistory() {
 
     const getStatusBadge = (request: MaterialRequest) => {
         const s = request.status.toLowerCase();
-        
+
         // If there's a verification code, show it in a premium way
         if (request.verification_code) {
             return (
@@ -155,8 +155,8 @@ export default function MyRequisitionHistory() {
                         }}
                         className={`
                             flex items-center justify-between gap-3 px-3 py-2 rounded-xl border-2 transition-all duration-300
-                            ${copiedCode === request.verification_code 
-                                ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-200' 
+                            ${copiedCode === request.verification_code
+                                ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-200'
                                 : 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800 hover:scale-105 active:scale-95'
                             }
                         `}
@@ -330,7 +330,7 @@ export default function MyRequisitionHistory() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">
-                                        <button 
+                                        <button
                                             onClick={() => setSelectedRequest(request)}
                                             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-bold text-sm transition-colors group/view"
                                         >

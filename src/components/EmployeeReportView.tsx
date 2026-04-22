@@ -8,10 +8,12 @@ import {
     FiSearch, FiUser, FiPackage, FiCalendar, FiClock,
     FiCheckCircle, FiChevronRight, FiArrowLeft, FiBox,
     FiActivity, FiInfo, FiTag, FiTruck, FiMapPin, FiDollarSign,
-    FiLayers, FiShield, FiBriefcase, FiShoppingBag, FiMail, FiShield as FiRole
+    FiLayers, FiShield, FiBriefcase, FiShoppingBag, FiMail
 } from 'react-icons/fi';
+const FiRole = FiShield; // Use FiShield as FiRole alias
 import { getDocs, where } from 'firebase/firestore';
 import Image from 'next/image';
+import ReadOnlyEmployeeModel22 from './ReadOnlyEmployeeModel22';
 
 interface ReportHistory {
     status: string;
@@ -100,8 +102,12 @@ export default function EmployeeReportView({
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
-    const [employeeProfiles, setEmployeeProfiles] = useState<Record<string, { photoURL?: string; email?: string; role?: string }>>({});
+    const [employeeProfiles, setEmployeeProfiles] = useState<Record<string, { photoURL?: string; email?: string; role?: string; mainRole?: string }>>({});
     const [materialDetails, setMaterialDetails] = useState<Record<string, MaterialInventoryData>>({});
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 7;
 
     // Filter reports based on component props
     const reports = useMemo(() => {
@@ -230,7 +236,7 @@ export default function EmployeeReportView({
     // Fetch employee profiles (avatars, emails, roles)
     useEffect(() => {
         const fetchProfiles = async () => {
-            const newProfiles: Record<string, { photoURL?: string; email?: string; role?: string }> = { ...employeeProfiles };
+            const newProfiles: Record<string, { photoURL?: string; email?: string; role?: string; mainRole?: string }> = { ...employeeProfiles };
             let updated = false;
 
             for (const emp of employees) {
@@ -242,7 +248,8 @@ export default function EmployeeReportView({
                             newProfiles[emp.uid] = {
                                 photoURL: data.photoURL,
                                 email: data.email,
-                                role: data.userRole
+                                role: data.userRole,
+                                mainRole: data.mainRole
                             };
                             updated = true;
                         }
@@ -262,15 +269,45 @@ export default function EmployeeReportView({
         }
     }, [employees]);
 
-    const filteredEmployees = employees.filter(emp =>
-        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.department.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const [activeTab, setActiveTab] = useState<'all' | 'academic' | 'administrative'>('all');
+
+    const filteredEmployees = employees.filter(emp => {
+        const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.department.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const profile = employeeProfiles[emp.uid];
+        const roleMatch = 
+            activeTab === 'all' ? true :
+            activeTab === 'academic' ? profile?.mainRole === 'academic_staff' :
+            activeTab === 'administrative' ? profile?.mainRole === 'admin_staff' : true;
+
+        return matchesSearch && roleMatch;
+    });
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, activeTab]);
 
     const employeeReports = useMemo(() => {
         if (!selectedEmployee) return [];
         return reports.filter(r => r.requesterId === selectedEmployee.uid);
     }, [reports, selectedEmployee]);
+
+    const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string | null>(null);
+
+    const uniqueMaterials = useMemo(() => {
+        return Array.from(new Set(employeeReports.map(r => r.materialName || 'Unknown Material')));
+    }, [employeeReports]);
+
+    useEffect(() => {
+        if (uniqueMaterials.length > 0 && (!selectedMaterialFilter || !uniqueMaterials.includes(selectedMaterialFilter))) {
+            setSelectedMaterialFilter(uniqueMaterials[0]);
+        }
+    }, [uniqueMaterials, selectedMaterialFilter]);
+
+    const filteredReportsForModel22 = useMemo(() => {
+        if (!selectedMaterialFilter) return [];
+        return employeeReports.filter(r => (r.materialName || 'Unknown Material') === selectedMaterialFilter);
+    }, [employeeReports, selectedMaterialFilter]);
 
     if (loading) {
         return (
@@ -293,112 +330,207 @@ export default function EmployeeReportView({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="space-y-10"
+                        className="space-y-4"
                     >
-                        {/* Header Section */}
-                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 bg-white/40 backdrop-blur-xl p-10 rounded-[3rem] border border-white/60 shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full -mr-48 -mt-48 blur-[100px]"></div>
-
-                            <div className="relative z-10 flex-1">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-[0.2em] mb-4 shadow-sm">
-                                    <FiActivity className="animate-pulse" /> Personnel Logistics Tracking
-                                </div>
-                                <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none italic uppercase">
-                                    Employee <span className="text-indigo-600 not-italic">Directory</span>
+                        {/* Streamlined Header & Controls */}
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 mb-2">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800 leading-tight">
+                                    Employee Directory
                                 </h2>
-                                <p className="text-slate-500 font-bold mt-4 uppercase text-[10px] tracking-[0.4em] opacity-60">
-                                    Consolidated Material Withdrawal Intelligence
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Material Withdrawal Intelligence Tracking
                                 </p>
                             </div>
 
-                            <div className="relative group w-full md:w-[28rem] z-10">
-                                <FiSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors text-xl" />
-                                <input
-                                    type="text"
-                                    placeholder="Search by name or department..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-16 pr-8 py-6 bg-white/80 border-2 border-white/50 rounded-[2rem] focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-500 focus:bg-white outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 shadow-xl"
-                                />
+                            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                                {/* Segmented Controls for Categories */}
+                                <div className="flex items-center p-1 bg-slate-100 rounded-lg w-full sm:w-auto">
+                                    {[
+                                        { id: 'all', label: 'All' },
+                                        { id: 'academic', label: 'Academic' },
+                                        { id: 'administrative', label: 'Admin' }
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id as any)}
+                                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
+                                                activeTab === tab.id
+                                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                                            }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Compact Search */}
+                                <div className="relative w-full sm:w-64">
+                                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search employee or dept..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-xs font-medium text-slate-700 shadow-sm h-[32px]"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        {/* Grid View */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                            {filteredEmployees.map((emp, index) => {
-                                const profile = employeeProfiles[emp.uid];
-                                return (
-                                    <motion.div
-                                        key={emp.uid}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: index * 0.05 }}
-                                        onClick={() => setSelectedEmployee(emp)}
-                                        className="group relative bg-white rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] transition-all duration-500 cursor-pointer overflow-hidden p-8 flex flex-col items-center text-center"
-                                    >
-                                        {/* Card Header Gradient */}
-                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        {/* Table View */}
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                        <tr>
+                                            <th className="px-4 py-3 font-semibold text-slate-600 text-[10px] uppercase tracking-wider w-12 text-center">#</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600">Employee</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600">Department</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600">Role</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600 text-center">Total Items</th>
+                                            <th className="px-4 py-3 font-semibold text-slate-600 text-right">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((emp, index) => {
+                                            const profile = employeeProfiles[emp.uid];
+                                            const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+                                            return (
+                                                <tr 
+                                                    key={emp.uid} 
+                                                    onClick={() => setSelectedEmployee(emp)}
+                                                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                                                >
+                                                    <td className="px-4 py-2 text-center text-slate-400 font-mono text-xs border-r border-slate-50">
+                                                        {globalIndex}
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                                {profile?.photoURL ? (
+                                                                    <img src={profile.photoURL} alt={emp.name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <FiUser className="text-slate-400 text-sm" />
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-slate-800 text-[13px]">{emp.name}</p>
+                                                                {profile?.email && (
+                                                                    <p className="text-[10px] text-slate-500">{profile.email}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-semibold capitalize">
+                                                            {emp.department?.replace(/_/g, ' ')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        {profile?.role ? (
+                                                            <span className="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase tracking-wider">
+                                                                {profile.role.replace(/_/g, ' ')}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400 italic text-[11px]">Unknown Role</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full text-[11px]">
+                                                            {emp.totalReports}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">
+                                                        <button className="text-indigo-600 hover:text-indigo-800 font-semibold text-[13px] flex items-center justify-end gap-1 ml-auto">
+                                                            View <FiChevronRight />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
 
-                                        <div className="relative mb-6">
-                                            <div className="w-24 h-24 rounded-[2rem] bg-slate-50 border-2 border-slate-100 flex items-center justify-center overflow-hidden shadow-inner group-hover:scale-110 transition-transform duration-500">
-                                                {profile?.photoURL ? (
-                                                    <img src={profile.photoURL} alt={emp.name} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <FiUser className="text-4xl text-slate-300" />
-                                                )}
-                                            </div>
-                                            <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center shadow-lg">
-                                                <FiPackage className="text-indigo-600" />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <div className="space-y-1">
-                                                <h3 className="font-black text-slate-800 text-lg tracking-tight group-hover:text-indigo-600 transition-colors uppercase leading-none">
-                                                    {emp.name}
-                                                </h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    {emp.department}
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-col items-center gap-1 mt-2">
-                                                {profile?.email && (
-                                                    <p className="text-[9px] font-bold text-slate-400 lowercase tracking-tight flex items-center gap-1">
-                                                        <FiMail className="text-[10px]" /> {profile?.email}
-                                                    </p>
-                                                )}
-                                                {profile?.role && (
-                                                    <div className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-lg">
-                                                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                                                            <FiRole className="text-[9px]" /> {profile?.role?.replace(/_/g, ' ')}
-                                                        </p>
+                                        {filteredEmployees.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="px-4 py-12 text-center">
+                                                    <div className="flex flex-col items-center justify-center text-slate-400 space-y-3">
+                                                        <FiSearch className="text-3xl text-slate-300" />
+                                                        <p className="font-medium text-sm">No employees match this filter</p>
                                                     </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            {/* Pagination Controls */}
+                            <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+                                <span className="text-xs text-slate-500 font-medium">
+                                    Showing {filteredEmployees.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredEmployees.length)} of {filteredEmployees.length} personnel
+                                </span>
+                                
+                                {(() => {
+                                    const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
+                                    return (
+                                            <div className="flex items-center gap-1">
+                                                {/* Previous Button */}
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                    disabled={currentPage === 1}
+                                                    className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                                                        currentPage === 1 
+                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                    }`}
+                                                >
+                                                    Previous
+                                                </button>
 
-                                        <div className="mt-8 pt-6 border-t border-slate-50 w-full flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                            <div className="flex flex-col items-start gap-1">
-                                                <span className="text-slate-300">Total Items</span>
-                                                <span className="text-indigo-600 text-sm">{emp.totalReports}</span>
-                                            </div>
-                                            <FiChevronRight className="text-lg group-hover:translate-x-1 transition-transform" />
-                                        </div>
-                                    </motion.div>
-                                );
-                            })}
+                                                {/* Page Indicators (Max 3 to stay compact) */}
+                                                <div className="hidden sm:flex gap-1 mx-1">
+                                                    {Array.from({ length: totalPages }).map((_, idx) => {
+                                                        const page = idx + 1;
+                                                        // Only show first, last, current, and adjacent pages
+                                                        if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => setCurrentPage(page)}
+                                                                    className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold transition-all ${
+                                                                        currentPage === page 
+                                                                        ? 'bg-indigo-600 text-white shadow-sm' 
+                                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                                    }`}
+                                                                >
+                                                                    {page}
+                                                                </button>
+                                                            );
+                                                        }
+                                                        if (page === currentPage - 2 || page === currentPage + 2) {
+                                                            return <span key={idx} className="flex items-end justify-center w-5 text-slate-400 text-xs">...</span>;
+                                                        }
+                                                        return null;
+                                                    })}
+                                                </div>
 
-                            {filteredEmployees.length === 0 && (
-                                <div className="col-span-full py-40 text-center space-y-6 bg-white/20 backdrop-blur-md rounded-[4rem] border-4 border-dashed border-white/40">
-                                    <div className="w-24 h-24 bg-white/40 rounded-full flex items-center justify-center mx-auto">
-                                        <FiTag className="text-5xl text-slate-300" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-widest">System Clear</h3>
-                                        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest opacity-60">No matching deployment signals found</p>
-                                    </div>
+                                                {/* Next Button */}
+                                                <button
+                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                    disabled={currentPage === totalPages}
+                                                    className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
+                                                        currentPage === totalPages 
+                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                    }`}
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
-                            )}
                         </div>
                     </motion.div>
                 ) : (
@@ -410,11 +542,12 @@ export default function EmployeeReportView({
                         exit={{ opacity: 0, x: -20 }}
                         className="space-y-8"
                     >
-                        {/* Detail Header */}
-                        <div className="flex flex-col md:flex-row items-center gap-8 bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl relative overflow-hidden">
+                        {/* Detail Header (Compact) */}
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative">
                             <button
                                 onClick={() => setSelectedEmployee(null)}
-                                className="absolute top-8 left-8 p-4 rounded-2xl bg-slate-50 hover:bg-indigo-600 hover:text-white transition-all text-slate-400 z-20 shadow-sm active:scale-95"
+                                className="absolute top-6 right-6 p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                                title="Back to Directory"
                             >
                                 <FiArrowLeft className="text-xl" />
                             </button>
@@ -423,462 +556,86 @@ export default function EmployeeReportView({
                                 const profile = employeeProfiles[selectedEmployee.uid];
                                 return (
                                     <>
-                                        <div className="w-32 h-32 rounded-[2.5rem] bg-slate-100 flex items-center justify-center overflow-hidden border-4 border-white shadow-2xl relative z-10 flex-shrink-0">
+                                        <div className="w-20 h-20 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                                             {profile?.photoURL ? (
                                                 <img src={profile.photoURL} alt={selectedEmployee.name} className="w-full h-full object-cover" />
                                             ) : (
-                                                <FiUser className="text-5xl text-slate-300" />
+                                                <FiUser className="text-3xl text-slate-300" />
                                             )}
                                         </div>
 
-                                        <div className="text-center md:text-left flex-1 relative z-10 pt-12 md:pt-0">
-                                            <h3 className="text-4xl font-black text-slate-800 tracking-tighter uppercase italic leading-none">
-                                                {selectedEmployee.name}
-                                            </h3>
-                                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
-                                                <div className="px-5 py-2 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center gap-2">
-                                                    <FiMapPin className="text-indigo-500" />
-                                                    <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">{selectedEmployee.department}</span>
-                                                </div>
-                                                {profile?.email && (
-                                                    <div className="px-5 py-2 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-2">
-                                                        <FiMail className="text-slate-400" />
-                                                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest lowercase tracking-tight">{profile?.email}</span>
-                                                    </div>
-                                                )}
-                                                {profile?.role && (
-                                                    <div className="px-5 py-2 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-2">
-                                                        <FiRole className="text-emerald-500" />
-                                                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">{profile?.role?.replace(/_/g, ' ')}</span>
-                                                    </div>
-                                                )}
-                                                <div className="px-5 py-2 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-2">
-                                                    <FiBox className="text-slate-400" />
-                                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{selectedEmployee.totalReports} Items Total</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </>
-                                );
-                            })()}
-
-                            <div className="hidden xl:flex flex-col items-end gap-2 pr-4 relative z-10 text-right">
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Lifecycle Data</span>
-                                <div className="flex items-center gap-3 text-slate-400">
-                                    <FiClock />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest italic">
-                                        Last Sync: {selectedEmployee.lastReportDate?.toDate?.()?.toLocaleDateString() || 'Never'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Reports List */}
-                        <div className="space-y-12">
-                            {(() => {
-                                if (!categorizeByType) {
-                                    return (
-                                        <div className="space-y-6">
-                                            {employeeReports.map((report, idx) => {
-                                                const material = materialDetails[report.materialCode];
-                                                const isFixed = report.materialType === 'fixed_asset' || report.materialType === 'fixed';
-                                                const accentColor = isFixed ? 'indigo' : 'cyan';
-
-                                                return (
-                                                    <motion.div
-                                                        key={report.id}
-                                                        initial={{ opacity: 0, y: 30 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ delay: idx * 0.1 }}
-                                                        className="group bg-white rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] transition-all duration-700 flex flex-col overflow-hidden relative"
-                                                    >
-                                                        {/* Glassy Background Accents */}
-                                                        <div className={`absolute top-0 right-0 w-64 h-64 bg-${accentColor}-500/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`}></div>
-                                                        <div className={`absolute bottom-0 left-0 w-64 h-64 bg-${isFixed ? 'emerald' : 'sky'}-500/5 rounded-full -ml-32 -mb-32 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`}></div>
-
-                                                        {/* Main Content Area */}
-                                                        <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
-                                                            {/* Visual & Name Block */}
-                                                            <div className="lg:col-span-4 flex items-center gap-6">
-                                                                <div className="relative group/img flex-shrink-0">
-                                                                    <div className={`w-28 h-28 rounded-[2rem] bg-slate-50 border-2 border-white shadow-inner flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl group-hover:shadow-${accentColor}-500/10`}>
-                                                                        {report.image ? (
-                                                                            <img src={report.image} alt={report.materialName} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                                                        ) : (
-                                                                            <FiBox className="text-4xl text-slate-200" />
-                                                                        )}
-                                                                    </div>
-                                                                    <div className={`absolute -inset-1 rounded-[2.2rem] border-2 border-dashed ${report.status === 'accepted' ? 'border-green-200/50' : 'border-amber-200/50'} animate-[spin_20s_linear_infinite] opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-                                                                </div>
-
-                                                                <div className="space-y-4">
-                                                                    <div className="space-y-1">
-                                                                        <h4 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase italic">
-                                                                            {report.materialName}
-                                                                        </h4>
-                                                                        <div className="flex flex-wrap gap-2 pt-1">
-                                                                            <span className={`px-3 py-1 rounded-lg bg-${accentColor}-50 border border-${accentColor}-100 text-[9px] font-black text-${accentColor}-500 uppercase tracking-widest`}>
-                                                                                {report.materialType.replace('_', ' ')}
-                                                                            </span>
-                                                                            {material?.category && (
-                                                                                <span className="px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                                                                                    {material?.category}
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="h-10 px-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 shadow-sm">
-                                                                            <FiTag className={`text-${accentColor}-400`} />
-                                                                            <span className="text-xs font-black text-slate-700">{report.quantity} {report.unit}</span>
-                                                                        </div>
-                                                                        {material?.unitPrice && (
-                                                                            <span className="text-[10px] font-bold text-slate-300 italic">
-                                                                                @ {material?.unitPrice} {material?.currency}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Logistics & Timeline */}
-                                                            <div className="lg:col-span-4 lg:border-x border-slate-100 px-0 lg:px-10 space-y-6">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Deployment Status</span>
-                                                                    <motion.div
-                                                                        whileHover={{ scale: 1.05 }}
-                                                                        className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border-2 flex items-center gap-2 shadow-lg ${report.status === 'accepted'
-                                                                            ? 'bg-green-50 border-green-200 text-green-600 shadow-green-500/5'
-                                                                            : 'bg-amber-50 border-amber-200 text-amber-600 shadow-amber-500/5'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-2 h-2 rounded-full animate-pulse ${report.status === 'accepted' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
-                                                                        {report.status}
-                                                                    </motion.div>
-                                                                </div>
-
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group-hover:bg-white transition-colors duration-500">
-                                                                        <div className="flex items-center gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest mb-2">
-                                                                            <FiCalendar /> Handover
-                                                                        </div>
-                                                                        <p className="text-xs font-black text-slate-800">
-                                                                            {report.acceptedAt ? new Date(report.acceptedAt).toLocaleDateString() : 'Pending'}
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group-hover:bg-white transition-colors duration-500">
-                                                                        <div className="flex items-center gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest mb-2">
-                                                                            <FiClock /> Approved
-                                                                        </div>
-                                                                        <p className="text-xs font-black text-slate-800">
-                                                                            {report.approvedAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Validation Matrix Block */}
-                                                            <div className="lg:col-span-4 space-y-6">
-                                                                <div className={`flex items-center gap-3 bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 group-hover:border-${accentColor}-100 transition-all duration-500 relative overflow-hidden`}>
-                                                                    <div className={`absolute top-0 right-0 w-24 h-24 bg-${accentColor}-500/5 rounded-full -mr-12 -mt-12`}></div>
-                                                                    <div className={`w-14 h-14 rounded-2xl bg-${accentColor}-600 flex items-center justify-center text-white shadow-lg shadow-${accentColor}-200 flex-shrink-0 relative z-10`}>
-                                                                        <FiCheckCircle className="text-2xl" />
-                                                                    </div>
-                                                                    <div className="relative z-10">
-                                                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Authorization</p>
-                                                                        <p className={`text-sm font-black text-${accentColor}-600 uppercase tracking-tight truncate max-w-[150px]`}>
-                                                                            {report.approvedByName}
-                                                                        </p>
-                                                                        <p className="text-[8px] font-bold text-slate-400 mt-0.5">Verified System Controller</p>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-wrap gap-4">
-                                                                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
-                                                                        <FiActivity className={`text-${accentColor}-400 text-xs`} />
-                                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Quality:</span>
-                                                                        <span className={`text-[9px] font-black text-slate-600 uppercase tracking-widest underline decoration-${accentColor}-200 underline-offset-4`}>{report.condition}</span>
-                                                                    </div>
-                                                                    {material?.vendorName && (
-                                                                        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
-                                                                            <FiShoppingBag className={`text-${accentColor}-400 text-xs`} />
-                                                                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Supplier:</span>
-                                                                            <span className={`text-[9px] font-black text-slate-600 uppercase tracking-widest underline decoration-${accentColor}-200 underline-offset-4`}>{material?.vendorName}</span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Technical Specification Bar */}
-                                                        {material && (
-                                                            <div className="bg-slate-50 border-t border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-8 relative overflow-hidden group-hover:bg-slate-100/50 transition-colors duration-700">
-                                                                <div className="absolute top-0 right-10 transform -translate-y-1/2 px-4 py-1.5 bg-white border border-slate-100 rounded-full text-[10px] font-mono font-black text-slate-400 shadow-sm opacity-50 group-hover:opacity-100 transition-opacity">
-                                                                    #{report.materialCode}
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiTag className={`text-${accentColor}-500`} /> Serial Signature
-                                                                    </div>
-                                                                    <div className={`p-3 bg-white rounded-2xl border border-slate-100 font-mono text-[11px] font-black text-slate-700 text-center tracking-widest group-hover:border-${accentColor}-200 transition-colors`}>
-                                                                        {material?.serialNumber || 'NON_SERIALIZED'}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiMapPin className="text-emerald-500" /> Nexus Location
-                                                                    </div>
-                                                                    <div className="p-3 bg-white rounded-2xl border border-slate-100 font-black text-[10px] text-slate-700 flex justify-between items-center group-hover:border-emerald-200 transition-colors">
-                                                                        <span className="uppercase text-slate-400">Station {material?.storeLocation}</span>
-                                                                        <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px]">Shelf {material?.shelfNumber}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiActivity /> System Narrative
-                                                                    </div>
-                                                                    <div className="p-3 bg-white rounded-2xl border border-slate-100 italic text-[10px] font-medium text-slate-500 line-clamp-1 group-hover:text-slate-800 transition-colors">
-                                                                        {material?.remarks || "No supplementary operational data provided."}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </motion.div>
-                                                );
-                                            })}
-                                            {employeeReports.length === 0 && (
-                                                <div className="py-20 text-center bg-white rounded-[3rem] border border-slate-100">
-                                                    <FiPackage className="text-5xl text-slate-100 mx-auto mb-4" />
-                                                    <p className="text-slate-400 font-black uppercase tracking-widest">No detailed records found</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                }
-                                const fixedReports = employeeReports.filter(r => r.materialType === 'fixed_asset' || r.materialType === 'fixed');
-                                const consumableReports = employeeReports.filter(r => r.materialType === 'consumable_item' || r.materialType === 'consumable');
-
-                                const renderReportGroup = (title: string, icon: any, reportsList: UserReportDocument[], accentColor: string) => (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-4 px-8">
-                                            <div className={`w-12 h-12 rounded-2xl bg-${accentColor}-50 border border-${accentColor}-100 flex items-center justify-center text-${accentColor}-600 shadow-sm`}>
-                                                {icon}
-                                            </div>
+                                        <div className="flex-1 text-center md:text-left space-y-3 pt-2">
                                             <div>
-                                                <h4 className="text-xl font-black text-slate-800 uppercase tracking-tighter italic">
-                                                    {title}
-                                                </h4>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                                                    {reportsList.length} Items Documented
-                                                </p>
+                                                <h3 className="text-2xl font-bold text-slate-800">
+                                                    {selectedEmployee.name}
+                                                </h3>
+                                                {profile?.email && (
+                                                    <p className="text-sm text-slate-500 flex items-center justify-center md:justify-start gap-1 mt-0.5">
+                                                        <FiMail /> {profile.email}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                                                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold capitalize flex items-center gap-1.5">
+                                                    <FiMapPin className="text-slate-400" /> {selectedEmployee.department?.replace(/_/g, ' ')}
+                                                </span>
+                                                {profile?.role && (
+                                                    <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-200 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                                                        <FiRole className="text-green-500" /> {profile.role.replace(/_/g, ' ')}
+                                                    </span>
+                                                )}
+                                                <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-xs font-semibold flex items-center gap-1.5">
+                                                    <FiBox className="text-indigo-400" /> {selectedEmployee.totalReports} Items
+                                                </span>
                                             </div>
                                         </div>
-
-                                        <div className="space-y-6">
-                                            {reportsList.map((report, idx) => {
-                                                const material = materialDetails[report.materialCode];
-                                                return (
-                                                    <motion.div
-                                                        key={report.id}
-                                                        initial={{ opacity: 0, y: 30 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ delay: idx * 0.1 }}
-                                                        className="group bg-white rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-[0_50px_100px_-20px_rgba(0,0,0,0.1)] transition-all duration-700 flex flex-col overflow-hidden relative"
-                                                    >
-                                                        {/* Glassy Background Accents */}
-                                                        <div className={`absolute top-0 right-0 w-64 h-64 bg-${accentColor}-500/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700`}></div>
-
-                                                        {/* Main Content Area */}
-                                                        <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
-                                                            {/* Visual & Name Block */}
-                                                            <div className="lg:col-span-4 flex items-center gap-6">
-                                                                <div className="relative group/img flex-shrink-0">
-                                                                    <div className={`w-28 h-28 rounded-[2rem] bg-slate-50 border-2 border-white shadow-inner flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl group-hover:shadow-${accentColor}-500/10`}>
-                                                                        {report.image ? (
-                                                                            <img src={report.image} alt={report.materialName} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                                                        ) : (
-                                                                            <FiBox className="text-4xl text-slate-200" />
-                                                                        )}
-                                                                    </div>
-                                                                    <div className={`absolute -inset-1 rounded-[2.2rem] border-2 border-dashed ${report.status === 'accepted' ? 'border-green-200/50' : 'border-amber-200/50'} animate-[spin_20s_linear_infinite] opacity-0 group-hover:opacity-100 transition-opacity`}></div>
-                                                                </div>
-
-                                                                <div className="space-y-4">
-                                                                    <div className="space-y-1">
-                                                                        <h4 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase italic">
-                                                                            {report.materialName}
-                                                                        </h4>
-                                                                        <div className="flex flex-wrap gap-2 pt-1">
-                                                                            <span className={`px-3 py-1 rounded-lg bg-${accentColor}-50 border border-${accentColor}-100 text-[9px] font-black text-${accentColor}-500 uppercase tracking-widest`}>
-                                                                                {report.materialType.replace('_', ' ')}
-                                                                            </span>
-                                                                            {material?.category && (
-                                                                                <span className="px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                                                                                    {material?.category}
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="h-10 px-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 shadow-sm">
-                                                                            <FiTag className={`text-${accentColor}-400`} />
-                                                                            <span className="text-xs font-black text-slate-700">{report.quantity} {report.unit}</span>
-                                                                        </div>
-                                                                        {material?.unitPrice && (
-                                                                            <span className="text-[10px] font-bold text-slate-300 italic">
-                                                                                @ {material?.unitPrice} {material?.currency}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Logistics & Timeline */}
-                                                            <div className="lg:col-span-4 lg:border-x border-slate-100 px-0 lg:px-10 space-y-6">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Deployment Status</span>
-                                                                    <motion.div
-                                                                        whileHover={{ scale: 1.05 }}
-                                                                        className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border-2 flex items-center gap-2 shadow-lg ${report.status === 'accepted'
-                                                                            ? 'bg-green-50 border-green-200 text-green-600 shadow-green-500/5'
-                                                                            : 'bg-amber-50 border-amber-200 text-amber-600 shadow-amber-500/5'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-2 h-2 rounded-full animate-pulse ${report.status === 'accepted' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
-                                                                        {report.status}
-                                                                    </motion.div>
-                                                                </div>
-
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group-hover:bg-white transition-colors duration-500">
-                                                                        <div className="flex items-center gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest mb-2">
-                                                                            <FiCalendar /> Handover
-                                                                        </div>
-                                                                        <p className="text-xs font-black text-slate-800">
-                                                                            {report.acceptedAt ? new Date(report.acceptedAt).toLocaleDateString() : 'Pending'}
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group-hover:bg-white transition-colors duration-500">
-                                                                        <div className="flex items-center gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest mb-2">
-                                                                            <FiClock /> Approved
-                                                                        </div>
-                                                                        <p className="text-xs font-black text-slate-800">
-                                                                            {report.approvedAt?.toDate?.()?.toLocaleDateString() || 'N/A'}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Validation Matrix Block */}
-                                                            <div className="lg:col-span-4 space-y-6">
-                                                                <div className={`flex items-center gap-3 bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 group-hover:border-${accentColor}-100 transition-all duration-500 relative overflow-hidden`}>
-                                                                    <div className={`absolute top-0 right-0 w-24 h-24 bg-${accentColor}-500/5 rounded-full -mr-12 -mt-12`}></div>
-                                                                    <div className={`w-14 h-14 rounded-2xl bg-${accentColor}-600 flex items-center justify-center text-white shadow-lg shadow-${accentColor}-200 flex-shrink-0 relative z-10`}>
-                                                                        <FiCheckCircle className="text-2xl" />
-                                                                    </div>
-                                                                    <div className="relative z-10">
-                                                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Authorization</p>
-                                                                        <p className={`text-sm font-black text-${accentColor}-600 uppercase tracking-tight truncate max-w-[150px]`}>
-                                                                            {report.approvedByName}
-                                                                        </p>
-                                                                        <p className="text-[8px] font-bold text-slate-400 mt-0.5">Verified System Controller</p>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-wrap gap-4">
-                                                                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
-                                                                        <FiActivity className={`text-${accentColor}-400 text-xs`} />
-                                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Quality:</span>
-                                                                        <span className={`text-[9px] font-black text-slate-600 uppercase tracking-widest underline decoration-${accentColor}-200 underline-offset-4`}>{report.condition}</span>
-                                                                    </div>
-                                                                    {material?.vendorName && (
-                                                                        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
-                                                                            <FiShoppingBag className={`text-${accentColor}-400 text-xs`} />
-                                                                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Supplier:</span>
-                                                                            <span className={`text-[9px] font-black text-slate-600 uppercase tracking-widest underline decoration-${accentColor}-200 underline-offset-4`}>{material?.vendorName}</span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Technical Specification Bar */}
-                                                        {material && (
-                                                            <div className="bg-slate-50 border-t border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-8 relative overflow-hidden group-hover:bg-slate-100/50 transition-colors duration-700">
-                                                                <div className="absolute top-0 right-10 transform -translate-y-1/2 px-4 py-1.5 bg-white border border-slate-100 rounded-full text-[10px] font-mono font-black text-slate-400 shadow-sm opacity-50 group-hover:opacity-100 transition-opacity">
-                                                                    #{report.materialCode}
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiTag className={`text-${accentColor}-500`} /> Serial Signature
-                                                                    </div>
-                                                                    <div className={`p-3 bg-white rounded-2xl border border-slate-100 font-mono text-[11px] font-black text-slate-700 text-center tracking-widest group-hover:border-${accentColor}-200 transition-colors`}>
-                                                                        {material?.serialNumber || 'NON_SERIALIZED'}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiMapPin className="text-emerald-500" /> Nexus Location
-                                                                    </div>
-                                                                    <div className="p-3 bg-white rounded-2xl border border-slate-100 font-black text-[10px] text-slate-700 flex justify-between items-center group-hover:border-emerald-200 transition-colors">
-                                                                        <span className="uppercase text-slate-400">Station {material?.storeLocation}</span>
-                                                                        <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-600 text-[9px]">Shelf {material?.shelfNumber}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-2 text-[9px] font-black text-slate-300 uppercase tracking-widest">
-                                                                        <FiActivity /> System Narrative
-                                                                    </div>
-                                                                    <div className="p-3 bg-white rounded-2xl border border-slate-100 italic text-[10px] font-medium text-slate-500 line-clamp-1 group-hover:text-slate-800 transition-colors">
-                                                                        {material?.remarks || "No supplementary operational data provided."}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </motion.div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                );
-
-                                return (
-                                    <>
-                                        {fixedReports.length > 0 && renderReportGroup("Fixed Assets", <FiShield />, fixedReports, "indigo")}
-                                        {consumableReports.length > 0 && renderReportGroup("Consumable Materials", <FiLayers />, consumableReports, "cyan")}
-
-                                        {fixedReports.length === 0 && consumableReports.length === 0 && (
-                                            <div className="py-20 text-center bg-white rounded-[3rem] border border-slate-100">
-                                                <FiPackage className="text-5xl text-slate-100 mx-auto mb-4" />
-                                                <p className="text-slate-400 font-black uppercase tracking-widest">No detailed records found for current filters</p>
-                                            </div>
-                                        )}
                                     </>
                                 );
                             })()}
                         </div>
 
-                        {/* Policy Card */}
-                        <div className="bg-slate-900 rounded-[3.5rem] p-12 text-white relative overflow-hidden shadow-2xl mt-12">
-                            <div className="absolute top-0 right-0 w-[40rem] h-[40rem] bg-indigo-600/10 rounded-full -mr-80 -mt-80 blur-[150px]"></div>
-                            <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-                                <div className="w-24 h-24 bg-indigo-500/20 rounded-[2rem] flex items-center justify-center border border-indigo-500/20 shadow-inner backdrop-blur-xl">
-                                    <FiInfo className="text-5xl text-indigo-400" />
-                                </div>
-                                <div className="flex-1 space-y-3">
-                                    <h4 className="text-3xl font-black italic tracking-tighter uppercase">Data Integrity Protocol</h4>
-                                    <p className="text-indigo-200/60 font-medium text-lg max-w-4xl leading-relaxed">
-                                        The report reflects real-time status updates from the DMU Property Management System. All material transitions are recorded from approval to user acceptance, ensuring a complete audit trail for institutional assets.
-                                    </p>
+                        {/* Material Selection Tabs */}
+                        {uniqueMaterials.length > 0 ? (
+                            <div className="flex flex-col gap-3">
+                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Materials History</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {uniqueMaterials.map(mat => (
+                                        <button
+                                            key={mat}
+                                            onClick={() => setSelectedMaterialFilter(mat)}
+                                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                                                selectedMaterialFilter === mat 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105' 
+                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                                            }`}
+                                        >
+                                            <FiPackage className={selectedMaterialFilter === mat ? 'text-indigo-200' : 'text-slate-400'} />
+                                            {mat}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 text-center text-slate-500 font-medium">
+                                No material history found for this employee.
+                            </div>
+                        )}
+
+                        {/* Model 22 Format Document */}
+                        {uniqueMaterials.length > 0 && (
+                            <div className="mt-8 overflow-hidden rounded-2xl bg-[#f0f2f5] p-8 border border-slate-200">
+                                <div className="max-w-[210mm] mx-auto bg-white shadow-xl">
+                                    <ReadOnlyEmployeeModel22 
+                                        employeeName={selectedEmployee.name} 
+                                        department={selectedEmployee.department?.replace(/_/g, ' ') || 'General'} 
+                                        reports={filteredReportsForModel22} 
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+
                     </motion.div>
                 )}
             </AnimatePresence>

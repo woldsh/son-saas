@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, getDocs, where, updateDoc, doc } from 'firebase/firestore';
 import {
     FiSearch,
     FiFilter,
@@ -59,16 +59,54 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [selectedCondition, setSelectedCondition] = useState('All');
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+    const reconcileRan = useRef(false);
 
     useEffect(() => {
         if (!db) return;
         const q = query(collection(db!, 'materials'), orderBy('createdAt', 'desc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const materialList = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Material[];
+            const materialList: Material[] = [];
+            
+            snapshot.docs.forEach(doc => {
+                const d = doc.data();
+                if (d.items && Array.isArray(d.items) && (d.formType === 'receipt_for_articles' || (d.items.length > 0 && !d.materialName))) {
+                    d.items.forEach((item: any, idx: number) => {
+                        if (item.description && typeof item.description === 'string' && item.description.trim()) {
+                            materialList.push({
+                                id: `${doc.id}_${idx}`,
+                                category: d.classificationOfStock || d.category || 'Receipt Item',
+                                condition: item.condition || 'New',
+                                createdAt: d.createdAt || new Date().toISOString(),
+                                currency: d.currency || 'ETB',
+                                description: item.remark || '',
+                                image: item.imageUrl || item.image || '',
+                                materialCode: item.itemNo || d.receiptNo || 'N/A',
+                                materialName: item.description.trim(),
+                                materialType: d.materialType || 'consumable',
+                                purchaseDate: d.day || '',
+                                quantity: Number(item.quantity) || 0,
+                                remarks: item.remark || '',
+                                responsiblePerson: d.recipientName || '',
+                                serialNumber: item.itemNo || '',
+                                shelfNumber: d.shelfNo || '',
+                                storeLocation: d.storeNo || '',
+                                tags: '',
+                                totalPrice: (Number(item.unitPriceBirr) || 0) * (Number(item.quantity) || 0),
+                                unit: item.unit || 'pcs',
+                                unitPrice: Number(item.unitPriceBirr) || 0,
+                                vendorName: d.delivererDonor || '',
+                                warrantyDate: '',
+                            } as Material);
+                        }
+                    });
+                } else {
+                    materialList.push({
+                        id: doc.id,
+                        ...d
+                    } as Material);
+                }
+            });
 
             const filtered = typeFilter
                 ? materialList.filter(m => m.materialType === typeFilter)
@@ -80,6 +118,69 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
 
         return () => unsubscribe();
     }, [typeFilter]);
+
+    // *** AUTO-RECONCILIATION: Fix quantities based on accepted User-Reports ***
+    useEffect(() => {
+        if (!db || materials.length === 0 || reconcileRan.current) return;
+        reconcileRan.current = true;
+
+        const reconcileInventory = async () => {
+            try {
+                // 1. Get ALL accepted User-Report documents
+                const acceptedQuery = query(
+                    collection(db!, 'User-Report'),
+                    where('status', '==', 'accepted')
+                );
+                const acceptedSnap = await getDocs(acceptedQuery);
+
+                // 2. Sum total issued per materialName
+                const issuedMap: Record<string, number> = {};
+                acceptedSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const name = (data.materialName || '').trim().toLowerCase();
+                    const qty = Number(data.quantity) || 0;
+                    if (name && qty > 0) {
+                        issuedMap[name] = (issuedMap[name] || 0) + qty;
+                    }
+                });
+
+                if (Object.keys(issuedMap).length === 0) return;
+
+                // 3. Get raw materials from Firestore and update quantities
+                const materialsSnap = await getDocs(collection(db!, 'materials'));
+
+                for (const matDoc of materialsSnap.docs) {
+                    const data = matDoc.data();
+                    // Skip batch/items-based documents
+                    if (data.items && Array.isArray(data.items)) continue;
+
+                    const materialName = (data.materialName || '').trim().toLowerCase();
+                    if (!materialName) continue;
+
+                    const totalIssued = issuedMap[materialName];
+                    if (!totalIssued || totalIssued <= 0) continue;
+
+                    // Store original quantity if not already stored
+                    const originalQty = Number(data.originalQuantity) || Number(data.quantity) || 0;
+                    const correctQty = Math.max(0, originalQty - totalIssued);
+                    const currentQty = Number(data.quantity) || 0;
+
+                    // Only update if the quantity is wrong
+                    if (currentQty !== correctQty) {
+                        await updateDoc(matDoc.ref, {
+                            quantity: correctQty,
+                            originalQuantity: originalQty
+                        });
+                        console.log(`[Reconcile] ${data.materialName}: ${currentQty} → ${correctQty} (original: ${originalQty}, issued: ${totalIssued})`);
+                    }
+                }
+            } catch (err) {
+                console.error('[Reconcile] Error:', err);
+            }
+        };
+
+        reconcileInventory();
+    }, [materials]);
 
     useEffect(() => {
         let result = materials;
@@ -102,8 +203,8 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
         setFilteredMaterials(result);
     }, [searchTerm, selectedCategory, selectedCondition, materials]);
 
-    const categories = ['All', ...Array.from(new Set(materials.map(m => m.category)))];
-    const conditions = ['All', ...Array.from(new Set(materials.map(m => m.condition)))];
+    const categories = ['All', ...Array.from(new Set(materials.map(m => m.category || 'Uncategorized')))];
+    const conditions = ['All', ...Array.from(new Set(materials.map(m => m.condition || 'Unknown')))];
 
     if (loading) {
         return (
@@ -137,7 +238,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 onChange={(e) => setSelectedCategory(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-sm appearance-none cursor-pointer"
                             >
-                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                {categories.map((cat, idx) => <option key={`${cat}-${idx}`} value={cat}>{cat}</option>)}
                             </select>
                         </div>
 
@@ -148,7 +249,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 onChange={(e) => setSelectedCondition(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-sm appearance-none cursor-pointer"
                             >
-                                {conditions.map(cond => <option key={cond} value={cond}>{cond}</option>)}
+                                {conditions.map((cond, idx) => <option key={`${cond}-${idx}`} value={cond}>{cond}</option>)}
                             </select>
                         </div>
                     </div>
@@ -263,7 +364,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
 
             {/* View Details Modal (Read Only) */}
             {selectedMaterial && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 duration-500">
                         {/* Modal Header */}
                         <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
@@ -310,7 +411,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-slate-400 font-bold">Total Valuation</span>
-                                            <span className="text-xl font-black">{selectedMaterial.totalPrice.toLocaleString()} {selectedMaterial.currency}</span>
+                                            <span className="text-xl font-black">{(selectedMaterial.totalPrice || 0).toLocaleString()} {selectedMaterial.currency || 'ETB'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -363,7 +464,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                         </h4>
                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                             {[
-                                                { label: 'Unit Price', value: `${selectedMaterial.unitPrice} ${selectedMaterial.currency}` },
+                                                { label: 'Unit Price', value: `${selectedMaterial.unitPrice || 0} ${selectedMaterial.currency || 'ETB'}` },
                                                 { label: 'Vendor Entity', value: selectedMaterial.vendorName },
                                                 { label: 'Purchase Date', value: selectedMaterial.purchaseDate },
                                                 { label: 'Warranty/Expiry', value: selectedMaterial.warrantyDate || 'None' }

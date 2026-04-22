@@ -176,7 +176,7 @@ export default function ReturnGoodsPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center p-12 min-h-screen bg-slate-50">
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center space-y-4"
@@ -192,7 +192,7 @@ export default function ReturnGoodsPage() {
         <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -215,7 +215,7 @@ export default function ReturnGoodsPage() {
                 {/* Success Banner */}
                 <AnimatePresence>
                     {submitted && (
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: -10, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: -10, scale: 0.98 }}
@@ -235,7 +235,7 @@ export default function ReturnGoodsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Left Column: My Materials */}
                     <div className="lg:col-span-7 space-y-6">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
@@ -253,7 +253,7 @@ export default function ReturnGoodsPage() {
                                 </div>
                                 <AnimatePresence>
                                     {selectedIds.size > 0 && (
-                                        <motion.span 
+                                        <motion.span
                                             initial={{ scale: 0.9, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
                                             exit={{ scale: 0.9, opacity: 0 }}
@@ -288,14 +288,14 @@ export default function ReturnGoodsPage() {
                                                     transition={{ delay: index * 0.05 }}
                                                     key={mat.id}
                                                     onClick={() => toggleMaterial(mat.id)}
-                                                    className={`p-4 m-2 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition-all border ${isSelected 
-                                                        ? 'bg-blue-50/50 border-blue-200' 
+                                                    className={`p-4 m-2 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition-all border ${isSelected
+                                                        ? 'bg-blue-50/50 border-blue-200'
                                                         : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
                                                 >
                                                     {/* Checkbox & Image container */}
                                                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected 
-                                                            ? 'bg-blue-600 border-blue-600 text-white' 
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected
+                                                            ? 'bg-blue-600 border-blue-600 text-white'
                                                             : 'border border-slate-300 bg-white'}`}>
                                                             {isSelected && <FiCheckSquare className="text-xs" />}
                                                         </div>
@@ -307,7 +307,7 @@ export default function ReturnGoodsPage() {
                                                                 <FiBox className="text-xl text-slate-300" />
                                                             )}
                                                         </div>
-                                                        
+
                                                         <div className="flex-1 min-w-0 sm:hidden">
                                                             <h3 className="font-semibold text-slate-900 text-sm truncate">{mat.materialName}</h3>
                                                             <p className="text-xs text-slate-500 mt-0.5">{mat.quantity} {mat.unit}</p>
@@ -340,7 +340,7 @@ export default function ReturnGoodsPage() {
 
                     {/* Right Column: Transfer Form */}
                     <div className="lg:col-span-5 space-y-8">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
@@ -362,7 +362,7 @@ export default function ReturnGoodsPage() {
                                 {/* Selected indicator */}
                                 <AnimatePresence>
                                     {selectedMaterials.length > 0 && (
-                                        <motion.div 
+                                        <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
                                             exit={{ opacity: 0, height: 0 }}
@@ -397,7 +397,7 @@ export default function ReturnGoodsPage() {
                                             />
                                         </div>
                                     </div>
-                                    
+
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-semibold text-slate-700">
                                             {t('receiver_email') || "Receiver Email"}
@@ -458,7 +458,7 @@ export default function ReturnGoodsPage() {
                 {/* Transfer History */}
                 <AnimatePresence>
                     {transfers.length > 0 && (
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
@@ -476,11 +476,11 @@ export default function ReturnGoodsPage() {
                                     const badge = getStatusBadge(transfer.status);
                                     const BadgeIcon = badge.icon;
                                     return (
-                                        <motion.div 
+                                        <motion.div
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             transition={{ delay: idx * 0.05 }}
-                                            key={transfer.id} 
+                                            key={transfer.id}
                                             className="p-5 hover:bg-slate-50/50 transition-colors"
                                         >
                                             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -492,7 +492,7 @@ export default function ReturnGoodsPage() {
                                                         </div>
                                                         <span className="text-xs text-slate-500">{transfer.receiverEmail}</span>
                                                     </div>
-                                                    
+
                                                     <div className="flex flex-wrap gap-2">
                                                         {transfer.materials?.map((item: any, i: number) => (
                                                             <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 shadow-sm flex items-center gap-1">

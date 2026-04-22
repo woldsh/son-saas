@@ -303,8 +303,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 where('status', 'in', ['approved_by_md', 'pending_general_service'])
             );
         } else if (effectiveRole.includes('stock_clerk')) {
-            const clerkRoles = effectiveRole === 'stock_clerk' 
-                ? ['stock_clerk', 'fixed_asset_stock_clerk', 'consumable_item_stock_clerk'] 
+            const clerkRoles = effectiveRole === 'stock_clerk'
+                ? ['stock_clerk', 'fixed_asset_stock_clerk', 'consumable_item_stock_clerk']
                 : [effectiveRole];
             q = query(
                 collection(db!, 'Request_materials'),
@@ -499,7 +499,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
                 }).filter(Boolean);
                 const hasChanges = changes.length > 0;
-                
+
                 let noteToSave = 'Approved by Managing Director. Forwarded to Procurement Team Leader.';
                 if (hasChanges || finalAdjustmentNote) {
                     const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
@@ -553,8 +553,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 setSuccessMessage({ text: "Request approved and forwarded to Procurement Team Leader", type: 'general' });
             } else if (effectiveRole === 'team_leader') {
                 // Procurement Team Leader -> Forward to Stock Clerk
-                // Determine material type from items (assuming all items in a request are of similar type or taking the first one)
-                // If mixed, default to fixed for safety or check logic. For now, checking the first item.
+                // Determine material type from the request items to route correctly
                 const firstItem = request.items[0];
                 const type = firstItem?.materialType?.toLowerCase() || '';
                 const isConsumable = type.includes('consumable');
@@ -592,6 +591,58 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const type = firstItem?.materialType?.toLowerCase() || '';
                 const isConsumable = type.includes('consumable');
 
+                // *** STOCK VALIDATION: Check if store has enough quantity BEFORE approving ***
+                const insufficientItems: { name: string; requested: number; available: number }[] = [];
+                const materialDocsToUpdate: { ref: any; currentQty: number; deductQty: number; name: string }[] = [];
+
+                for (const item of request.items) {
+                    const searchField = item.materialCode ? 'materialCode' : 'materialName';
+                    const searchValue = item.materialCode || item.materialName;
+
+                    const materialQuery = query(
+                        collection(db!, 'materials'),
+                        where(searchField, '==', searchValue)
+                    );
+                    const materialSnap = await getDocs(materialQuery);
+
+                    if (!materialSnap.empty) {
+                        const materialDoc = materialSnap.docs[0];
+                        const currentQty = Number(materialDoc.data().quantity) || 0;
+                        const deductQty = Number(item.quantity) || 0;
+
+                        if (deductQty > currentQty) {
+                            insufficientItems.push({
+                                name: item.materialName,
+                                requested: deductQty,
+                                available: currentQty
+                            });
+                        } else {
+                            materialDocsToUpdate.push({
+                                ref: materialDoc.ref,
+                                currentQty,
+                                deductQty,
+                                name: searchValue
+                            });
+                        }
+                    } else {
+                        insufficientItems.push({
+                            name: item.materialName,
+                            requested: Number(item.quantity) || 0,
+                            available: 0
+                        });
+                    }
+                }
+
+                // Block approval if any item has insufficient stock
+                if (insufficientItems.length > 0) {
+                    const errorDetails = insufficientItems.map(
+                        i => `• ${i.name}: requested ${i.requested}, but only ${i.available} available in store`
+                    ).join('\n');
+                    alert(`❌ Cannot approve — insufficient stock!\n\n${errorDetails}\n\nPlease adjust the quantity or restock before approving.`);
+                    setProcessingId(null);
+                    return;
+                }
+
                 const keeperRole = isConsumable ? 'consumable_item_store_keeper' : 'fixed_asset_store_keeper';
 
                 // Find Keeper
@@ -617,6 +668,13 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         }
                     ]
                 });
+
+                // *** INVENTORY DEDUCTION: Decrease material quantity (already validated above) ***
+                for (const matUpdate of materialDocsToUpdate) {
+                    const newQty = matUpdate.currentQty - matUpdate.deductQty;
+                    await updateDoc(matUpdate.ref, { quantity: newQty });
+                    console.log(`[Stock Out] ${matUpdate.name}: ${matUpdate.currentQty} → ${newQty} (-${matUpdate.deductQty})`);
+                }
 
                 // Create User-Report entries and send verification code to employee
                 try {
@@ -693,7 +751,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
                 }).filter(Boolean);
                 const hasChanges = changes.length > 0;
-                
+
                 let noteToSave = 'Request approved by Academic Coordinator';
                 if (hasChanges || finalAdjustmentNote) {
                     const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
@@ -1130,6 +1188,30 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             });
             await batch.commit();
 
+            // *** INVENTORY DEDUCTION: Decrease material quantity when clerk validates ***
+            for (const item of request.items) {
+                const searchField = item.materialCode ? 'materialCode' : 'materialName';
+                const searchValue = item.materialCode || item.materialName;
+
+                const materialQuery = query(
+                    collection(db!, 'materials'),
+                    where(searchField, '==', searchValue)
+                );
+                const materialSnap = await getDocs(materialQuery);
+
+                if (!materialSnap.empty) {
+                    const materialDoc = materialSnap.docs[0];
+                    const currentQty = Number(materialDoc.data().quantity) || 0;
+                    const deductQty = Number(item.quantity) || 0;
+                    const newQty = Math.max(0, currentQty - deductQty);
+
+                    await updateDoc(materialDoc.ref, { quantity: newQty });
+                    console.log(`[Stock Out] ${searchValue}: ${currentQty} → ${newQty} (-${deductQty})`);
+                } else {
+                    console.warn(`[Stock Out] Material not found: ${searchValue}`);
+                }
+            }
+
             // Step 3: Generate Verification Code
             const code = generateVerificationCode();
 
@@ -1507,11 +1589,10 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     ) : (
                                                         <button
                                                             onClick={() => setSelectedRequest(request)}
-                                                            className={`flex-1 py-3 rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${
-                                                                effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                                effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                                'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
-                                                            }`}
+                                                            className={`flex-1 py-3 rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
+                                                                    effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
+                                                                        'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                                }`}
                                                         >
                                                             Process Request <FiArrowRight />
                                                         </button>
@@ -1622,11 +1703,10 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                             <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-auto">
                                                 <button
                                                     onClick={() => effectiveRole.includes('stock_clerk') ? setModel22Request(request) : setSelectedRequest(request)}
-                                                    className={`flex-1 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${
-                                                        effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                        effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                        'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
-                                                    }`}
+                                                    className={`flex-1 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
+                                                            effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
+                                                                'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                        }`}
                                                 >
                                                     {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
                                                 </button>

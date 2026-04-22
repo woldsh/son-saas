@@ -12,10 +12,11 @@ interface RequestItem {
     itemType: string;
     model: string;
     remark: string;
+    materialType?: string;
 }
 
 interface PaperMaterialRequestFormProps {
-    initialItem?: { name: string; model?: string };
+    initialItem?: { name: string; model?: string; materialType?: string };
     onBack?: () => void;
 }
 
@@ -40,7 +41,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
     const [showSuccess, setShowSuccess] = useState(false);
 
     // Available items from Model 19 for autocomplete
-    const [availableItems, setAvailableItems] = useState<{ name: string, model: string }[]>([]);
+    const [availableItems, setAvailableItems] = useState<{ name: string, model: string, materialType: string }[]>([]);
 
     // Signature
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,7 +74,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             if (!db) return;
             try {
                 const materialsSnap = await getDocs(collection(db, 'materials'));
-                const itemsMap = new Map<string, string>(); // name -> model
+                const itemsMap = new Map<string, { model: string, materialType: string }>(); // name -> { model, materialType }
 
                 materialsSnap.forEach(doc => {
                     const data = doc.data();
@@ -84,7 +85,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                             data.items.forEach((item: any) => {
                                 if (item.description && typeof item.description === 'string' && item.description.trim()) {
                                     if (!itemsMap.has(item.description.trim())) {
-                                        itemsMap.set(item.description.trim(), item.model || '');
+                                        itemsMap.set(item.description.trim(), { model: item.model || '', materialType: data.materialType || 'consumable' });
                                     }
                                 }
                             });
@@ -92,7 +93,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                     }
                 });
 
-                const uniqueItems = Array.from(itemsMap.entries()).map(([name, model]) => ({ name, model })).sort((a, b) => a.name.localeCompare(b.name));
+                const uniqueItems = Array.from(itemsMap.entries()).map(([name, info]) => ({ name, model: info.model, materialType: info.materialType })).sort((a, b) => a.name.localeCompare(b.name));
                 setAvailableItems(uniqueItems);
             } catch (err) {
                 console.error("Failed to fetch available materials:", err);
@@ -183,6 +184,38 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
 
         setIsSubmitting(true);
         try {
+            // *** STOCK VALIDATION ***
+            const materialsSnap = await getDocs(collection(db, 'materials'));
+            const materialsList = materialsSnap.docs.map(doc => doc.data());
+            
+            for (const item of activeItems) {
+                const reqQty = Number(item.quantity) || 0;
+                // Find matching material in store by name
+                const matchedMaterial = materialsList.find(m => {
+                    if (m.materialName === item.itemType) return true;
+                    // Also check inside items array if it's a categorized generic material
+                    if (m.items && Array.isArray(m.items)) {
+                        return m.items.some((i: any) => i.description === item.itemType);
+                    }
+                    return false;
+                });
+
+                if (matchedMaterial) {
+                    const storeQty = Number(matchedMaterial.quantity) || 0;
+                    if (reqQty > storeQty) {
+                        alert(`❌ በስቶር ውስጥ በቂ ዕቃ የለም! (Insufficient Stock)\n\nዕቃ (Item): ${item.itemType}\nየተጠየቀው (Requested): ${reqQty}\nበስቶር ያለው (Available): ${storeQty}\n\nእባክዎ ብዛቱን አስተካክለው እንደገና ይሞክሩ።`);
+                        setIsSubmitting(false);
+                        return;
+                    }
+                } else {
+                     // If item not found at all, we might want to block or allow depending on policy.
+                     // For now, we block it to be strictly tied to inventory.
+                     alert(`❌ ዕቃው በስቶር ውስጥ አልተገኘም! (Material not found in store)\n\nዕቃ (Item): ${item.itemType}\n\nእባክዎ ትክክለኛ የዕቃ ስም ይምረጡ።`);
+                     setIsSubmitting(false);
+                     return;
+                }
+            }
+
             // Team Leader specialized workflow roles
             const TEAM_LEADER_ROLES = [
                 'student_service_leader',
@@ -267,15 +300,20 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 requesterName: requesterName || user.displayName,
                 department: dept,
                 receiptNo,
-                items: activeItems.map(item => ({
-                    materialName: item.itemType,
-                    quantity: Number(item.quantity) || 0,
-                    model: item.model,
-                    remarks: item.remark,
-                    materialId: 'FORM20_' + Date.now(),
-                    materialType: 'consumable',
-                    AC_decition: 'non',
-                })),
+                items: activeItems.map(item => {
+                    // Look up materialType from available items or use initialItem's type
+                    const matchedItem = availableItems.find(ai => ai.name === item.itemType);
+                    const resolvedType = matchedItem?.materialType || initialItem?.materialType || 'consumable';
+                    return {
+                        materialName: item.itemType,
+                        quantity: Number(item.quantity) || 0,
+                        model: item.model,
+                        remarks: item.remark,
+                        materialId: 'FORM20_' + Date.now(),
+                        materialType: resolvedType,
+                        AC_decition: 'non',
+                    };
+                }),
                 signature: signatureData,
                 status: finalStatus,
                 currentApproverRole: finalApproverRole,

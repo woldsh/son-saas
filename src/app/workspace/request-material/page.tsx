@@ -7,10 +7,10 @@ import { InventoryProvider } from '@/contexts/InventoryContext';
 
 export default function WorkspaceRequestMaterialPage() {
     const [view, setView] = useState<'search' | 'form'>('search');
-    const [selectedItem, setSelectedItem] = useState<{ name: string; model?: string } | undefined>(undefined);
+    const [selectedItem, setSelectedItem] = useState<{ name: string; model?: string; materialType?: string } | undefined>(undefined);
 
-    const handleSelect = (name: string, model?: string) => {
-        setSelectedItem({ name, model });
+    const handleSelect = (name: string, model?: string, materialType?: string) => {
+        setSelectedItem({ name, model, materialType });
         setView('form');
     };
 

@@ -130,22 +130,8 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                 });
             });
 
-            // 2. Inventory Deduction: Reduce quantity in 'materials' collection
-            for (const item of record.material_details) {
-                const materialQuery = query(
-                    collection(db!, 'materials'),
-                    where('materialName', '==', item.materialName)
-                );
-                const materialSnap = await getDocs(materialQuery);
-
-                if (!materialSnap.empty) {
-                    const materialDoc = materialSnap.docs[0];
-                    const currentQty = materialDoc.data().quantity || 0;
-                    const newQty = Math.max(0, currentQty - item.quantity);
-
-                    batch.update(materialDoc.ref, { quantity: newQty });
-                }
-            }
+            // 2. Inventory Deduction: Already handled at Stock Clerk approval stage in MaterialRequestView.tsx
+            // No deduction here to prevent double-counting
 
             // 3. Update Send_to_Users status to identify it as completed in this view
             const sendToUserRef = doc(db!, 'Send_to_Users', record.id);
@@ -192,7 +178,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
 
     const filteredRequests = requests.filter(req => {
         const matchesSearch = (req.requester_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-        
+
         // Normalize types for robust comparison (handles 'fixed_asset' vs 'Fixed Asset')
         const normalizedStoreType = storeType.toLowerCase().replace(/[^a-z]/g, '');
         const matchesType = req.material_details?.some(m => {
@@ -237,147 +223,119 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredRequests.map(req => {
-                    const isCompleted = req.status === 'handout_completed' || successId === req.id;
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50/80 border-b border-slate-100">
+                            <tr>
+                                <th className="p-5 text-xs font-black text-slate-400 uppercase tracking-widest">Requester</th>
+                                <th className="p-5 text-xs font-black text-slate-400 uppercase tracking-widest">Items Requested</th>
+                                <th className="p-5 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                <th className="p-5 text-xs font-black text-slate-400 uppercase tracking-widest">Serial Codes</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredRequests.map(req => {
+                                const isCompleted = req.status === 'handout_completed' || successId === req.id;
+                                
+                                const formatDate = (val: any) => {
+                                    if (!val) return '';
+                                    try {
+                                        const d = val.toDate?.() || new Date(val);
+                                        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
+                                    } catch { return ''; }
+                                };
 
-                    return (
-                        <div key={req.id} className="group relative">
-                            {/* Decorative Glow */}
-                            <div className={`absolute -inset-0.5 rounded-[2.5rem] blur opacity-25 group-hover:opacity-50 transition duration-500 ${isCompleted ? 'bg-green-500' : 'bg-indigo-500'}`}></div>
-
-                            <div className="relative bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 space-y-8 flex flex-col h-full hover:shadow-2xl transition-all duration-500 overflow-hidden">
-
-                                {/* Status Header */}
-                                <div className={`absolute top-0 left-0 w-full h-1.5 ${isCompleted ? 'bg-gradient-to-r from-green-400 to-emerald-600' : 'bg-gradient-to-r from-indigo-400 to-violet-600'}`}></div>
-
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-5">
-                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-500 ${isCompleted ? 'bg-green-50 border-green-100 text-green-500' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                                            <FiUser className="text-2xl" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-black text-slate-800 text-lg leading-tight group-hover:text-indigo-600 transition-colors">{req.requester_name}</h3>
-                                            <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mt-1">Authorized Requester</p>
-                                        </div>
-                                    </div>
-                                    {isCompleted && (
-                                        <div className="bg-green-100/50 p-2 rounded-xl text-green-600 animate-in zoom-in-50 duration-300">
-                                            <FiCheckCircle className="text-xl" />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Materials Section */}
-                                <div className="bg-slate-50/50 rounded-3xl p-6 space-y-4 border border-slate-100/50 relative overflow-hidden">
-                                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-4 mb-2">
-                                        <div className="flex items-center gap-2 text-[10px] uppercase font-black text-slate-400 tracking-widest">
-                                            <FiPackage className="text-indigo-400" /> Manifest Items
-                                        </div>
-                                        <span className="text-[10px] font-bold px-2 py-1 bg-white rounded-lg border border-slate-200 text-slate-400 uppercase">
-                                            {req.material_details.length} Items
-                                        </span>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {req.material_details.map((item, idx) => (
-                                            <div key={idx} className="flex flex-col group/item border-b border-slate-100 last:border-0 pb-3 last:pb-0">
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-slate-700 text-sm group-hover/item:text-indigo-600 transition-colors">{item.materialName}</span>
-                                                        <span className="text-[10px] text-slate-400 font-medium">{item.materialType}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="px-3 py-1 bg-white border-2 border-slate-100 rounded-xl text-xs font-black text-slate-600 shadow-sm">
-                                                            {item.quantity}
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter w-12">{item.unit}</span>
-                                                    </div>
+                                return (
+                                    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="p-5 align-middle">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all ${isCompleted ? 'bg-green-50 border-green-100 text-green-500' : 'bg-indigo-50 border-indigo-100 text-indigo-500'}`}>
+                                                    <FiUser className="text-xl" />
                                                 </div>
-
-                                                {/* Material Code with Copy Feature - ONLY shown when completed */}
-                                                {isCompleted && item.materialCode && (
-                                                    <div className="mt-3 flex items-center gap-3 self-start">
-                                                        <div
+                                                <div>
+                                                    <p className="font-black text-slate-700 text-sm">{req.requester_name}</p>
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{formatDate(req.created_at)}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-5 align-middle">
+                                            <div className="flex flex-wrap gap-2">
+                                                {req.material_details.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200/80 rounded-xl shadow-sm">
+                                                        <span className="font-bold text-slate-600 text-xs">{item.materialName}</span>
+                                                        <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg border border-slate-200">
+                                                            {item.quantity} {item.unit}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="p-5 align-middle">
+                                            {isCompleted ? (
+                                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-50 text-green-600 border border-green-100">
+                                                    <FiCheckCircle className="text-sm" />
+                                                    <span className="text-xs font-black uppercase tracking-wider">Verified</span>
+                                                </div>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.2)] relative overflow-hidden">
+                                                    {/* Shimmer effect behind */}
+                                                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-amber-200/30 to-transparent animate-[shimmer_2s_infinite]"></div>
+                                                    
+                                                    <div className="relative">
+                                                        <FiClock className="text-sm relative z-10 animate-pulse" />
+                                                        <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-40"></div>
+                                                    </div>
+                                                    
+                                                    <span className="text-xs font-black uppercase tracking-wider relative z-10 flex items-center">
+                                                        Waiting
+                                                        <span className="flex gap-[1px] ml-1">
+                                                            <span className="animate-bounce text-[14px] leading-none" style={{ animationDelay: '0ms' }}>.</span>
+                                                            <span className="animate-bounce text-[14px] leading-none" style={{ animationDelay: '200ms' }}>.</span>
+                                                            <span className="animate-bounce text-[14px] leading-none" style={{ animationDelay: '400ms' }}>.</span>
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-5 align-middle">
+                                            {isCompleted && req.material_details.some(m => m.materialCode) ? (
+                                                <div className="flex flex-col gap-2">
+                                                    {req.material_details.filter(m => m.materialCode).map((item, idx) => (
+                                                        <button
+                                                            key={idx}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleCopy(item.materialCode!);
                                                             }}
                                                             className={`
-                                                                flex items-center gap-3 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-pointer group/code
+                                                                flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-all text-xs w-max group/btn
                                                                 ${copiedCode === item.materialCode
-                                                                    ? 'bg-green-500 border-green-400 shadow-lg shadow-green-500/20 scale-105'
-                                                                    : 'bg-indigo-950 border-indigo-500/30 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/20 hover:-translate-y-0.5'
+                                                                    ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
+                                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:shadow-md'
                                                                 }
                                                             `}
                                                         >
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-300 opacity-60">Serial Code</span>
-                                                                <span className={`text-xs font-mono font-black tracking-widest ${copiedCode === item.materialCode ? 'text-white' : 'text-indigo-100'}`}>
-                                                                    {item.materialCode}
-                                                                </span>
+                                                            <div className="flex flex-col text-left">
+                                                                <span className="text-[8px] font-black uppercase text-slate-400">{item.materialName}</span>
+                                                                <span className="font-mono font-black tracking-widest">{item.materialCode}</span>
                                                             </div>
-                                                            <div className={`
-                                                                w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300
-                                                                ${copiedCode === item.materialCode ? 'bg-white/20' : 'bg-indigo-500/20 group-hover/code:bg-indigo-500/40'}
-                                                            `}>
-                                                                {copiedCode === item.materialCode ? <FiCheck className="text-white text-sm" /> : <FiCopy className="text-indigo-300 group-hover/code:text-white text-sm" />}
-                                                            </div>
-                                                        </div>
-                                                        {copiedCode === item.materialCode && (
-                                                            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest animate-in fade-in zoom-in-50 duration-300">Copied!</span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Dynamic Action/Status Footer */}
-                                <div className="mt-auto pt-4">
-                                    {isCompleted ? (
-                                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-green-100/50 rounded-[2rem] p-5 flex flex-col items-center justify-center gap-3 animate-in slide-in-from-bottom-4 duration-500 group-hover:shadow-lg group-hover:shadow-green-500/10 transition-all">
-                                            <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-200">
-                                                <FiCheckCircle className="text-2xl" />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-green-800 font-black uppercase tracking-[0.2em] text-[10px]">Handout Successful</p>
-                                                <p className="text-green-600/70 font-bold text-[10px] mt-1 italic">Verified & Deducted</p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-indigo-600 rounded-[2rem] p-6 shadow-xl shadow-indigo-200 flex flex-col items-center justify-center gap-4 group-hover:scale-[1.02] transition-transform duration-300 relative overflow-hidden">
-                                            {/* Pulsing Glow Background */}
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-violet-600 animate-pulse opacity-50"></div>
-                                            <div className="relative flex flex-col items-center gap-3 w-full">
-                                                <div className="flex items-center justify-center gap-3">
-                                                    <div className="w-2 h-2 rounded-full bg-white animate-ping"></div>
-                                                    <span className="text-white font-black uppercase tracking-[0.3em] text-xs">Waiting for VERIFY</span>
+                                                            {copiedCode === item.materialCode ? <FiCheck className="text-green-500 text-lg" /> : <FiCopy className="text-slate-400 group-hover/btn:text-indigo-500 transition-colors text-lg" />}
+                                                        </button>
+                                                    ))}
                                                 </div>
-
-                                                {/* Visual indicator of automation */}
-                                                <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-white/60 w-1/3 animate-[loading_2s_ease-in-out_infinite]"></div>
-                                                </div>
-
-                                                <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest text-center mt-1">Automatic monitoring active</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <style jsx>{`
-                                    @keyframes loading {
-                                        0% { transform: translateX(-100%); width: 30%; }
-                                        50% { width: 60%; }
-                                        100% { transform: translateX(400%); width: 30%; }
-                                    }
-                                `}</style>
-
-                            </div>
-                        </div>
-                    );
-                })}
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic font-medium">
+                                                    {isCompleted ? 'No Codes' : 'Auto-verifying...'}
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Empty State */}

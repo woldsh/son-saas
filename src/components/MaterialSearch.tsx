@@ -12,10 +12,11 @@ interface Material {
     model?: string;
     unit?: string;
     image?: string; // Cloudinary image URL
+    materialType?: string; // 'fixed_asset' or 'consumable'
 }
 
 interface MaterialSearchProps {
-    onSelect: (materialName: string, model?: string) => void;
+    onSelect: (materialName: string, model?: string, materialType?: string) => void;
     onCancel: () => void;
 }
 
@@ -70,6 +71,7 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
                                     model: item.model || '',
                                     unit: item.unit || '',
                                     image: item.imageUrl || item.image || '',
+                                    materialType: d.materialType || '',
                                 });
                             }
                         });
@@ -82,6 +84,7 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
                             model: d.model || d.modelNumber || '',
                             unit: d.unit || '',
                             image: d.image || d.imageUrl || d.photo || '',
+                            materialType: d.materialType || '',
                         });
                     }
                 });
@@ -187,7 +190,7 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
                         {filteredMaterials.map(material => (
                             <div
                                 key={material.id}
-                                onClick={() => onSelect(material.name, material.model)}
+                                onClick={() => onSelect(material.name, material.model, material.materialType)}
                                 style={{
                                     background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
                                     cursor: 'pointer', transition: 'all 0.2s', position: 'relative', overflow: 'hidden',

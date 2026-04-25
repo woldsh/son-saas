@@ -212,6 +212,9 @@ export default function MyRequisitionHistory() {
                 <ReadOnlyPaperForm20
                     request={selectedRequest}
                     onClose={() => setSelectedRequest(null)}
+                    onApprove={() => {}}
+                    onReject={() => {}}
+                    isProcessing={false}
                 />
             )}
 

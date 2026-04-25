@@ -100,9 +100,9 @@ export default function RejectedRequestsFeedback() {
             // Auto-clean old records from Database if there are more than 5 rejected (hard delete) or adjusted (soft delete so we don't break clerk view)
             const rejectedList = requestList.filter(r => r.status === 'rejected' && !r.isAdjusted);
             if (rejectedList.length > 5 && db) {
-                const batch = writeBatch(db);
+                const batch = writeBatch(db!);
                 rejectedList.slice(5).forEach(r => {
-                    batch.delete(doc(db, 'Request_materials', r.id));
+                    batch.delete(doc(db!, 'Request_materials', r.id));
                 });
                 batch.commit().catch(console.error);
             }

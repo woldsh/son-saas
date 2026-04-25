@@ -278,9 +278,10 @@ export default function MaterialRequestForm() {
                         }
                     }
                 }
-            } catch (err) {
-                console.error('Error checking cooldown:', err);
             }
+        } catch (err) {
+            console.error('Error checking cooldown:', err);
+        }
         }
 
         setCart(prev => {

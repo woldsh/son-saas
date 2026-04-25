@@ -41,6 +41,7 @@ interface TransferRecord {
     status: string;
     reason: string;
     createdAt: any;
+    updatedAt?: any;
 }
 
 export default function ReturnGoodsPage() {

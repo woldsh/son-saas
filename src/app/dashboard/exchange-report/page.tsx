@@ -129,7 +129,7 @@ export default function DashboardExchangeReportPage() {
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-slate-800">{t('transfer_history')}</h2>
-                                <p className="text-sm text-slate-500">{transfers.length} {t('total_requests').toLowerCase()}</p>
+                                <p className="text-sm text-slate-500">{transfers.length} {t('total_requests_dashboard').toLowerCase()}</p>
                             </div>
                         </div>
                     </div>

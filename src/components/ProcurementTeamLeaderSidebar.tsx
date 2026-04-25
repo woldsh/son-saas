@@ -33,11 +33,13 @@ import {
     Bell,
     ChevronDown,
     ChevronUp,
-    ShieldCheck
+    ShieldCheck,
+    Timer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRequestNotification } from '../hooks/useRequestNotification'
-import { useIsMobile } from '../hooks/useIsMobile';;
+import { useIsMobile } from '../hooks/useIsMobile';
+import { useStockAlerts } from '../hooks/useStockAlerts';
 import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
 
@@ -49,7 +51,9 @@ export default function ProcurementTeamLeaderSidebar() {
     const { userRole, department } = useAuth();
     const { t } = useLanguage();
     const requestCount = useRequestNotification(userRole, department);
+    const stockAlerts = useStockAlerts();
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const [openNestedDropdown, setOpenNestedDropdown] = useState<string | null>(null);
     const [meetingInvite, setMeetingInvite] = useState(false);
 
     useEffect(() => {
@@ -88,6 +92,30 @@ export default function ProcurementTeamLeaderSidebar() {
             ],
             hasDivider: true
         },
+        { isHeader: true, label: "Stock Management" },
+        {
+            label: "Stock Management",
+            icon: BarChart2,
+            subItems: [
+                { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
+                { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileBarChart },
+                { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
+                { label: 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
+                {
+                    label: t('stock_alert') || "Stock Alert",
+                    icon: Bell,
+                    badge: stockAlerts.total,
+                    subItems: [
+                        { label: t('low_stock'), href: `${basePath}/low-stock`, icon: AlertCircle, badge: stockAlerts.lowStock },
+                        { label: t('expire_stock'), href: `${basePath}/expiry-alerts`, icon: AlertCircle, badge: stockAlerts.expireStock },
+                        { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: AlertCircle, badge: stockAlerts.outOfStock },
+                        { label: t('maintenance'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
+                    ]
+                }
+            ],
+            hasDivider: true
+        },
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
         {
@@ -121,21 +149,6 @@ export default function ProcurementTeamLeaderSidebar() {
             hasDivider: true
         },
         { label: t('manage_account'), href: `${basePath}/manage-account`, icon: Settings },
-
-        { isHeader: true, label: t('procurementLabel') || "Procurement Operations" },
-        { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
-        { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
-        { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
-        {
-            label: t('stock_alert'),
-            icon: Bell,
-            subItems: [
-                { label: t('low_stock'), href: `${basePath}/low-stock`, icon: AlertCircle },
-                { label: t('expire_stock'), href: `${basePath}/expiry-alerts`, icon: AlertCircle },
-                { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: AlertCircle },
-                { label: t('maintenance'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
-            ]
-        },
     ];
 
     return (
@@ -166,10 +179,10 @@ export default function ProcurementTeamLeaderSidebar() {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[17px] font-bold text-slate-800 tracking-tight leading-none">
-                                    {t('team_leader')}
+                                    Property Management
                                 </span>
                                 <span className="text-[10px] font-bold text-blue-600 uppercase tracking-[0.15em] mt-1.5 opacity-80">
-                                    {t('procurementLabel')}
+                                    Team Leader
                                 </span>
                             </div>
                         </div>
@@ -231,7 +244,67 @@ export default function ProcurementTeamLeaderSidebar() {
                                                     >
                                                         <div className="mt-1 space-y-0.5 pl-4">
                                                             {item.subItems?.map((subItem: any, subIndex: number) => {
+                                                                const isNestedDropdown = !!subItem.subItems;
+                                                                const isNestedOpen = openNestedDropdown === subItem.label;
                                                                 const SubIcon = subItem.icon;
+
+                                                                if (isNestedDropdown) {
+                                                                    return (
+                                                                        <div key={subIndex} className="space-y-0.5">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    setOpenNestedDropdown(isNestedOpen ? null : subItem.label);
+                                                                                }}
+                                                                                className={`w-full flex items-center gap-3.5 px-6 py-2.5 rounded-[12px] transition-all duration-200 group ${isNestedOpen ? 'bg-slate-50 text-slate-800 font-medium' : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800'}`}
+                                                                            >
+                                                                                <SubIcon size={18} strokeWidth={1.5} className={isNestedOpen ? 'text-blue-600' : 'text-slate-400'} />
+                                                                                <span className="text-[14px] flex-1 text-left">{subItem.label}</span>
+                                                                                {subItem.badge > 0 && (
+                                                                                    <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-500/20 mr-2">
+                                                                                        {subItem.badge}
+                                                                                    </span>
+                                                                                )}
+                                                                                {isNestedOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600" />}
+                                                                            </button>
+                                                                            <AnimatePresence>
+                                                                                {isNestedOpen && (
+                                                                                    <motion.div
+                                                                                        initial={{ opacity: 0, height: 0 }}
+                                                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                                                        exit={{ opacity: 0, height: 0 }}
+                                                                                        transition={{ duration: 0.2 }}
+                                                                                        className="overflow-hidden"
+                                                                                    >
+                                                                                        <div className="mt-1 space-y-0.5 pl-6">
+                                                                                            {subItem.subItems.map((nestedItem: any, nestedIndex: number) => {
+                                                                                                const NestedIcon = nestedItem.icon;
+                                                                                                const isNestedActive = pathname === nestedItem.href;
+                                                                                                return (
+                                                                                                    <Link
+                                                                                                        key={`nested-${nestedIndex}`}
+                                                                                                        href={nestedItem.href}
+                                                                                                        onClick={handleLinkClick}
+                                                                                                        className={`flex items-center gap-3.5 px-6 py-2.5 rounded-[12px] transition-all duration-200 ${isNestedActive ? 'bg-blue-50/40 text-blue-700 font-medium' : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800'}`}
+                                                                                                    >
+                                                                                                        <NestedIcon size={16} strokeWidth={1.5} className={isNestedActive ? 'text-blue-600' : 'text-slate-400'} />
+                                                                                                        <span className="text-[13px] flex-1 text-left">{nestedItem.label}</span>
+                                                                                                        {nestedItem.badge > 0 && (
+                                                                                                            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[10px] font-black rounded-full shadow-lg shadow-rose-500/20 ml-auto">
+                                                                                                                {nestedItem.badge}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </Link>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </motion.div>
+                                                                                )}
+                                                                            </AnimatePresence>
+                                                                        </div>
+                                                                    );
+                                                                }
+
                                                                 const isSubActive = pathname === subItem.href;
 
                                                                 return (

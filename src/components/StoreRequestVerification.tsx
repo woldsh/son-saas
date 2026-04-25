@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, where, getDocs, writeBatch, doc, deleteDoc } from 'firebase/firestore';
-import { FiSearch, FiUser, FiPackage, FiCheckCircle, FiClock, FiActivity, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiSearch, FiUser, FiPackage, FiCheckCircle, FiClock, FiActivity, FiCopy, FiCheck, FiArrowRight } from 'react-icons/fi';
+import ClerkModel22Form from './ClerkModel22Form';
+import { getDoc } from 'firebase/firestore';
+
 
 interface MaterialDetail {
     materialName: string;
@@ -22,6 +25,7 @@ interface RequestRecord {
     status: string;
     created_at: any;
     sharedAt?: string; // ISO string
+    department?: string;
 }
 
 interface StoreRequestVerificationProps {
@@ -42,6 +46,11 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
 
     // Track processing IDs to prevent double-processing
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+
+    // Modal State
+    const [model22Request, setModel22Request] = useState<any | null>(null);
+    const [isFetchingRequest, setIsFetchingRequest] = useState(false);
+
 
     useEffect(() => {
         // Fetch from Send_to_Users
@@ -137,10 +146,14 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
             const sendToUserRef = doc(db!, 'Send_to_Users', record.id);
             batch.update(sendToUserRef, { status: 'handout_completed' });
 
-            // 4. Delete the original Request_materials document
+            // 4. Update the original Request_materials document to 'handout_completed' instead of deleting
+            // This allows the Store Keeper to view the Model 22 document even after verification.
             if (record.request_id) {
                 const requestMaterialRef = doc(db!, 'Request_materials', record.request_id);
-                batch.delete(requestMaterialRef);
+                batch.update(requestMaterialRef, { 
+                    status: 'handout_completed',
+                    handoutCompletedAt: new Date().toISOString()
+                });
             }
 
             await batch.commit();
@@ -175,6 +188,65 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
         setCopiedCode(code);
         setTimeout(() => setCopiedCode(null), 2000);
     };
+
+    const openModel22 = async (record: RequestRecord) => {
+        if (!record.request_id || !db) return;
+        
+        try {
+            setIsFetchingRequest(true);
+            const requestDoc = await getDoc(doc(db!, 'Request_materials', record.request_id));
+            if (requestDoc.exists()) {
+                const data = requestDoc.data();
+                setModel22Request({
+                    id: requestDoc.id,
+                    ...data,
+                    items: data.items || record.material_details,
+                    department: data.department || record.department || 'Property Management'
+                });
+            } else {
+                // Fallback: Reconstruct a synthetic request from the local record if the original archive was deleted
+                // This ensures "VERIFIED" requests processed before the archive fix can still be viewed.
+                let deptFallback = record.department || 'Official Handout';
+
+                // Try to recover department from User-Report if it's missing in the record
+                if (!record.department) {
+                    try {
+                        const reportQuery = query(collection(db!, 'User-Report'), where('requestId', '==', record.request_id));
+                        const reportSnap = await getDocs(reportQuery);
+                        if (!reportSnap.empty) {
+                            deptFallback = reportSnap.docs[0].data().department || deptFallback;
+                        }
+                    } catch (err) {
+                        console.warn('Failed to recover department from User-Report:', err);
+                    }
+                }
+
+                const reconstructedItems = record.material_details.map(item => ({
+                    ...item,
+                    materialId: item.materialCode || 'archive_ref',
+                    materialCode: item.materialCode || 'N/A',
+                    condition: 'Good' // Standard archive default
+                }));
+
+                setModel22Request({
+                    id: record.request_id || record.id,
+                    requesterName: record.requester_name,
+                    requesterId: 'archive_sys',
+                    department: deptFallback,
+                    items: reconstructedItems,
+                    status: 'handout_completed',
+                    createdAt: record.created_at,
+                    receiptNo: record.verification_code || '---'
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching request:', err);
+            alert('Failed to load the official document.');
+        } finally {
+            setIsFetchingRequest(false);
+        }
+    };
+
 
     const filteredRequests = requests.filter(req => {
         const matchesSearch = (req.requester_name || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -237,7 +309,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                         <tbody className="divide-y divide-slate-100">
                             {filteredRequests.map(req => {
                                 const isCompleted = req.status === 'handout_completed' || successId === req.id;
-                                
+
                                 const formatDate = (val: any) => {
                                     if (!val) return '';
                                     try {
@@ -247,7 +319,11 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                 };
 
                                 return (
-                                    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <tr 
+                                        key={req.id} 
+                                        onClick={() => openModel22(req)}
+                                        className={`hover:bg-slate-50/50 transition-colors group cursor-pointer ${isFetchingRequest ? 'pointer-events-none opacity-80' : ''}`}
+                                    >
                                         <td className="p-5 align-middle">
                                             <div className="flex items-center gap-4">
                                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all ${isCompleted ? 'bg-green-50 border-green-100 text-green-500' : 'bg-indigo-50 border-indigo-100 text-indigo-500'}`}>
@@ -281,12 +357,12 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.2)] relative overflow-hidden">
                                                     {/* Shimmer effect behind */}
                                                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-amber-200/30 to-transparent animate-[shimmer_2s_infinite]"></div>
-                                                    
+
                                                     <div className="relative">
                                                         <FiClock className="text-sm relative z-10 animate-pulse" />
                                                         <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-40"></div>
                                                     </div>
-                                                    
+
                                                     <span className="text-xs font-black uppercase tracking-wider relative z-10 flex items-center">
                                                         Waiting
                                                         <span className="flex gap-[1px] ml-1">
@@ -299,36 +375,50 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                             )}
                                         </td>
                                         <td className="p-5 align-middle">
-                                            {isCompleted && req.material_details.some(m => m.materialCode) ? (
-                                                <div className="flex flex-col gap-2">
-                                                    {req.material_details.filter(m => m.materialCode).map((item, idx) => (
-                                                        <button
-                                                            key={idx}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleCopy(item.materialCode!);
-                                                            }}
-                                                            className={`
-                                                                flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-all text-xs w-max group/btn
-                                                                ${copiedCode === item.materialCode
-                                                                    ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
-                                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:shadow-md'
-                                                                }
-                                                            `}
-                                                        >
-                                                            <div className="flex flex-col text-left">
-                                                                <span className="text-[8px] font-black uppercase text-slate-400">{item.materialName}</span>
-                                                                <span className="font-mono font-black tracking-widest">{item.materialCode}</span>
-                                                            </div>
-                                                            {copiedCode === item.materialCode ? <FiCheck className="text-green-500 text-lg" /> : <FiCopy className="text-slate-400 group-hover/btn:text-indigo-500 transition-colors text-lg" />}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-slate-400 italic font-medium">
-                                                    {isCompleted ? 'No Codes' : 'Auto-verifying...'}
-                                                </span>
-                                            )}
+                                            <div className="flex flex-col items-end gap-3">
+                                                {/* Always show View Model 22 button */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openModel22(req);
+                                                    }}
+                                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-blue-600/20 hover:bg-blue-500 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn"
+                                                >
+                                                    View Model 22
+                                                    <FiArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
+                                                </button>
+
+                                                {isCompleted && req.material_details.some(m => m.materialCode) ? (
+                                                    <div className="flex flex-col gap-2">
+                                                        {req.material_details.filter(m => m.materialCode).map((item, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleCopy(item.materialCode!);
+                                                                }}
+                                                                className={`
+                                                                    flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-all text-xs w-max group/btn
+                                                                    ${copiedCode === item.materialCode
+                                                                        ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
+                                                                        : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:shadow-md'
+                                                                    }
+                                                                `}
+                                                            >
+                                                                <div className="flex flex-col text-left">
+                                                                    <span className="text-[8px] font-black uppercase text-slate-400">{item.materialName}</span>
+                                                                    <span className="font-mono font-black tracking-widest">{item.materialCode}</span>
+                                                                </div>
+                                                                {copiedCode === item.materialCode ? <FiCheck className="text-green-500 text-lg" /> : <FiCopy className="text-slate-400 group-hover/btn:text-indigo-500 transition-colors text-lg" />}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[9px] italic font-bold text-slate-400 tracking-wide pr-1">
+                                                        {isCompleted ? 'Handout Archive' : 'Auto-verifying...'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -347,6 +437,15 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                     <h3 className="text-slate-400 font-black uppercase tracking-[0.3em] text-sm">No Active Handouts</h3>
                     <p className="text-slate-300 text-xs font-bold mt-2 italic">Scanning for incoming verification codes...</p>
                 </div>
+            )}
+
+            {model22Request && (
+                <ClerkModel22Form
+                    request={model22Request}
+                    onClose={() => setModel22Request(null)}
+                    onApprove={async () => {}} // No approval needed from keeper view
+                    readOnly={true}
+                />
             )}
         </div>
     );

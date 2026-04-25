@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 
 export interface Material {
     id: string;
@@ -40,14 +40,44 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        const q = query(collection(db, 'materials'), orderBy('materialName', 'asc'));
+        const q = query(collection(db, 'materials'));
 
         const unsubscribe = onSnapshot(q,
             (snapshot) => {
-                const materialList = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Material[];
+                const materialList: Material[] = [];
+
+                snapshot.docs.forEach(docSnap => {
+                    const data = docSnap.data();
+
+                    if (data.materialName) {
+                        // Standard material document with top-level materialName
+                        materialList.push({
+                            id: docSnap.id,
+                            ...data
+                        } as Material);
+                    } else if (data.items && Array.isArray(data.items)) {
+                        // Model 19 structure: items[] with description & quantity
+                        data.items.forEach((item: any, idx: number) => {
+                            if (item.description && item.description.trim()) {
+                                materialList.push({
+                                    id: `${docSnap.id}_item_${idx}`,
+                                    materialName: item.description.trim(),
+                                    materialCode: item.model || '',
+                                    image: item.imageUrl || '',
+                                    quantity: Number(item.quantity) || 0,
+                                    condition: 'New',
+                                    category: data.classificationOfStock || '',
+                                    unit: 'pcs',
+                                    materialType: data.materialType || 'consumable',
+                                    description: item.description.trim(),
+                                } as Material);
+                            }
+                        });
+                    }
+                });
+
+                // Sort by materialName client-side
+                materialList.sort((a, b) => (a.materialName || '').localeCompare(b.materialName || ''));
 
                 setMaterials(materialList);
                 setLoading(false);

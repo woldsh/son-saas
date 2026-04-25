@@ -247,7 +247,7 @@ export default function CafeteriaLeaderSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

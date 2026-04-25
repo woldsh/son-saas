@@ -297,7 +297,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

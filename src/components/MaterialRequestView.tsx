@@ -593,23 +593,40 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
                 // *** STOCK VALIDATION: Check if store has enough quantity BEFORE approving ***
                 const insufficientItems: { name: string; requested: number; available: number }[] = [];
-                const materialDocsToUpdate: { ref: any; currentQty: number; deductQty: number; name: string }[] = [];
+                const materialDocsToUpdate: { ref: any; currentQty: number; deductQty: number; name: string; originalData?: any; matchedIdx?: number }[] = [];
+
+                // Fetch all materials once for robust case-insensitive and array searching
+                const allMaterialsSnap = await getDocs(collection(db!, 'materials'));
+                const allMaterials = allMaterialsSnap.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
 
                 for (const item of request.items) {
-                    const searchField = item.materialCode ? 'materialCode' : 'materialName';
-                    const searchValue = item.materialCode || item.materialName;
+                    const deductQty = Number(item.quantity) || 0;
+                    let foundDoc = null;
+                    let currentQty = 0;
+                    let matchedArrayIndex: number | undefined = undefined;
 
-                    const materialQuery = query(
-                        collection(db!, 'materials'),
-                        where(searchField, '==', searchValue)
-                    );
-                    const materialSnap = await getDocs(materialQuery);
+                    for (const mat of allMaterials) {
+                        const mData = mat.data;
+                        // Check top-level
+                        if (mData.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase() ||
+                            (item.materialCode && mData.materialCode?.trim().toLowerCase() === item.materialCode?.trim().toLowerCase())) {
+                            foundDoc = mat;
+                            currentQty = Number(mData.quantity) || 0;
+                            break;
+                        }
+                        // Check inside items array (Model 19)
+                        if (mData.items && Array.isArray(mData.items)) {
+                            const matchedIdx = mData.items.findIndex((i: any) => i.description?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
+                            if (matchedIdx !== -1) {
+                                foundDoc = mat;
+                                currentQty = Number(mData.items[matchedIdx].quantity) || Number(mData.quantity) || 0;
+                                matchedArrayIndex = matchedIdx;
+                                break;
+                            }
+                        }
+                    }
 
-                    if (!materialSnap.empty) {
-                        const materialDoc = materialSnap.docs[0];
-                        const currentQty = Number(materialDoc.data().quantity) || 0;
-                        const deductQty = Number(item.quantity) || 0;
-
+                    if (foundDoc) {
                         if (deductQty > currentQty) {
                             insufficientItems.push({
                                 name: item.materialName,
@@ -618,16 +635,18 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             });
                         } else {
                             materialDocsToUpdate.push({
-                                ref: materialDoc.ref,
+                                ref: foundDoc.ref,
                                 currentQty,
                                 deductQty,
-                                name: searchValue
+                                name: item.materialName,
+                                originalData: foundDoc.data,
+                                matchedIdx: matchedArrayIndex
                             });
                         }
                     } else {
                         insufficientItems.push({
                             name: item.materialName,
-                            requested: Number(item.quantity) || 0,
+                            requested: deductQty,
                             available: 0
                         });
                     }
@@ -672,7 +691,19 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 // *** INVENTORY DEDUCTION: Decrease material quantity (already validated above) ***
                 for (const matUpdate of materialDocsToUpdate) {
                     const newQty = matUpdate.currentQty - matUpdate.deductQty;
-                    await updateDoc(matUpdate.ref, { quantity: newQty });
+                    const updatePayload: any = { quantity: newQty.toString() }; // Maintain string type for consistency with DB
+
+                    // If it's a Model 19 item inside an array, update the array specifically
+                    if (matUpdate.matchedIdx !== undefined && matUpdate.originalData?.items) {
+                        const newItems = [...matUpdate.originalData.items];
+                        newItems[matUpdate.matchedIdx] = {
+                            ...newItems[matUpdate.matchedIdx],
+                            quantity: newQty.toString()
+                        };
+                        updatePayload.items = newItems;
+                    }
+
+                    await updateDoc(matUpdate.ref, updatePayload);
                     console.log(`[Stock Out] ${matUpdate.name}: ${matUpdate.currentQty} → ${newQty} (-${matUpdate.deductQty})`);
                 }
 
@@ -727,6 +758,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             quantity: item.quantity || 0,
                             unit: item.unit || 'pcs'
                         })),
+                        department: request.department || '',
                         verification_code: code,
                         created_at: serverTimestamp(),
                         status: 'ready_for_pickup',
@@ -1220,6 +1252,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 request_id: request.id,
                 requester_user_id: request.requesterId,
                 requester_name: request.requesterName,
+                department: request.department || '',
                 verification_code: code,
                 material_details: request.items.map(item => ({
                     materialName: item.materialName,
@@ -1272,7 +1305,20 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 'blue';
 
     return (
-        <div className="max-w-[1600px] mx-auto px-4 pb-4 space-y-6 animate-in fade-in duration-500">
+        <div className="w-full min-h-screen bg-[#f8fafc] pb-20">
+            {model22Request && (
+                <ClerkModel22Form
+                    request={model22Request}
+                    onClose={() => setModel22Request(null)}
+                    onApprove={async (finalItems: RequestItem[]) => {
+                        await handleApprove(model22Request, finalItems);
+                        setModel22Request(null);
+                    }}
+                    readOnly={effectiveRole.toLowerCase().includes('store_keeper')}
+                />
+            )}
+
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 pt-10 space-y-6 animate-in fade-in duration-500">
             {selectedRequest && (
                 <ReadOnlyPaperForm20
                     request={selectedRequest}
@@ -1333,81 +1379,109 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             )}
 
             {/* Header Section */}
-            <div className="flex flex-col gap-3 bg-white p-3 md:p-4 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-3">
-                            {effectiveRole === 'academic_coordinator' ? (
-                                <>Managerial <span className="text-blue-600">Review</span></>
-                            ) : effectiveRole === 'managing_director' ? (
-                                <>Executive <span className="text-blue-600">Approval</span></>
-                            ) : (
-                                <>Material <span className="text-blue-600">Requests</span></>
-                            )}
-                        </h2>
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-100">
-                            <FiActivity size={10} /> System Management
+            {effectiveRole.includes('store_keeper') ? (
+                <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group/header">
+                    {/* Decorative glow */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-[100px] -mr-32 -mt-32 opacity-50 group-hover/header:opacity-100 transition-opacity duration-700" />
+                    
+                    <div className="flex items-center gap-8 relative z-10">
+                        <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 relative">
+                            <FiActivity className="text-4xl animate-pulse" />
+                            <div className="absolute -inset-2 bg-blue-500/20 rounded-[2.2rem] animate-ping duration-[3000ms]" />
+                        </div>
+                        <div>
+                            <h1 className="text-5xl font-black text-slate-900 tracking-tight">Store Verification</h1>
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">AUTOMATED HANDOUT PIPELINE</p>
                         </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* View Mode Toggle */}
-                        <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                            <button
-                                onClick={() => setViewMode('list')}
-                                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list'
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-600'
-                                    }`}
-                            >
-                                <FiList className="text-base" /> List
-                            </button>
-                            <button
-                                onClick={() => setViewMode('grid')}
-                                className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid'
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-600'
-                                    }`}
-                            >
-                                <FiGrid className="text-base" /> Grid
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={() => handleSelectAll(selectedRequests.length !== filteredRequests.length)}
-                            className={`px-6 py-2 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 flex items-center gap-2 ${selectedRequests.length === filteredRequests.length && filteredRequests.length > 0
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:text-blue-600'
-                                }`}
-                        >
-                            {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
-                                <><FiCheckCircle className="text-base" /> Deselect All</>
-                            ) : (
-                                <><div className="w-4 h-4 rounded-md border-2 border-current"></div> Select All</>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="relative group w-full z-10 border-t border-slate-100 pt-3 flex flex-col md:flex-row items-center gap-3">
-                    <div className="relative flex-1 w-full">
-                        <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xl" />
+                    <div className="relative w-full max-w-md z-10">
+                        <FiSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-2xl group-focus-within:text-blue-500 transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search by requester or material name..."
+                            placeholder="Search by requester name..."
+                            className="w-full pl-16 pr-8 py-5 bg-slate-50 border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-lg shadow-inner"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-sm"
                         />
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl whitespace-nowrap">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue:</span>
-                        <span className="text-[10px] font-black text-slate-700 uppercase">
-                            {filteredRequests.length} {filteredRequests.length === 1 ? 'Task' : 'Tasks'}
-                        </span>
+                </div>
+            ) : (
+                <div className="flex flex-col gap-3 bg-white p-3 md:p-4 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-3">
+                                {effectiveRole === 'academic_coordinator' ? (
+                                    <>Managerial <span className="text-blue-600">Review</span></>
+                                ) : effectiveRole === 'managing_director' ? (
+                                    <>Executive <span className="text-blue-600">Approval</span></>
+                                ) : (
+                                    <>Material <span className="text-blue-600">Requests</span></>
+                                )}
+                            </h2>
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-100">
+                                <FiActivity size={10} /> System Management
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* View Mode Toggle */}
+                            <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list'
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                >
+                                    <FiList className="text-base" /> List
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('grid')}
+                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid'
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                >
+                                    <FiGrid className="text-base" /> Grid
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => handleSelectAll(selectedRequests.length !== filteredRequests.length)}
+                                className={`px-6 py-2 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 flex items-center gap-2 ${selectedRequests.length === filteredRequests.length && filteredRequests.length > 0
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                    : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:text-blue-600'
+                                    }`}
+                            >
+                                {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
+                                    <><FiCheckCircle className="text-base" /> Deselect All</>
+                                ) : (
+                                    <><div className="w-4 h-4 rounded-md border-2 border-current"></div> Select All</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="relative group w-full z-10 border-t border-slate-100 pt-3 flex flex-col md:flex-row items-center gap-3">
+                        <div className="relative flex-1 w-full">
+                            <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xl" />
+                            <input
+                                type="text"
+                                placeholder="Search by requester or material name..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-12 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl whitespace-nowrap">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue:</span>
+                            <span className="text-[10px] font-black text-slate-700 uppercase">
+                                {filteredRequests.length} {filteredRequests.length === 1 ? 'Task' : 'Tasks'}
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Bulk Action Bar */}
             {selectedRequests.length > 0 && (
@@ -1455,6 +1529,90 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         <p className="text-slate-400 font-semibold uppercase text-[9px] tracking-widest">No pending material requests require your attention.</p>
                     </div>
                 </div>
+            ) : effectiveRole.includes('store_keeper') ? (
+                <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/20 overflow-hidden mt-8">
+                    {/* Table Header */}
+                    <div className="hidden md:grid grid-cols-[350px_1fr_250px_200px] gap-8 px-14 py-8 bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm">
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">REQUESTER</span>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">ITEMS REQUESTED</span>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">STATUS</span>
+                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">SERIAL CODES</span>
+                    </div>
+                    <div className="flex flex-col">
+                        {filteredRequests.map(request => (
+                            <div
+                                key={request.id}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setModel22Request(request);
+                                }}
+                                className={`flex flex-col md:grid md:grid-cols-[350px_1fr_250px_200px] gap-8 px-8 md:px-14 py-8 items-center border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer transition-all duration-300 group ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                {/* User Column */}
+                                <div className="flex items-center gap-6 w-full">
+                                    <div className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm shrink-0 transition-transform group-hover:scale-110 ${request.id.charCodeAt(0) % 3 === 0 ? 'bg-indigo-50 border border-indigo-100 text-indigo-500' :
+                                            request.id.charCodeAt(0) % 3 === 1 ? 'bg-emerald-50 border border-emerald-100 text-emerald-500' :
+                                                'bg-amber-50 border border-amber-100 text-amber-500'
+                                        }`}>
+                                        <FiUser className="text-2xl" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h4 className="font-black text-slate-800 text-lg tracking-tight truncate">{request.requesterName}</h4>
+                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1">
+                                            {request.createdAt?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) || 'N/A'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Items Column */}
+                                <div className="flex justify-center w-full">
+                                    <div className="pl-4 pr-1 py-1.5 rounded-full border border-slate-200 bg-white shadow-sm flex items-center gap-4 group-hover:border-blue-300 transition-colors">
+                                        <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{request.items[0]?.materialName || 'Items'}</span>
+                                        <span className="px-4 py-1.5 rounded-full bg-slate-100 text-[11px] font-black text-slate-500">
+                                            {request.items.reduce((sum, item) => sum + item.quantity, 0)} pcs
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Status Column */}
+                                <div className="flex justify-center w-full">
+                                    {request.status.includes('waiting') ? (
+                                        <div className="px-6 py-2 rounded-full bg-[#fffcf0] border border-[#ffedcc] flex items-center gap-3 shadow-sm group-hover:bg-amber-50 transition-colors">
+                                            <FiClock className="text-[#f59e0b] text-sm animate-spin-slow" />
+                                            <span className="text-[11px] font-black text-[#ea580c] uppercase tracking-[0.15em]">WAITING ...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="px-6 py-2 rounded-full bg-[#f0fdf4] border border-[#bcf0da] flex items-center gap-3 shadow-sm group-hover:bg-emerald-50 transition-colors">
+                                            <FiCheckCircle className="text-[#10b981] text-sm" />
+                                            <span className="text-[11px] font-black text-[#059669] uppercase tracking-[0.15em]">VERIFIED</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Action Column */}
+                                <div className="text-right w-full hidden md:flex justify-end items-center gap-6">
+                                    <div className="flex flex-col items-end gap-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setModel22Request(request);
+                                            }}
+                                            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-blue-600/20 hover:bg-blue-500 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn"
+                                        >
+                                            View Model 22
+                                            <FiArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
+                                        </button>
+                                        <span className="text-[9px] italic font-bold text-slate-400 tracking-wide pr-1">
+                                            {request.status.includes('waiting') ? 'Auto-verifying...' : 'Verified Record'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             ) : (
                 <div className={viewMode === 'grid' ? "grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6" : "flex flex-col gap-4 mt-6"}>
                     {filteredRequests.map(request => (
@@ -1495,7 +1653,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                         <div className="flex-1 flex flex-wrap items-center gap-4">
                                             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
                                                 <div className={`w-2 h-2 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
-                                                    request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
+                                                        request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
                                                     }`} />
                                                 <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                                                     {request.status.replace(/_/g, ' ')}
@@ -1590,8 +1748,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                         <button
                                                             onClick={() => setSelectedRequest(request)}
                                                             className={`flex-1 py-3 rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                                    effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                                        'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                                effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
+                                                                    'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
                                                                 }`}
                                                         >
                                                             Process Request <FiArrowRight />
@@ -1704,8 +1862,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                 <button
                                                     onClick={() => effectiveRole.includes('stock_clerk') ? setModel22Request(request) : setSelectedRequest(request)}
                                                     className={`flex-1 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                            effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                                'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+                                                        effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
+                                                            'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
                                                         }`}
                                                 >
                                                     {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
@@ -1725,15 +1883,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
 
 
-            {model22Request && (
-                <ClerkModel22Form
-                    request={model22Request}
-                    onClose={() => setModel22Request(null)}
-                    onApprove={async (finalItems: RequestItem[]) => {
-                        await handleApprove(model22Request, finalItems);
-                    }}
-                />
-            )}
+
 
             {/* Rejection Modal */}
             {rejectModalOpen && requestToReject && (
@@ -1814,6 +1964,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
             `}</style>
+            </div>
         </div>
     );
 }

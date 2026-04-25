@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { FiPlus, FiRefreshCw, FiCheck, FiX } from 'react-icons/fi';
+import { FiPlus, FiRefreshCw, FiCheck, FiX, FiInfo } from 'react-icons/fi';
 
 interface RequestItem {
     id: string;
@@ -39,6 +39,14 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [cooldownAlert, setCooldownAlert] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (cooldownAlert) {
+            const timer = setTimeout(() => setCooldownAlert(null), 8000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldownAlert]);
 
     // Available items from Model 19 for autocomplete
     const [availableItems, setAvailableItems] = useState<{ name: string, model: string, materialType: string }[]>([]);
@@ -170,49 +178,120 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
         const activeItems = items.filter(i => i.quantity.trim() || i.itemType.trim() || i.model.trim() || i.remark.trim());
 
         if (activeItems.length === 0) {
-            alert('እባክዎ ቢያንስ አንድ ዕቃ ያስገቡ። (Please enter at least one item)');
+            setCooldownAlert('እባክዎ ቢያንስ አንድ ዕቃ ያስገቡ። (Please enter at least one item)');
             return;
         }
 
         const incompleteItems = activeItems.filter(i => !i.quantity.trim() || !i.itemType.trim() || !i.model.trim());
         if (incompleteItems.length > 0) {
-            alert('እባክዎ ለሁሉም ዕቃዎች ብዛት፣ የዕቃው ዓይነት እና ሞዴል ያስገቡ።\n(Quantity, Item Type, and Model are required for all items)');
+            setCooldownAlert('እባክዎ ለሁሉም ዕቃዎች ብዛት፣ የዕቃው ዓይነት እና ሞዴል ያስገቡ።\n(Quantity, Item Type, and Model are required for all items)');
             return;
         }
 
-        if (!signatureData) { alert('እባክዎ ከማቅረብዎ በፊት ይፈርሙ። (Please sign before submitting)'); return; }
+        if (!signatureData) { setCooldownAlert('እባክዎ ከማቅረብዎ በፊት ይፈርሙ። (Please sign before submitting)'); return; }
 
         setIsSubmitting(true);
         try {
             // *** STOCK VALIDATION ***
             const materialsSnap = await getDocs(collection(db, 'materials'));
             const materialsList = materialsSnap.docs.map(doc => doc.data());
-            
+
             for (const item of activeItems) {
                 const reqQty = Number(item.quantity) || 0;
                 // Find matching material in store by name
-                const matchedMaterial = materialsList.find(m => {
-                    if (m.materialName === item.itemType) return true;
-                    // Also check inside items array if it's a categorized generic material
-                    if (m.items && Array.isArray(m.items)) {
-                        return m.items.some((i: any) => i.description === item.itemType);
-                    }
-                    return false;
-                });
+                let storeQty = 0;
+                let found = false;
 
-                if (matchedMaterial) {
-                    const storeQty = Number(matchedMaterial.quantity) || 0;
+                for (const m of materialsList) {
+                    // Check top-level materialName match
+                    if (m.materialName?.trim().toLowerCase() === item.itemType?.trim().toLowerCase()) {
+                        storeQty = Number(m.quantity) || 0;
+                        found = true;
+                        break;
+                    }
+                    // Check inside items array (Model 19 structure: items[] with description & quantity)
+                    if (m.items && Array.isArray(m.items)) {
+                        const matchedItem = m.items.find((i: any) => i.description?.trim().toLowerCase() === item.itemType?.trim().toLowerCase());
+                        if (matchedItem) {
+                            // Quantity can be on the matched item itself, or on the parent document
+                            storeQty = Number(matchedItem.quantity) || Number(m.quantity) || 0;
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (found) {
                     if (reqQty > storeQty) {
-                        alert(`❌ በስቶር ውስጥ በቂ ዕቃ የለም! (Insufficient Stock)\n\nዕቃ (Item): ${item.itemType}\nየተጠየቀው (Requested): ${reqQty}\nበስቶር ያለው (Available): ${storeQty}\n\nእባክዎ ብዛቱን አስተካክለው እንደገና ይሞክሩ።`);
+                        setCooldownAlert(`❌ በስቶር ውስጥ በቂ ዕቃ የለም! (Insufficient Stock)\n\nዕቃ (Item): ${item.itemType}\nየተጠየቀው (Requested): ${reqQty}\nበስቶር ያለው (Available): ${storeQty}\n\nእባክዎ ብዛቱን እስኪስተካከል ይጠብቁ።`);
                         setIsSubmitting(false);
                         return;
                     }
                 } else {
-                     // If item not found at all, we might want to block or allow depending on policy.
-                     // For now, we block it to be strictly tied to inventory.
-                     alert(`❌ ዕቃው በስቶር ውስጥ አልተገኘም! (Material not found in store)\n\nዕቃ (Item): ${item.itemType}\n\nእባክዎ ትክክለኛ የዕቃ ስም ይምረጡ።`);
-                     setIsSubmitting(false);
-                     return;
+                    // If item not found at all, block it.
+                    setCooldownAlert(`❌ ዕቃው በስቶር ውስጥ አልተገኘም! (Material not found in store)\n\nዕቃ (Item): ${item.itemType}\n\nእባክዎ ትክክለኛ የዕቃ ስም ይምረጡ።`);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+
+            // *** COOLDOWN VALIDATION ***
+            const rulesSnap = await getDocs(collection(db, 'request_cooldown_rules'));
+            const cooldownRules: Record<string, any> = {};
+            rulesSnap.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.materialName) {
+                    cooldownRules[data.materialName] = data;
+                }
+            });
+
+            // 1. Fetch user's active requests
+            const reqQuery = query(collection(db, 'Request_materials'), where('requesterId', '==', user.uid));
+            const reqSnap = await getDocs(reqQuery);
+            const activeRequests = reqSnap.docs.map(doc => doc.data()).filter(d => d.status !== 'rejected');
+
+            // 2. Fetch user's past issuances
+            const reportQuery = query(collection(db, 'User-Report'), where('requesterId', '==', user.uid));
+            const reportSnap = await getDocs(reportQuery);
+            const userReports = reportSnap.docs.map(doc => doc.data());
+
+            for (const item of activeItems) {
+                const materialName = item.itemType;
+
+                // 1. Check if already in active request (Applies to ALL materials to prevent duplicate pending requests)
+                const inActive = activeRequests.some(req => {
+                    const items = req.items || [];
+                    return items.some((i: any) => i.materialName === materialName);
+                });
+
+                if (inActive) {
+                    setCooldownAlert(`⏳ "${materialName}" is already in your active requests. You cannot request it again until your previous request is fully processed or rejected.`);
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                const rule = cooldownRules[materialName];
+
+                if (rule) {
+                    // Check past issuances
+                    const matchingReports = userReports.filter(rep => rep.materialName === materialName);
+                    for (const rep of matchingReports) {
+                        const issuedAt = rep.withdrawalDate?.toDate?.()
+                            || rep.createdAt?.toDate?.()
+                            || (rep.withdrawalDate ? new Date(rep.withdrawalDate) : null)
+                            || (rep.createdAt ? new Date(rep.createdAt) : null);
+
+                        if (issuedAt) {
+                            const cooldownEnd = new Date(issuedAt.getTime() + rule.cooldownDays * 24 * 60 * 60 * 1000);
+                            const now = new Date();
+                            if (now < cooldownEnd) {
+                                const daysLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                setCooldownAlert(`⏳ "${materialName}" is under a ${rule.cooldownLabel} cooldown. You must wait ${daysLeft} more day(s) before requesting this item again (Resets on: ${cooldownEnd.toLocaleDateString()}).`);
+                                setIsSubmitting(false);
+                                return;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -343,7 +422,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 setReceiptNo(''); setDateDay(''); setDateYear('');
                 clearSig();
             }, 3000);
-        } catch (e) { console.error(e); alert("ማቅረብ አልተሳካም። (Submission failed)"); }
+        } catch (e) { console.error(e); setCooldownAlert("ማቅረብ አልተሳካም። (Submission failed)"); }
         finally { setIsSubmitting(false); }
     };
 
@@ -633,7 +712,30 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 </div>
 
                 {/* SUBMIT */}
-                <div style={{ marginTop: 40, display: 'flex', justifyContent: 'center' }} className="print-hide">
+                <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} className="print-hide">
+                    {/* COOLDOWN ALERT BANNER */}
+                    {cooldownAlert && (
+                        <div className="w-full animate-in slide-in-from-bottom-4 duration-500">
+                            <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 flex items-start gap-4 shadow-lg shadow-amber-100/50 relative text-left">
+                                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-lg flex-shrink-0">
+                                    <FiInfo />
+                                </div>
+                                <div className="flex-1 pr-8">
+                                    <h3 className="font-bold text-amber-800 text-lg mb-1" style={{ fontFamily: 'sans-serif' }}>Request Blocked</h3>
+                                    <p className="text-amber-700 font-medium leading-relaxed" style={{ fontFamily: 'sans-serif', whiteSpace: 'pre-wrap' }}>
+                                        {cooldownAlert}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setCooldownAlert(null)}
+                                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg text-amber-500 hover:bg-amber-100/50 hover:text-amber-700 transition-colors"
+                                >
+                                    <FiX />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <button onClick={handleSubmit} disabled={isSubmitting}
                         style={{
                             padding: '12px 40px', borderRadius: 10, background: isSubmitting ? '#93c5fd' : '#2563eb',

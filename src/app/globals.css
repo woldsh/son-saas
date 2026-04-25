@@ -865,79 +865,94 @@ html.dark .bg-white.overflow-hidden {
    Print Formatting specific for forms and documents
 ========================================================= */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 0; /* Setting margin to 0 prevents the browser from printing the URL, date, and page numbers */
+  }
 
-  /* Hide absolutely everything initially */
-  body * {
+  /* Reset page */
+  html, body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    overflow: visible !important;
     visibility: hidden;
   }
 
-  /* Reset page container */
-  html,
-  body {
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto;
-    width: 100%;
-  }
-
-  /* Make sure only the printable-receipt and its children are visible */
+  /* Show only the receipt and its children */
   #printable-receipt,
   #printable-receipt * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
-  /* Force the receipt to take over the page and scale to fit one sheet */
+  /* Position the receipt at the top of the printed page */
   #printable-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    padding: 10mm !important;
     margin: 0 !important;
-    padding: 0 !important;
-    transform: scale(0.88);
-    transform-origin: top center;
+    background: white !important;
+    color: black !important;
+    z-index: 99999 !important;
   }
 
-  /* Tighten spacing inside the form for print */
-  #printable-receipt .mb-6 {
-    margin-bottom: 8px !important;
+  /* CRITICAL FIX: Unlock ALL scroll containers and height-limited parents.
+     This uses attribute selectors to reliably match Tailwind's bracket classes
+     (e.g. max-h-[90vh], overflow-y-auto) without CSS escaping issues. */
+  [class*="max-h-"],
+  [class*="overflow-y"],
+  [class*="overflow-x"],
+  [class*="overflow-auto"],
+  .fixed,
+  .fixed > div {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  #printable-receipt .mb-8 {
-    margin-bottom: 10px !important;
+  .fixed {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    display: block !important;
   }
 
-  #printable-receipt .mb-12 {
-    margin-bottom: 12px !important;
+  /* Hide material image ONLY (the small photo in the table cell) */
+  #printable-receipt td .absolute {
+    display: none !important;
   }
 
-  #printable-receipt .mt-6 {
-    margin-top: 6px !important;
+  /* Hide buttons, toolbar, and UI controls */
+  button,
+  .sticky,
+  .print-hide,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
   }
 
-  #printable-receipt .pt-4 {
-    padding-top: 6px !important;
-  }
-
-  #printable-receipt .space-y-4>*+* {
-    margin-top: 6px !important;
-  }
-
-  /* Ensure background colors / borders / styling prints properly */
+  /* Ensure borders and backgrounds print properly */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Page setup */
-  @page {
-    size: A4 portrait;
-    margin: 5mm;
+  /* Prevent table from breaking across pages */
+  table {
+    page-break-inside: avoid;
   }
 
-  /* Force hide buttons and controls */
-  .print-hide,
-  .print\:hidden {
-    display: none !important;
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
   }
-}
+}

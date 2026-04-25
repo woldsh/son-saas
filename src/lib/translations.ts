@@ -22,7 +22,7 @@ export const translations = {
         heroStreamline: "STREAMLINE",
         heroProperty: "PROPERTY",
         heroSystem: "MANAGEMENT SYSTEM",
-        heroSub: "Advanced Property Management and Asset Tracking specifically optimized for the Debremarkos University Burie Campus ecosystem.",
+        heroSub: "Advanced Property Management and Asset Tracking specifically optimized for the Burie Campus ecosystem.",
         getStarted: "GET STARTED",
         requestAccess: "REQUEST ACCESS",
 
@@ -663,7 +663,7 @@ export const translations = {
         heroStreamline: "የተሳለጠ",
         heroProperty: "የንብረት",
         heroSystem: "አስተዳደር ስርዓት",
-        heroSub: "ለደብረ ማርቆስ ዩኒቨርሲቲ ቡሬ ካምፓስ ተብሎ የተዘጋጀ የንብረት ቁጥጥር እና አስተዳደር ስርዓት::",
+        heroSub: "ለቡሬ ካምፓስ ተብሎ የተዘጋጀ የንብረት ቁጥጥር እና አስተዳደር ስርዓት::",
         getStarted: "ጀምር",
         requestAccess: "ፈቃድ ጠይቅ",
 
@@ -679,7 +679,7 @@ export const translations = {
 
         // Login
         loginSystemName: "ቡሬ ካምፓስ የንብረት አስተዳደር ስርዓት",
-        loginAuthorized: "ለተፈቀደላቸው ሰራተኞች ብቻ የተዘጋጀ",
+        loginAuthorized: "ለተፈቀደላቸው ሰራተኞች ብቻ የተዘጋጀ (AUTHORIZED PERSONNEL ONLY)",
         loginEmailPlaceholder: "የድርጅት ኢሜይል አድራሻ",
         loginPassPlaceholder: "የይለፍ ቃል",
         loginSubmit: "ግባ",

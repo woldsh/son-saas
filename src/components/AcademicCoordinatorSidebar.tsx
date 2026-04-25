@@ -302,7 +302,7 @@ export default function AcademicCoordinatorSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

@@ -43,7 +43,9 @@ export default function ManagingDirectorSidebar() {
     const isMobile = useIsMobile();
     const { t } = useLanguage();
     const { userRole, department } = useAuth();
-    const requestCount = useRequestNotification(userRole, department);
+    // Since this is the Managing Director's dedicated sidebar, we force the role for the notification hook
+    // to 'managing_director' to ensure it bypasses any userRole naming inconsistencies.
+    const requestCount = useRequestNotification('managing_director', department);
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     const handleLinkClick = () => {
@@ -175,6 +177,11 @@ export default function ManagingDirectorSidebar() {
                                                 <span className="text-[15px] whitespace-nowrap flex-1 text-left">
                                                     {item.label}
                                                 </span>
+                                                {item.badge > 0 && (
+                                                    <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-indigo-500/20 mr-2">
+                                                        {item.badge}
+                                                    </span>
+                                                )}
                                                 {isDropdownOpen ? (
                                                     <ChevronUp size={16} className="text-slate-400" />
                                                 ) : (
@@ -207,9 +214,14 @@ export default function ManagingDirectorSidebar() {
                                                                             }`}
                                                                     >
                                                                         <SubIcon size={18} strokeWidth={1.5} className={isSubActive ? 'text-indigo-600' : 'text-slate-400'} />
-                                                                        <span className="text-[14px]">
+                                                                        <span className="text-[14px] flex-1">
                                                                             {subItem.label}
                                                                         </span>
+                                                                        {subItem.badge > 0 && (
+                                                                            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-indigo-500/20">
+                                                                                {subItem.badge}
+                                                                            </span>
+                                                                        )}
                                                                     </Link>
                                                                 );
                                                             })}

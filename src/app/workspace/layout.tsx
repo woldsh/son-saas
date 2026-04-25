@@ -24,6 +24,8 @@ import { Loader2 } from 'lucide-react';
 import { isEmployeeRole, getDisplayNameForRole, isLeaderRole } from '@/utils/routeConfig';
 import Header from '@/components/Header';
 
+import { InventoryProvider } from '@/contexts/InventoryContext';
+
 export default function WorkspaceLayout({
     children,
 }: {
@@ -84,23 +86,25 @@ export default function WorkspaceLayout({
     };
 
     return (
-        <SidebarProvider>
-            <IdleTimeoutGuard />
-            <div className="min-h-screen bg-white flex">
-                {renderSidebar()}
-                <div className="flex-1 flex flex-col min-w-0">
-                    <div className="sticky top-0 z-40">
-                        <Header title={getTitle()} />
+        <InventoryProvider>
+            <SidebarProvider>
+                <IdleTimeoutGuard />
+                <div className="h-screen bg-white flex overflow-hidden">
+                    {renderSidebar()}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        <div className="sticky top-0 z-40">
+                            <Header title={getTitle()} />
+                        </div>
+                        <MeetingNotificationBanner />
+                        <RequestNotificationBanner />
+                        
+                        <main className="flex-1 overflow-y-auto">
+                            {children}
+                        </main>
                     </div>
-                    <MeetingNotificationBanner />
-                    <RequestNotificationBanner />
-                    
-                    <main className="flex-1 overflow-y-auto">
-                        {children}
-                    </main>
                 </div>
-            </div>
-        </SidebarProvider>
+            </SidebarProvider>
+        </InventoryProvider>
     );
 }
 

@@ -234,7 +234,7 @@ export default function TeacherSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

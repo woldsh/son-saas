@@ -273,12 +273,12 @@ export default function EmployeeReportView({
 
     const filteredEmployees = employees.filter(emp => {
         const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.department.toLowerCase().includes(searchTerm.toLowerCase());
-        
+
         const profile = employeeProfiles[emp.uid];
-        const roleMatch = 
+        const roleMatch =
             activeTab === 'all' ? true :
-            activeTab === 'academic' ? profile?.mainRole === 'academic_staff' :
-            activeTab === 'administrative' ? profile?.mainRole === 'admin_staff' : true;
+                activeTab === 'academic' ? profile?.mainRole === 'academic_staff' :
+                    activeTab === 'administrative' ? profile?.mainRole === 'admin_staff' : true;
 
         return matchesSearch && roleMatch;
     });
@@ -354,11 +354,10 @@ export default function EmployeeReportView({
                                         <button
                                             key={tab.id}
                                             onClick={() => setActiveTab(tab.id as any)}
-                                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
-                                                activeTab === tab.id
+                                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === tab.id
                                                     ? 'bg-white text-indigo-600 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                                            }`}
+                                                }`}
                                         >
                                             {tab.label}
                                         </button>
@@ -398,8 +397,8 @@ export default function EmployeeReportView({
                                             const profile = employeeProfiles[emp.uid];
                                             const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
                                             return (
-                                                <tr 
-                                                    key={emp.uid} 
+                                                <tr
+                                                    key={emp.uid}
                                                     onClick={() => setSelectedEmployee(emp)}
                                                     className="hover:bg-slate-50 cursor-pointer transition-colors"
                                                 >
@@ -464,73 +463,70 @@ export default function EmployeeReportView({
                                     </tbody>
                                 </table>
                             </div>
-                            
+
                             {/* Pagination Controls */}
                             <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
                                 <span className="text-xs text-slate-500 font-medium">
                                     Showing {filteredEmployees.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredEmployees.length)} of {filteredEmployees.length} personnel
                                 </span>
-                                
+
                                 {(() => {
                                     const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
                                     return (
-                                            <div className="flex items-center gap-1">
-                                                {/* Previous Button */}
-                                                <button
-                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                    disabled={currentPage === 1}
-                                                    className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
-                                                        currentPage === 1 
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                                        <div className="flex items-center gap-1">
+                                            {/* Previous Button */}
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                                className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${currentPage === 1
+                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                                         : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
-                                                >
-                                                    Previous
-                                                </button>
+                                            >
+                                                Previous
+                                            </button>
 
-                                                {/* Page Indicators (Max 3 to stay compact) */}
-                                                <div className="hidden sm:flex gap-1 mx-1">
-                                                    {Array.from({ length: totalPages }).map((_, idx) => {
-                                                        const page = idx + 1;
-                                                        // Only show first, last, current, and adjacent pages
-                                                        if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => setCurrentPage(page)}
-                                                                    className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold transition-all ${
-                                                                        currentPage === page 
-                                                                        ? 'bg-indigo-600 text-white shadow-sm' 
+                                            {/* Page Indicators (Max 3 to stay compact) */}
+                                            <div className="hidden sm:flex gap-1 mx-1">
+                                                {Array.from({ length: totalPages }).map((_, idx) => {
+                                                    const page = idx + 1;
+                                                    // Only show first, last, current, and adjacent pages
+                                                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                                                        return (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => setCurrentPage(page)}
+                                                                className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold transition-all ${currentPage === page
+                                                                        ? 'bg-indigo-600 text-white shadow-sm'
                                                                         : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                                     }`}
-                                                                >
-                                                                    {page}
-                                                                </button>
-                                                            );
-                                                        }
-                                                        if (page === currentPage - 2 || page === currentPage + 2) {
-                                                            return <span key={idx} className="flex items-end justify-center w-5 text-slate-400 text-xs">...</span>;
-                                                        }
-                                                        return null;
-                                                    })}
-                                                </div>
+                                                            >
+                                                                {page}
+                                                            </button>
+                                                        );
+                                                    }
+                                                    if (page === currentPage - 2 || page === currentPage + 2) {
+                                                        return <span key={idx} className="flex items-end justify-center w-5 text-slate-400 text-xs">...</span>;
+                                                    }
+                                                    return null;
+                                                })}
+                                            </div>
 
-                                                {/* Next Button */}
-                                                <button
-                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                    disabled={currentPage === totalPages}
-                                                    className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${
-                                                        currentPage === totalPages 
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                                            {/* Next Button */}
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${currentPage === totalPages
+                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                                         : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
-                                                >
-                                                    Next
-                                                </button>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
                         </div>
                     </motion.div>
                 ) : (
@@ -604,11 +600,10 @@ export default function EmployeeReportView({
                                         <button
                                             key={mat}
                                             onClick={() => setSelectedMaterialFilter(mat)}
-                                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                                                selectedMaterialFilter === mat 
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105' 
-                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
-                                            }`}
+                                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${selectedMaterialFilter === mat
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105'
+                                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
+                                                }`}
                                         >
                                             <FiPackage className={selectedMaterialFilter === mat ? 'text-indigo-200' : 'text-slate-400'} />
                                             {mat}
@@ -626,10 +621,10 @@ export default function EmployeeReportView({
                         {uniqueMaterials.length > 0 && (
                             <div className="mt-8 overflow-hidden rounded-2xl bg-[#f0f2f5] p-8 border border-slate-200">
                                 <div className="max-w-[210mm] mx-auto bg-white shadow-xl">
-                                    <ReadOnlyEmployeeModel22 
-                                        employeeName={selectedEmployee.name} 
-                                        department={selectedEmployee.department?.replace(/_/g, ' ') || 'General'} 
-                                        reports={filteredReportsForModel22} 
+                                    <ReadOnlyEmployeeModel22
+                                        employeeName={selectedEmployee.name}
+                                        department={selectedEmployee.department?.replace(/_/g, ' ') || 'General'}
+                                        reports={filteredReportsForModel22}
                                     />
                                 </div>
                             </div>

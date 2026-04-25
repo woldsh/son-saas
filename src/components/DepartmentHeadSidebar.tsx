@@ -226,8 +226,8 @@ export default function DepartmentHeadSidebar() {
                                             <button
                                                 onClick={() => toggleDropdown(item.label as string)}
                                                 className={`w-full flex items-center gap-3.5 px-4 py-2.5 rounded-[12px] transition-all duration-200 group ${isDropdownOpen
-                                                        ? 'bg-white shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] text-slate-800 border border-gray-100/80 font-semibold'
-                                                        : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent'
+                                                    ? 'bg-white shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] text-slate-800 border border-gray-100/80 font-semibold'
+                                                    : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent'
                                                     }`}
                                             >
                                                 <Icon className={`w-[22px] h-[22px] flex-shrink-0 ${isDropdownOpen ? 'text-slate-700' : 'text-slate-500'}`} strokeWidth={1.5} />
@@ -261,8 +261,8 @@ export default function DepartmentHeadSidebar() {
                                                                         href={subItem.href}
                                                                         onClick={handleLinkClick}
                                                                         className={`flex items-center gap-3.5 px-6 py-3 rounded-[12px] transition-all duration-200 ${isSubActive
-                                                                                ? 'bg-blue-50/40 text-blue-700 font-medium'
-                                                                                : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800'
+                                                                            ? 'bg-blue-50/40 text-blue-700 font-medium'
+                                                                            : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800'
                                                                             }`}
                                                                     >
                                                                         <SubIcon size={18} strokeWidth={1.5} className={isSubActive ? 'text-blue-600' : 'text-slate-400'} />
@@ -282,8 +282,8 @@ export default function DepartmentHeadSidebar() {
                                             href={(item as any).href || '#'}
                                             onClick={handleLinkClick}
                                             className={`relative flex items-center gap-3.5 px-4 py-2.5 rounded-[12px] transition-all duration-200 ${isActive
-                                                    ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-slate-800 border border-gray-100/80 font-medium'
-                                                    : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent'
+                                                ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-slate-800 border border-gray-100/80 font-medium'
+                                                : 'text-slate-600 hover:bg-gray-100/50 hover:text-slate-900 border border-transparent'
                                                 }`}
                                         >
                                             <Icon className={`w-[22px] h-[22px] flex-shrink-0 ${isActive ? 'text-slate-700' : 'text-slate-500'}`} strokeWidth={1.5} />
@@ -305,7 +305,7 @@ export default function DepartmentHeadSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

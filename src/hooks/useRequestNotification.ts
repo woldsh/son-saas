@@ -43,7 +43,7 @@ export function useRequestNotification(userRole: string | null | undefined, depa
                 where('status', '==', 'approved_by_head')
             );
         }
-        else if (effectiveRole === 'managing_director' || effectiveRole === 'managing_director_leader') {
+        else if (effectiveRole === 'managing_director' || effectiveRole === 'managing_director_leader' || effectiveRole === 'chief') {
             q = query(
                 requestsRef,
                 where('status', 'in', ['approved_by_coordinator', 'pending_managing_director', 'approved_by_student_service_leader'])

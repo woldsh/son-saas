@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useInventory, Material } from '../contexts/InventoryContext';
 import {
@@ -163,6 +163,8 @@ export default function MaterialRequestForm() {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [submitting, setSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [cooldownRules, setCooldownRules] = useState<Record<string, { cooldownDays: number; cooldownLabel: string }>>({}); 
+    const [cooldownAlert, setCooldownAlert] = useState<string | null>(null);
 
     // Derived department logic (fallback to role-based if department is missing)
     const getDepartment = () => {
@@ -187,9 +189,100 @@ export default function MaterialRequestForm() {
         }
     }, [showSuccess]);
 
+    // Load cooldown rules from Firestore
+    useEffect(() => {
+        if (!db) return;
+        const unsubscribe = onSnapshot(collection(db!, 'request_cooldown_rules'), (snapshot) => {
+            const rules: Record<string, { cooldownDays: number; cooldownLabel: string }> = {};
+            snapshot.docs.forEach(d => {
+                const data = d.data();
+                rules[d.id] = { cooldownDays: data.cooldownDays, cooldownLabel: data.cooldownLabel };
+            });
+            setCooldownRules(rules);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Auto-dismiss cooldown alert
+    useEffect(() => {
+        if (cooldownAlert) {
+            const timer = setTimeout(() => setCooldownAlert(null), 8000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldownAlert]);
+
     // No local fetching! We use Context data now.
 
-    const addToCart = (material: Material) => {
+    const addToCart = async (material: Material) => {
+        // Check cooldown rule for this material
+        const rule = cooldownRules[material.id];
+        if (user && db) {
+            try {
+                // 1. Check if the user already has a pending/active request for this material (Applies to ALL materials)
+                const reqQuery = query(
+                    collection(db, 'Request_materials'),
+                    where('requesterId', '==', user.uid)
+                );
+                const reqSnapshot = await getDocs(reqQuery);
+                
+                for (const reqDoc of reqSnapshot.docs) {
+                    const reqData = reqDoc.data();
+                    if (reqData.status === 'rejected') continue; // Ignore rejected requests
+                    
+                    const items = reqData.items || [];
+                    const hasThisMaterial = items.some((item: any) => 
+                        item.materialId === material.id || item.materialName === material.materialName
+                    );
+                    
+                    if (hasThisMaterial) {
+                        setCooldownAlert(
+                            `⏳ "${material.materialName}" is already in your active requests. You cannot request it again until your previous request is fully processed or rejected.`
+                        );
+                        return;
+                    }
+                }
+
+                // 2. Check Cooldown Rules (Applies ONLY if a rule exists for this material)
+                const rule = cooldownRules[material.id];
+                if (rule) {
+                    // Check User-Report for issued/accepted records for this user + material
+                // Fetch by requesterId and filter in memory by ID or Name to catch paper form requests
+                const reportQuery = query(
+                    collection(db!, 'User-Report'),
+                    where('requesterId', '==', user.uid)
+                );
+                const reportSnapshot = await getDocs(reportQuery);
+                
+                for (const reportDoc of reportSnapshot.docs) {
+                    const reportData = reportDoc.data();
+                    
+                    if (reportData.materialId !== material.id && reportData.materialName !== material.materialName) {
+                        continue;
+                    }
+                    // Get the issuance date
+                    const issuedAt = reportData.withdrawalDate?.toDate?.() 
+                        || reportData.createdAt?.toDate?.() 
+                        || (reportData.withdrawalDate ? new Date(reportData.withdrawalDate) : null)
+                        || (reportData.createdAt ? new Date(reportData.createdAt) : null);
+                    
+                    if (issuedAt) {
+                        const cooldownEnd = new Date(issuedAt.getTime() + rule.cooldownDays * 24 * 60 * 60 * 1000);
+                        const now = new Date();
+                        
+                        if (now < cooldownEnd) {
+                            const daysLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                            setCooldownAlert(
+                                `⏳ "${material.materialName}" is under a ${rule.cooldownLabel} cooldown. You must wait ${daysLeft} more day${daysLeft !== 1 ? 's' : ''} before requesting this item again (until ${cooldownEnd.toLocaleDateString()}).`
+                            );
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error checking cooldown:', err);
+            }
+        }
+
         setCart(prev => {
             const existing = prev.find(item => item.id === material.id);
             if (existing) {
@@ -468,6 +561,22 @@ export default function MaterialRequestForm() {
 
     return (
         <div className="min-h-full bg-white pb-20 space-y-12 max-w-[1800px] mx-auto">
+
+            {/* COOLDOWN ALERT BANNER */}
+            {cooldownAlert && (
+                <div className="sticky top-0 z-40 mx-4 md:mx-14 mt-4 animate-in slide-in-from-top-4 duration-500">
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 flex items-start gap-4 shadow-lg shadow-amber-100/50">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-lg flex-shrink-0">
+                            ⏳
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-xs font-black text-amber-800 uppercase tracking-widest mb-1">Cooldown Active</p>
+                            <p className="text-sm font-bold text-amber-700">{cooldownAlert}</p>
+                        </div>
+                        <button onClick={() => setCooldownAlert(null)} className="text-amber-400 hover:text-amber-600 text-xl font-bold p-1">✕</button>
+                    </div>
+                </div>
+            )}
 
             {/* PROGRESS NAV - STICKY TOP-0 */}
             <div className="sticky top-0 z-30 bg-white border-b border-slate-100 px-4 md:px-14 py-4 md:py-6">

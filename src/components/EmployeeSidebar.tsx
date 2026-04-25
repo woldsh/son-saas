@@ -230,7 +230,7 @@ export default function EmployeeSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

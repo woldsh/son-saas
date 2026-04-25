@@ -33,12 +33,45 @@ export default function OutOfStockContent() {
             const q = query(materialsRef, orderBy('materialName', 'asc'));
             const snapshot = await getDocs(q);
 
-            const items = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as Material))
-                .filter(m => {
-                    const qty = Number(m.quantity) || 0;
-                    return qty === 0;
-                });
+            const items: Material[] = [];
+
+            snapshot.docs.forEach(docSnap => {
+                const d = docSnap.data();
+                
+                if (d.items && Array.isArray(d.items) && (d.formType === 'receipt_for_articles' || (d.items.length > 0 && !d.materialName))) {
+                    d.items.forEach((item: any, idx: number) => {
+                        const qty = Number(item.quantity) || 0;
+                        if (qty === 0 && item.description && typeof item.description === 'string' && item.description.trim()) {
+                            items.push({
+                                id: `${docSnap.id}_${idx}`,
+                                materialName: item.description.trim(),
+                                materialCode: item.itemNo || d.receiptNo || 'N/A',
+                                category: d.classificationOfStock || d.category || 'Receipt Item',
+                                quantity: qty,
+                                unit: item.unit || 'pcs',
+                                storeLocation: d.storeNo || '',
+                                shelfNumber: d.shelfNo || '',
+                                image: item.imageUrl || item.image || ''
+                            });
+                        }
+                    });
+                } else if (d.materialName) {
+                    const qty = Number(d.quantity) || 0;
+                    if (qty === 0) {
+                        items.push({
+                            id: docSnap.id,
+                            materialName: d.materialName,
+                            materialCode: d.materialCode || 'N/A',
+                            category: d.category || '—',
+                            quantity: qty,
+                            unit: d.unit || 'pcs',
+                            storeLocation: d.storeLocation || '',
+                            shelfNumber: d.shelfNumber || '',
+                            image: d.image || ''
+                        });
+                    }
+                }
+            });
 
             setMaterials(items);
         } catch (error) {

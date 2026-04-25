@@ -65,15 +65,12 @@ export default function LandingPage() {
           <div className="flex justify-between h-20 items-center">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3.5 group">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm tracking-tight bg-slate-900 text-white shadow-lg shadow-slate-900/20 transition-all duration-300 group-hover:scale-105">
-                DMU
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-white shadow-lg shadow-slate-200 transition-all duration-300 group-hover:scale-105 overflow-hidden border border-slate-100">
+                <img src="/logo.png" alt="DMU Logo" className="w-full h-full object-contain p-1" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[15px] font-bold tracking-tight leading-none text-slate-900">
-                  Property <span className="text-indigo-600 font-medium">System</span>
-                </span>
-                <span className="text-[10px] tracking-widest uppercase mt-0.5 text-slate-400">
-                  Debremarkos University
+                <span className="text-[15px] font-black tracking-tight leading-none text-slate-900">
+                  Burie Campus <span className="text-indigo-600 font-medium">Property System</span>
                 </span>
               </div>
             </Link>
@@ -177,7 +174,7 @@ export default function LandingPage() {
                   {t('heroProperty')}
                 </span>
                 <br />
-                {t('heroSystem')}
+                <span className="text-[0.8em] font-medium opacity-80">at Burie Campus</span>
               </motion.h1>
 
               <motion.p

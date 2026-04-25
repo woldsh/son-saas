@@ -23,16 +23,16 @@ import Link from 'next/link';
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const oobCode = searchParams.get('oobCode');
-  
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  
+
   const { confirmResetPassword } = useAuth();
   const router = useRouter();
 
@@ -52,7 +52,7 @@ function ResetPasswordForm() {
       setError('Invalid or missing Reset Token. Please request a new password reset link from the login page.');
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
@@ -99,13 +99,13 @@ function ResetPasswordForm() {
           <Link href="/login" className="group flex flex-col items-center">
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="w-14 h-14 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/20 mb-5"
+              className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-slate-200 mb-5 overflow-hidden border border-slate-100"
             >
-              <Building2 className="text-white w-7 h-7" />
+              <img src="/logo.png" alt="DMU Logo" className="w-full h-full object-contain p-2" />
             </motion.div>
             <div className="text-center">
               <h2 className="text-xl font-bold tracking-tight text-slate-900 leading-none mb-1.5">
-                DMU <span className="text-indigo-600 font-medium">Property System</span>
+                <span className="text-indigo-600 font-medium">Burie Campus</span> Property System
               </h2>
               <span className="text-[10px] text-slate-400 font-semibold tracking-[0.3em] uppercase">Secure Password Reset</span>
             </div>
@@ -114,11 +114,11 @@ function ResetPasswordForm() {
 
         {/* Clean White Card */}
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 md:p-10 relative overflow-hidden">
-          
+
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500" />
 
           {success ? (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-6"
@@ -130,8 +130,8 @@ function ResetPasswordForm() {
               <p className="text-slate-500 text-sm mb-8">
                 Your password has been successfully reset. You can now use your new password to access the system.
               </p>
-              
-              <Link 
+
+              <Link
                 href="/login"
                 className="inline-flex w-full h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold text-sm transition-all hover:shadow-lg hover:shadow-emerald-600/25 active:scale-[0.98] items-center justify-center gap-2.5"
               >

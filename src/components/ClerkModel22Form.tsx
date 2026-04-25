@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCheckCircle, FaTimes, FaPrint, FaTimesCircle, FaSave } from 'react-icons/fa';
 
+import { db } from '../lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+
 interface RequestItem {
     materialId: string;
     materialName: string;
@@ -43,9 +46,10 @@ interface ClerkModel22FormProps {
     request: MaterialRequest;
     onClose: () => void;
     onApprove: (updatedItems: RequestItem[]) => Promise<void>;
+    readOnly?: boolean;
 }
 
-export default function ClerkModel22Form({ request, onClose, onApprove }: ClerkModel22FormProps) {
+export default function ClerkModel22Form({ request, onClose, onApprove, readOnly = false }: ClerkModel22FormProps) {
     const [mounted, setMounted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
@@ -75,27 +79,144 @@ export default function ClerkModel22Form({ request, onClose, onApprove }: ClerkM
     const [rows, setRows] = useState<TableRow[]>([]);
 
     useEffect(() => {
-        // Init rows based on the request items
-        const initRows: TableRow[] = request.items.map((item, idx) => ({
-            serialNo: (idx + 1).toString(),
-            description: item.materialName || '',
-            model: item.model || '',
-            serialFrom: '',
-            serialTo: '',
-            quantity: item.quantity?.toString() || '0',
-            unitPriceBirr: '',
-            unitPriceCents: '',
-            totalPriceBirr: '',
-            totalPriceCents: '',
-            remarks: item.remarks || ''
-        }));
+        const fetchDefaultsFromMaterialsCollection = async () => {
+            if (!request.items || request.items.length === 0 || !db) return;
+            
+            // 1. We will fetch row prices AND header defaults at the same time
+            let newHeaderData: any = null;
 
-        // Pad to at least 10 rows to maintain form structure
-        while (initRows.length < 10) {
-            initRows.push(createEmptyRow());
-        }
-        setRows(initRows);
-    }, [request]);
+            const initRows: TableRow[] = await Promise.all(request.items.map(async (item, idx) => {
+                let unitPriceBirr = '';
+                let unitPriceCents = '';
+                let model = item.model || '';
+
+                // Try to find this material in the DB
+                try {
+                    let docId = item.materialId;
+                    let itemIdx = -1;
+                    if (docId && docId.includes('_')) {
+                        const parts = docId.split('_');
+                        docId = parts[0];
+                        itemIdx = parseInt(parts[1], 10);
+                    }
+                    
+                    let matData: any = null;
+                    if (docId && !docId.startsWith('new_') && !docId.startsWith('FORM20_')) {
+                        const docRef = doc(db!, 'materials', docId);
+                        const docSnap = await getDoc(docRef);
+                        if (docSnap.exists()) {
+                            matData = docSnap.data();
+                            console.log("Found material by exact ID:", matData);
+                        }
+                    } 
+                    
+                    if (!matData) {
+                        console.log("ID missing or fake. Running robust fallback search for:", item.materialName);
+                        // Robust Fallback: Search all materials if we have a fake ID
+                        const allMatsSnap = await getDocs(collection(db!, 'materials'));
+                        for (const d of allMatsSnap.docs) {
+                            const data = d.data();
+                            // Check top-level
+                            if (data.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase()) {
+                                matData = data;
+                                break;
+                            }
+                            // Check inside items array (Model 19)
+                            if (data.items && Array.isArray(data.items)) {
+                                const matchedIdx = data.items.findIndex((i:any) => i.description?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
+                                if (matchedIdx !== -1) {
+                                    matData = data;
+                                    itemIdx = matchedIdx; // We found the exact sub-item!
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (matData) {
+                        console.log("Successfully retrieved material data:", matData);
+                        // Grab header defaults from the first found item
+                        if (!newHeaderData) {
+                            newHeaderData = {
+                                classificationOfStock: matData.classificationOfStock || matData.category || '',
+                                storeNo: matData.storeNo || matData.storeLocation || '',
+                                shelfNo: matData.shelfNo || matData.shelfNumber || '',
+                                incomingGoodsEntryNo: matData.receiptNo || matData.incomingGoodsEntryNo || '',
+                                expenditureRegistryNo: matData.expenditureRegistryNo || '',
+                                outgoingGoodsEntryNo: matData.outgoingGoodsEntryNo || '',
+                            };
+                            console.log("Populating Header Defaults:", newHeaderData);
+                        }
+
+                        if (itemIdx >= 0 && matData.items && matData.items[itemIdx]) {
+                            // It's a Model 19 sub-item
+                            const subItem = matData.items[itemIdx];
+                            unitPriceBirr = subItem.unitPriceBirr || '';
+                            unitPriceCents = subItem.unitPriceCents || '';
+                            model = subItem.model || model;
+                        } else {
+                            // Standard item
+                            unitPriceBirr = matData.unitPriceBirr || '';
+                            unitPriceCents = matData.unitPriceCents || '';
+                            model = matData.model || model;
+                        }
+                    } else {
+                        console.log("Could not find material in database for:", item.materialName);
+                    }
+                } catch (e) {
+                    console.error("Error fetching defaults for item", e);
+                }
+
+                // Calculate total
+                let totalBirr = '';
+                let totalCents = '';
+                const qty = item.quantity || 0;
+                if (qty > 0 && (unitPriceBirr || unitPriceCents)) {
+                    const b = parseFloat(unitPriceBirr) || 0;
+                    const c = parseFloat(unitPriceCents) || 0;
+                    const unitTotal = b + (c / 100);
+                    const total = unitTotal * qty;
+                    totalBirr = Math.floor(total).toString();
+                    totalCents = Math.round((total - Math.floor(total)) * 100).toString().padStart(2, '0');
+                }
+
+                return {
+                    serialNo: (idx + 1).toString(),
+                    description: item.materialName || '',
+                    model: model,
+                    serialFrom: '',
+                    serialTo: '',
+                    quantity: qty.toString(),
+                    unitPriceBirr,
+                    unitPriceCents,
+                    totalPriceBirr: totalBirr,
+                    totalPriceCents: totalCents,
+                    remarks: item.remarks || ''
+                };
+            }));
+
+            // Update Header if we found defaults
+            if (newHeaderData) {
+                setHeaderData(prev => ({
+                    ...prev,
+                    classificationOfStock: newHeaderData.classificationOfStock || prev.classificationOfStock,
+                    storeNo: newHeaderData.storeNo || prev.storeNo,
+                    shelfNo: newHeaderData.shelfNo || prev.shelfNo,
+                    incomingGoodsEntryNo: newHeaderData.incomingGoodsEntryNo || prev.incomingGoodsEntryNo,
+                    expenditureRegistryNo: newHeaderData.expenditureRegistryNo || prev.expenditureRegistryNo,
+                    outgoingGoodsEntryNo: newHeaderData.outgoingGoodsEntryNo || prev.outgoingGoodsEntryNo,
+                }));
+            }
+
+            // Pad to at least 10 rows to maintain form structure
+            while (initRows.length < 10) {
+                initRows.push(createEmptyRow());
+            }
+            setRows(initRows);
+        };
+
+        fetchDefaultsFromMaterialsCollection();
+    }, [request.items]);
 
     const createEmptyRow = (): TableRow => ({
         serialNo: '', description: '', model: '', serialFrom: '', serialTo: '', quantity: '', unitPriceBirr: '', unitPriceCents: '', totalPriceBirr: '', totalPriceCents: '', remarks: ''
@@ -208,10 +329,10 @@ export default function ClerkModel22Form({ request, onClose, onApprove }: ClerkM
                 borderRadius: 4
             }} onClick={e => e.stopPropagation()} id="printable-receipt" className="print:p-0 print:border-none print:shadow-none">
 
-                <form onSubmit={handleSubmit} className="w-full">
+                <form onSubmit={handleSubmit} className={`w-full ${readOnly ? 'pointer-events-none [&_input]:bg-transparent [&_textarea]:bg-transparent' : ''}`}>
 
                     {/* Top Action Buttons (Hidden in print) */}
-                    <div className="absolute top-4 right-4 flex gap-2 print-hide font-sans z-50">
+                    <div className="absolute top-4 right-4 flex gap-2 print-hide font-sans z-50 pointer-events-auto">
                         <button type="button" onClick={() => window.print()} className="p-2 bg-gray-100 hover:bg-gray-200 text-slate-800 rounded-full shadow-sm" title="Print Form">
                             <FaPrint size={18} />
                         </button>
@@ -225,6 +346,23 @@ export default function ClerkModel22Form({ request, onClose, onApprove }: ClerkM
                             {submitStatus.type === 'success' ? <FaCheckCircle /> : <FaTimesCircle />}
                             <span className="font-semibold">{submitStatus.message}</span>
                         </div>
+                    )}
+
+                    {readOnly && (
+                        <>
+                            {/* Watermark for Audit */}
+                            <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -rotate-[25deg] pointer-events-none z-[5] opacity-[0.05] select-none whitespace-nowrap print:hidden">
+                                <p className="text-[140px] font-black text-slate-900 border-[24px] border-slate-900 px-24 py-6 rounded-[60px] uppercase tracking-[0.2em]">Digital Receipt</p>
+                            </div>
+                            
+                            {/* Modern Status Badge */}
+                            <div className="absolute top-12 left-1/2 -translate-x-1/2 print:hidden z-50 pointer-events-auto">
+                                <div className="px-5 py-2 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/30 flex items-center gap-3 animate-bounce-subtle">
+                                    <FaCheckCircle className="text-white" />
+                                    <span className="text-[11px] font-black uppercase tracking-[0.2em]">Official Audit Record</span>
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     {/* Row 1: Headers */}
@@ -523,30 +661,45 @@ export default function ClerkModel22Form({ request, onClose, onApprove }: ClerkM
                     </div>
 
                     {/* Form Action Buttons (Hidden when printing) */}
-                    <div className="mt-14 flex justify-between gap-4 print-hide font-sans border-t pt-8 px-4">
-                        <p className="text-sm text-slate-500 italic max-w-sm">Items marked in blue or red are adjustable. Submitting this form will issue the request securely.</p>
+                    <div className="mt-14 flex justify-between gap-4 print-hide font-sans border-t pt-8 px-4 pointer-events-auto">
+                        <p className="text-sm text-slate-500 italic max-w-sm">
+                            {readOnly ? 'This form is in read-only mode for viewing purposes.' : 'Items marked in blue or red are adjustable. Submitting this form will issue the request securely.'}
+                        </p>
                         <div className="flex gap-4">
                             <button type="button" onClick={() => window.print()} className="px-6 py-2.5 bg-gray-100 border border-gray-300 text-slate-800 rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-2 font-bold shadow-sm">
                                 <FaPrint /> Print Form
                             </button>
-                            <button type="submit" disabled={isSubmitting} className="px-8 py-2.5 bg-blue-600 focus:ring-4 focus:ring-blue-100 text-white rounded-xl hover:bg-blue-700 transition-colors font-black uppercase text-sm tracking-widest shadow-lg shadow-blue-600/30 flex items-center gap-2">
-                                {isSubmitting ? (
-                                    <>
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        Processing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <FaSave size={16} /> Issue & Approve
-                                    </>
-                                )}
-                            </button>
+                            {!readOnly && (
+                                <button type="submit" disabled={isSubmitting} className="px-8 py-2.5 bg-blue-600 focus:ring-4 focus:ring-blue-100 text-white rounded-xl hover:bg-blue-700 transition-colors font-black uppercase text-sm tracking-widest shadow-lg shadow-blue-600/30 flex items-center gap-2">
+                                    {isSubmitting ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaSave size={16} /> Issue & Approve
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </form>
 
+                <style>{`
+                    @keyframes bounce-subtle {
+                        0%, 100% { transform: translateY(0); }
+                        50% { transform: translateY(-5px); }
+                    }
+                    .animate-bounce-subtle {
+                        animation: bounce-subtle 2s ease-in-out infinite;
+                    }
+                `}</style>
             </div>
         </div>,
         document.body
     );
 }
+
+

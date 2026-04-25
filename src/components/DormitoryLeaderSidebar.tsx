@@ -247,7 +247,7 @@ export default function DormitoryLeaderSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

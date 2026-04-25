@@ -87,7 +87,7 @@ export default function TeamLeaderLayout({
         <SidebarProvider>
             <InventoryProvider>
                 <IdleTimeoutGuard />
-                <div className="min-h-screen bg-white flex">
+                <div className="h-screen bg-white flex overflow-hidden">
                     {/* Dynamic Sidebar */}
                     {renderSidebar()}
 

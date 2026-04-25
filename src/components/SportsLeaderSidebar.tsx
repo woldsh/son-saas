@@ -247,7 +247,7 @@ export default function SportsLeaderSidebar() {
                             );
                         })}
                     </nav>
-                    
+
                 </div>
             </div>
             <style jsx global>{`

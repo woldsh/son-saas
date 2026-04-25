@@ -107,7 +107,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             hasDivider: false
         },
         {
-            label: t('stock_management') || "Stock Management",
+            label: "Stock Management",
             icon: Package,
             subItems: [
                 { label: t('search_materials'), href: `${basePath}/search-material`, icon: Search },

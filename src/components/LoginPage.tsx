@@ -109,7 +109,7 @@ export default function LoginPage() {
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
       localStorage.setItem('loginFailedAttempts', newAttempts.toString());
-      
+
       if (newAttempts >= 5) {
         const expiration = Date.now() + 30 * 60 * 1000;
         setLockoutEnd(expiration);
@@ -184,15 +184,33 @@ export default function LoginPage() {
           <Link href="/" className="group flex flex-col items-center">
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="w-14 h-14 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/20 mb-5"
+              className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-2xl shadow-slate-200 mb-6 overflow-hidden border border-slate-100"
             >
-              <Building2 className="text-white w-7 h-7" />
+              <img src="/logo.png" alt="DMU Logo" className="w-full h-full object-contain p-2.5" />
             </motion.div>
             <div className="text-center">
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 leading-none mb-1.5">
-                DMU <span className="text-indigo-600 font-medium">{t('loginSystemName')}</span>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-tight mb-2">
+                <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Burie Campus</span>
+              </h1>
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-widest mb-3">
+                Property Management System
               </h2>
-              <span className="text-[10px] text-slate-400 font-semibold tracking-[0.3em] uppercase">{t('loginAuthorized')}</span>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-50 border border-rose-100/50"
+              >
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <ShieldAlert size={14} className="text-rose-500" />
+                </motion.div>
+                <span className="text-[10px] text-rose-600 font-black tracking-[0.2em] uppercase">
+                  AUTHORIZED PERSONNEL ACCESS ONLY
+                </span>
+              </motion.div>
             </div>
           </Link>
         </div>
@@ -419,7 +437,7 @@ export default function LoginPage() {
 
                 <div className="flex justify-between items-center pt-4 px-1 text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
                   <span className="flex items-center gap-1.5"><ShieldCheck size={12} className="text-indigo-400" /> Encrypted</span>
-                  <span className="flex items-center gap-1.5"><Globe2 size={12} className="text-blue-400" /> DMU Secure</span>
+                  <span className="flex items-center gap-1.5"><Globe2 size={12} className="text-blue-400" /> Secure System</span>
                 </div>
               </form>
             )}

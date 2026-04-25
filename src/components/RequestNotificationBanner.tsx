@@ -137,72 +137,64 @@ export default function RequestNotificationBanner() {
     }
 
     return (
-        <div className={`relative group overflow-hidden transition-all duration-700 ${isNew ? 'animate-in slide-in-from-top-4' : ''}`}>
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 animate-gradient-x" />
+        <div className={`w-full max-w-7xl mx-auto mb-6 px-4 md:px-8 transition-all duration-700 ease-out ${isNew ? 'animate-in slide-in-from-top-4' : ''}`}>
+            <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-200 overflow-hidden flex items-stretch hover:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-shadow">
+                {/* Accent line */}
+                <div className="w-1.5 bg-rose-500 flex-shrink-0" />
 
-            <div className="relative px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="relative">
-                        <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
-                            <FaBell className="text-white text-xl" />
+                <div className="flex-1 flex flex-col sm:flex-row items-center justify-between p-4 sm:p-5 gap-4">
+                    <div className="flex items-center gap-4 w-full sm:w-auto">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0 border-2 border-rose-100 shadow-sm relative">
+                            <FaBell className="text-rose-500 text-2xl sm:text-3xl" />
+                            {/* Optional: subtle pulse ring around it */}
+                            <div className="absolute inset-0 rounded-full border-2 border-rose-400 animate-ping opacity-20"></div>
                         </div>
-                        {isNew && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
-                                <span className="text-white text-[10px] font-black">{pendingRequests.length}</span>
+
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-slate-800 font-bold text-sm sm:text-base">
+                                    {pendingRequests.length === 1
+                                        ? `Material Request from ${latestRequest?.requesterName || 'Employee'}`
+                                        : `${pendingRequests.length} Pending Material Requests`
+                                    }
+                                </h3>
+                                {isNew && (
+                                    <span className="bg-rose-500 text-white text-[9px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider animate-pulse">
+                                        New
+                                    </span>
+                                )}
                             </div>
-                        )}
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-[10px] font-black bg-white text-emerald-600 px-2 py-0.5 rounded-full uppercase tracking-tighter">
-                                {isNew ? 'New' : 'Pending'}
-                            </span>
-                            <h3 className="text-white font-black text-lg tracking-tight">
+                            <p className="text-slate-500 text-xs sm:text-sm font-medium mt-0.5 flex items-center gap-2">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                </span>
                                 {pendingRequests.length === 1
-                                    ? `Material Request from ${latestRequest?.requesterName || 'Employee'}`
-                                    : `${pendingRequests.length} Pending Material Requests`
+                                    ? `${totalItems} item${totalItems !== 1 ? 's' : ''} awaiting your review and approval`
+                                    : `${totalItems} total items across ${pendingRequests.length} requests need your attention`
                                 }
-                            </h3>
+                            </p>
                         </div>
-                        <p className="text-emerald-100 text-sm font-medium flex items-center gap-2">
-                            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-ping" />
-                            {pendingRequests.length === 1
-                                ? `${totalItems} item${totalItems !== 1 ? 's' : ''} awaiting your review and approval`
-                                : `${totalItems} total items across ${pendingRequests.length} requests need your attention`
-                            }
-                        </p>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <Link
-                        href={`${basePath}${approvalPath}`}
-                        className="flex-1 md:flex-none px-8 py-3 bg-white text-emerald-600 rounded-2xl font-black text-sm shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 group"
-                    >
-                        <FaBoxOpen className="group-hover:animate-bounce" />
-                        REVIEW NOW
-                    </Link>
-                    <button
-                        onClick={() => setDismissed(true)}
-                        className="p-3 text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all"
-                        title="Dismiss"
-                    >
-                        <FaTimes size={18} />
-                    </button>
+                    <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-14 sm:pl-0">
+                        <Link
+                            href={`${basePath}${approvalPath}`}
+                            className="flex-1 sm:flex-none px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 group"
+                        >
+                            Review Now
+                            <FaBoxOpen className="opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+                        </Link>
+                        <button
+                            onClick={() => setDismissed(true)}
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Dismiss"
+                        >
+                            <FaTimes size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
-
-            <style jsx>{`
-                @keyframes gradient-x {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-                .animate-gradient-x {
-                    background-size: 200% 200%;
-                    animation: gradient-x 3s ease infinite;
-                }
-            `}</style>
         </div>
     );
 }

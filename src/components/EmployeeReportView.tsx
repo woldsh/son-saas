@@ -46,6 +46,7 @@ interface UserReportDocument {
     processedBy?: string;
     processedByName?: string;
     history?: ReportHistory[];
+    [key: string]: any;
 }
 
 interface EmployeeSummary {

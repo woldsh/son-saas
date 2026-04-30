@@ -17,7 +17,6 @@ import {
     Package,
     RefreshCw,
     RotateCcw,
-    Repeat,
     Send,
     FileBarChart,
     ArrowRightLeft,
@@ -84,7 +83,7 @@ export default function AcademicCoordinatorSidebar() {
     const menuItems = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
         { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
-        { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
+        { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
         { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
         { label: t('join_meeting'), href: '/dashboard/meeting', icon: Video },
         { label: t('view_ac_report'), href: `${basePath}/ac-report`, icon: FileBarChart, hasDivider: true },
@@ -117,7 +116,6 @@ export default function AcademicCoordinatorSidebar() {
             subItems: [
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

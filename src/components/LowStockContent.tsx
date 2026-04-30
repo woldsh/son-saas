@@ -32,16 +32,54 @@ export default function LowStockContent() {
             const q = query(materialsRef, orderBy('quantity', 'asc'));
             const snapshot = await getDocs(q);
 
-            const items = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as Material))
-                .filter(m => {
-                    const qty = Number(m.quantity) || 0;
-                    return qty > 0 && qty <= 10;
-                })
-                .map(m => ({
-                    ...m,
-                    status: 'low',
-                }));
+            const items: any[] = [];
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                
+                const processItem = (qty: number, matName: string, matCode: string, cat: string, loc: string, unit: string, img?: string) => {
+                    if (qty > 0 && qty <= 10) {
+                        items.push({
+                            id: `${doc.id}-${matName}`,
+                            materialName: matName,
+                            materialCode: matCode,
+                            category: cat,
+                            quantity: qty,
+                            unit: unit,
+                            storeLocation: loc,
+                            status: 'low',
+                            image: img
+                        });
+                    }
+                };
+
+                if (data.items && Array.isArray(data.items) && (data.formType === 'receipt_for_articles' || (data.items.length > 0 && !data.materialName))) {
+                    // Model 19 structure
+                    data.items.forEach((item: any) => {
+                        if (item.description) {
+                            processItem(
+                                Number(item.quantity) || 0,
+                                item.description,
+                                item.code || data.model19Number || 'N/A',
+                                item.category || data.category || '',
+                                item.location || data.storeLocation || '',
+                                item.unit || data.unit || 'pcs',
+                                item.image || item.imageUrl || data.image
+                            );
+                        }
+                    });
+                } else if (data.materialName) {
+                    // Standard structure
+                    processItem(
+                        Number(data.quantity) || 0,
+                        data.materialName,
+                        data.materialCode || 'N/A',
+                        data.category || '',
+                        data.storeLocation || '',
+                        data.unit || 'pcs',
+                        data.image
+                    );
+                }
+            });
 
             setMaterials(items);
         } catch (error) {

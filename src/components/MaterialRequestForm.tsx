@@ -163,7 +163,7 @@ export default function MaterialRequestForm() {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [submitting, setSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [cooldownRules, setCooldownRules] = useState<Record<string, { cooldownDays: number; cooldownLabel: string }>>({}); 
+    const [cooldownRules, setCooldownRules] = useState<Record<string, { cooldownDays: number; cooldownLabel: string }>>({});
     const [cooldownAlert, setCooldownAlert] = useState<string | null>(null);
 
     // Derived department logic (fallback to role-based if department is missing)
@@ -224,16 +224,16 @@ export default function MaterialRequestForm() {
                     where('requesterId', '==', user.uid)
                 );
                 const reqSnapshot = await getDocs(reqQuery);
-                
+
                 for (const reqDoc of reqSnapshot.docs) {
                     const reqData = reqDoc.data();
                     if (reqData.status === 'rejected') continue; // Ignore rejected requests
-                    
+
                     const items = reqData.items || [];
-                    const hasThisMaterial = items.some((item: any) => 
+                    const hasThisMaterial = items.some((item: any) =>
                         item.materialId === material.id || item.materialName === material.materialName
                     );
-                    
+
                     if (hasThisMaterial) {
                         setCooldownAlert(
                             `⏳ "${material.materialName}" is already in your active requests. You cannot request it again until your previous request is fully processed or rejected.`
@@ -246,42 +246,42 @@ export default function MaterialRequestForm() {
                 const rule = cooldownRules[material.id];
                 if (rule) {
                     // Check User-Report for issued/accepted records for this user + material
-                // Fetch by requesterId and filter in memory by ID or Name to catch paper form requests
-                const reportQuery = query(
-                    collection(db!, 'User-Report'),
-                    where('requesterId', '==', user.uid)
-                );
-                const reportSnapshot = await getDocs(reportQuery);
-                
-                for (const reportDoc of reportSnapshot.docs) {
-                    const reportData = reportDoc.data();
-                    
-                    if (reportData.materialId !== material.id && reportData.materialName !== material.materialName) {
-                        continue;
-                    }
-                    // Get the issuance date
-                    const issuedAt = reportData.withdrawalDate?.toDate?.() 
-                        || reportData.createdAt?.toDate?.() 
-                        || (reportData.withdrawalDate ? new Date(reportData.withdrawalDate) : null)
-                        || (reportData.createdAt ? new Date(reportData.createdAt) : null);
-                    
-                    if (issuedAt) {
-                        const cooldownEnd = new Date(issuedAt.getTime() + rule.cooldownDays * 24 * 60 * 60 * 1000);
-                        const now = new Date();
-                        
-                        if (now < cooldownEnd) {
-                            const daysLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                            setCooldownAlert(
-                                `⏳ "${material.materialName}" is under a ${rule.cooldownLabel} cooldown. You must wait ${daysLeft} more day${daysLeft !== 1 ? 's' : ''} before requesting this item again (until ${cooldownEnd.toLocaleDateString()}).`
-                            );
-                            return;
+                    // Fetch by requesterId and filter in memory by ID or Name to catch paper form requests
+                    const reportQuery = query(
+                        collection(db!, 'User-Report'),
+                        where('requesterId', '==', user.uid)
+                    );
+                    const reportSnapshot = await getDocs(reportQuery);
+
+                    for (const reportDoc of reportSnapshot.docs) {
+                        const reportData = reportDoc.data();
+
+                        if (reportData.materialId !== material.id && reportData.materialName !== material.materialName) {
+                            continue;
+                        }
+                        // Get the issuance date
+                        const issuedAt = reportData.withdrawalDate?.toDate?.()
+                            || reportData.createdAt?.toDate?.()
+                            || (reportData.withdrawalDate ? new Date(reportData.withdrawalDate) : null)
+                            || (reportData.createdAt ? new Date(reportData.createdAt) : null);
+
+                        if (issuedAt) {
+                            const cooldownEnd = new Date(issuedAt.getTime() + rule.cooldownDays * 24 * 60 * 60 * 1000);
+                            const now = new Date();
+
+                            if (now < cooldownEnd) {
+                                const daysLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                setCooldownAlert(
+                                    `⏳ "${material.materialName}" is under a ${rule.cooldownLabel} cooldown. You must wait ${daysLeft} more day${daysLeft !== 1 ? 's' : ''} before requesting this item again (until ${cooldownEnd.toLocaleDateString()}).`
+                                );
+                                return;
+                            }
                         }
                     }
                 }
+            } catch (err) {
+                console.error('Error checking cooldown:', err);
             }
-        } catch (err) {
-            console.error('Error checking cooldown:', err);
-        }
         }
 
         setCart(prev => {
@@ -370,8 +370,18 @@ export default function MaterialRequestForm() {
             let status = 'pending';
             let historyNote = `Request initiated by ${roleLabel}`;
 
+            // Store Staff (Stock Clerks & Store Keepers) -> go to PTL first
+            if (userData.userRole?.includes('stock_clerk') || userData.userRole?.includes('store_keeper')) {
+                const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
+                const ptlSnapshot = await getDocs(ptlQuery);
+                approverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
+                approverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
+                approverRole = 'procurement_team_leader';
+                status = 'pending_procurement';
+                historyNote = `Request initiated by ${userData.userRole?.includes('stock_clerk') ? 'Stock Clerk' : 'Store Keeper'}`;
+            }
             // Top-Level Leaders go directly to Managing Director
-            if (isStudentServiceLeader || isHRMLeader || isFinanceLeader) {
+            else if (isStudentServiceLeader || isHRMLeader || isFinanceLeader) {
                 const mdQuery = query(collection(db!, 'users'), where('userRole', '==', 'managing_director'));
                 const mdSnapshot = await getDocs(mdQuery);
 
@@ -517,6 +527,7 @@ export default function MaterialRequestForm() {
             const requestData = {
                 requesterId: user.uid,
                 requesterName: userData.displayName || user.displayName,
+                requesterRole: userData.userRole,
                 department: department,
                 items: requestItems,
                 currentApproverId: approverId,
@@ -527,6 +538,8 @@ export default function MaterialRequestForm() {
                 history: [{
                     status: status === 'pending' ? 'submitted' : status,
                     user: user.uid,
+                    userName: userData.displayName || user.displayName,
+                    userRole: userData.userRole,
                     timestamp: new Date().toISOString(),
                     note: historyNote
                 }]

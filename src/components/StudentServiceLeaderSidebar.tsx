@@ -13,7 +13,6 @@ import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     Package,
     RefreshCw,
-    Repeat,
     FileBarChart,
     Settings,
     ChevronDown,
@@ -91,7 +90,6 @@ export default function StudentServiceLeaderSidebar() {
             subItems: [
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

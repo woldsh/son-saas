@@ -28,7 +28,6 @@ import {
     RotateCcw,
     ShieldCheck,
     CheckSquare,
-    Repeat,
     ChevronDown,
     ChevronUp
 } from 'lucide-react';
@@ -58,8 +57,6 @@ export default function ManagingDirectorSidebar() {
 
     const menuItems = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
-        { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
-        { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
         {
             label: t('approvals') || "Approval",
             icon: CheckSquare,
@@ -69,6 +66,14 @@ export default function ManagingDirectorSidebar() {
                 { label: t('view_ac_report'), href: `${basePath}/reports`, icon: FileText },
             ],
             hasDivider: true
+        },
+        {
+            label: "Stock Management",
+            icon: Package,
+            subItems: [
+                { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
+            ]
         },
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
@@ -98,7 +103,6 @@ export default function ManagingDirectorSidebar() {
             subItems: [
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Truck },
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },
@@ -258,7 +262,7 @@ export default function ManagingDirectorSidebar() {
                             );
                         })}
                     </nav>
-                    
+
 
                 </div>
             </div>

@@ -36,6 +36,8 @@ interface Material {
     expiryDate?: string;
     expenditureRegistryNo?: string;
     incomingGoodsEntryNo?: string;
+    classificationOfStock?: string;
+    department?: string;
     delivererRecipient?: string;
     model?: string;
     serie?: string;
@@ -43,6 +45,8 @@ interface Material {
     pageTo?: string;
     totalPriceCents?: number;
     unitPriceCents?: number;
+    originalQuantity?: number;
+    receiptEntries?: Material[];
 }
 
 interface MaterialListProps {
@@ -57,7 +61,42 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    const [receiptIndex, setReceiptIndex] = useState(0);
     const reconcileRan = useRef(false);
+
+    const getDepartmentLabel = (id: string) => {
+        if (!id) return '—';
+        const depts: Record<string, string> = {
+            'hrm': 'HRM',
+            'finance': 'Finance',
+            'procurement_admin': 'Procurement Admin',
+            'resource_development': 'Resource Dev & Revenue',
+            'building_renovation': 'Building Renovation',
+            'library_service': 'Library Service',
+            'security': 'Security',
+            'registrar': 'Registrar',
+            'student_service': 'Student Service',
+            'it': 'IT',
+            'accounting': 'Accounting',
+            'all': 'All Departments'
+        };
+        return depts[id] || id.replace(/_/g, ' ').toUpperCase();
+    };
+
+    const getClassificationLabel = (id: string) => {
+        if (!id) return '';
+        const classes: Record<string, string> = {
+            'electronics': 'Electronics',
+            'furniture': 'Furniture',
+            'office_supplies': 'Office Supplies',
+            'stationery': 'Stationery',
+            'cleaning': 'Cleaning Supplies',
+            'medical': 'Medical Supplies',
+            'fixed_asset': 'Fixed Asset',
+            'consumable': 'Consumable'
+        };
+        return classes[id] || id.charAt(0).toUpperCase() + id.slice(1);
+    };
 
     useEffect(() => {
         if (!db) return;
@@ -84,6 +123,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 materialType: d.materialType || 'consumable',
                                 purchaseDate: d.day || '',
                                 quantity: Number(item.quantity) || 0,
+                                originalQuantity: Number(item.originalQuantity) || Number(item.quantity) || 0,
                                 remarks: item.remark || '',
                                 responsiblePerson: d.recipientName || '',
                                 serialNumber: item.itemNo || '',
@@ -97,6 +137,8 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 warrantyDate: '',
                                 expenditureRegistryNo: d.expenditureRegistryNo || '',
                                 incomingGoodsEntryNo: d.incomingGoodsEntryNo || '',
+                                classificationOfStock: d.classificationOfStock || '',
+                                department: d.department || d.category || '',
                                 delivererRecipient: d.delivererRecipient || '',
                                 model: item.model || '',
                                 serie: item.serie || '',
@@ -115,9 +157,39 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                 }
             });
 
-            // Sort by name
-            materialList.sort((a, b) => (a.materialName || '').localeCompare(b.materialName || ''));
-            setMaterials(materialList);
+            // Aggregate duplicate materials by name so "Pen 60 + Pen 50 = Pen 110"
+            const aggregatedMap = new Map<string, Material>();
+
+            materialList.forEach(item => {
+                const key = (item.materialName || '').trim().toLowerCase();
+                if (!key) return;
+
+                if (aggregatedMap.has(key)) {
+                    const existing = aggregatedMap.get(key)!;
+                    // Sum quantities and prices
+                    existing.quantity += item.quantity;
+                    existing.totalPrice += item.totalPrice;
+                    // Sum original quantities (for Model 19 receipt view)
+                    existing.originalQuantity = (existing.originalQuantity || 0) + (item.originalQuantity || item.quantity);
+                    // Keep the most recent date
+                    if (item.createdAt > existing.createdAt) {
+                        existing.createdAt = item.createdAt;
+                    }
+                    // Use image from newer entry if current has none
+                    if (item.image && !existing.image) {
+                        existing.image = item.image;
+                    }
+                    // Collect all individual receipt entries for Model 19 viewing
+                    existing.receiptEntries = existing.receiptEntries || [];
+                    existing.receiptEntries.push({ ...item, originalQuantity: item.originalQuantity || item.quantity });
+                } else {
+                    aggregatedMap.set(key, { ...item, originalQuantity: item.originalQuantity || item.quantity, receiptEntries: [{ ...item, originalQuantity: item.originalQuantity || item.quantity }] });
+                }
+            });
+
+            const aggregatedList = Array.from(aggregatedMap.values());
+            aggregatedList.sort((a, b) => (a.materialName || '').localeCompare(b.materialName || ''));
+            setMaterials(aggregatedList);
             setLoading(false);
         });
 
@@ -208,7 +280,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                         <FiPackage className="text-lg" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900">Full Inventory</h1>
+                        <h1 className="text-xl font-bold text-gray-900">Material List</h1>
                         <p className="text-sm text-gray-500">የሙሉ ዕቃ ዝርዝር — Complete Material Registry</p>
                     </div>
                 </div>
@@ -403,16 +475,45 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
             </div>
 
             {/* View Details Modal (Exact Model 19 Format) */}
-            {selectedMaterial && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:absolute print:inset-0 print:block print:bg-white print:p-0 print:m-0" onClick={() => setSelectedMaterial(null)}>
+            {selectedMaterial && (() => {
+                const entries = selectedMaterial.receiptEntries || [selectedMaterial];
+                const currentEntry = entries[receiptIndex] || entries[0];
+                const hasMultipleReceipts = entries.length > 1;
+                return (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:absolute print:inset-0 print:block print:bg-white print:p-0 print:m-0" onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }}>
                     <div className="bg-white w-full max-w-[1000px] max-h-[90vh] rounded-xl shadow-2xl overflow-y-auto print:absolute print:top-0 print:left-0 print:max-w-none print:w-[210mm] print:max-h-none print:overflow-visible print:shadow-none print:m-0 print:p-0 print:rounded-none" onClick={(e) => e.stopPropagation()}>
-                        <div className="sticky top-0 right-0 p-4 flex justify-end bg-white/90 backdrop-blur-md border-b border-gray-100 z-10 print:hidden">
-                            <button onClick={() => window.print()} className="px-4 py-2 bg-gray-100 border border-gray-300 text-slate-800 rounded hover:bg-gray-200 transition-colors flex items-center gap-2 font-bold shadow-sm mr-4">
-                                <FiPrinter className="text-xl" /> Print
-                            </button>
-                            <button onClick={() => setSelectedMaterial(null)} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-500 transition-colors flex items-center gap-2 font-bold">
-                                <FiX className="text-xl" /> Close
-                            </button>
+                        <div className="sticky top-0 right-0 p-4 flex justify-between items-center bg-white/90 backdrop-blur-md border-b border-gray-100 z-10 print:hidden">
+                            {/* Receipt Navigator */}
+                            {hasMultipleReceipts && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setReceiptIndex(i => Math.max(0, i - 1))}
+                                        disabled={receiptIndex === 0}
+                                        className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        ← ቀዳሚ
+                                    </button>
+                                    <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                        ደረሰኝ {receiptIndex + 1} / {entries.length}
+                                    </span>
+                                    <button
+                                        onClick={() => setReceiptIndex(i => Math.min(entries.length - 1, i + 1))}
+                                        disabled={receiptIndex === entries.length - 1}
+                                        className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        ቀጣይ →
+                                    </button>
+                                </div>
+                            )}
+                            {!hasMultipleReceipts && <div />}
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => window.print()} className="px-4 py-2 bg-gray-100 border border-gray-300 text-slate-800 rounded hover:bg-gray-200 transition-colors flex items-center gap-2 font-bold shadow-sm">
+                                    <FiPrinter className="text-xl" /> Print
+                                </button>
+                                <button onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-500 transition-colors flex items-center gap-2 font-bold">
+                                    <FiX className="text-xl" /> Close
+                                </button>
+                            </div>
                         </div>
 
                         <div id="printable-receipt" className="p-8 md:p-12 font-serif bg-[#FDFCF8] print:p-4 print:text-[11px]" style={{ color: '#1a1a1a' }}>
@@ -429,7 +530,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 <div className="flex items-center gap-2">
                                     <span className="text-[20px] font-bold">ቁ.</span>
                                     <div className="w-[140px] border-b border-black h-[24px] relative">
-                                        <div className="absolute inset-0 flex items-center justify-center text-[16px] font-bold tracking-widest">{selectedMaterial.materialCode || 'N/A'}</div>
+                                        <div className="absolute inset-0 flex items-center justify-center text-[16px] font-bold tracking-widest">{currentEntry.materialCode || 'N/A'}</div>
                                     </div>
                                 </div>
                             </div>
@@ -453,7 +554,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="shrink-0 whitespace-nowrap">1. ዋጋው በገንዘብ ወጪ መዝገብ የተመዘገበት ተራ ቁጥር</span>
                                         <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {selectedMaterial.expenditureRegistryNo || '—'}
+                                            {currentEntry.expenditureRegistryNo || '—'}
                                         </div>
                                     </div>
                                     <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Item No. In Expenditure Registry</p>
@@ -461,7 +562,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="shrink-0 whitespace-nowrap">2. ዕቃ ገቢ መዝገብ የገባበት ገጽ</span>
                                         <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {selectedMaterial.incomingGoodsEntryNo || '—'}
+                                            {currentEntry.incomingGoodsEntryNo || '—'}
                                         </div>
                                     </div>
                                     <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">No. of entry in the register of incoming goods</p>
@@ -469,7 +570,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="shrink-0 whitespace-nowrap">3. ለዕቃው የተሰጠው መደብ</span>
                                         <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {selectedMaterial.materialType === 'fixed_asset' ? 'Fixed Asset' : 'Consumable'}
+                                            {getClassificationLabel(currentEntry.classificationOfStock || '') || (currentEntry.materialType === 'fixed_asset' ? 'Fixed Asset' : 'Consumable')}
                                         </div>
                                     </div>
                                     <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Classification of stock</p>
@@ -477,7 +578,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="shrink-0 whitespace-nowrap">4. ዕቃው የሚቀመጥበት መጋዝን ቁጥር</span>
                                         <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {selectedMaterial.storeLocation || '—'}
+                                            {currentEntry.storeLocation || '—'}
                                         </div>
                                     </div>
                                     <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Store No.</p>
@@ -485,7 +586,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="shrink-0 whitespace-nowrap">5. የመደርደሪያው ቁጥር</span>
                                         <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {selectedMaterial.shelfNumber || '—'}
+                                            {currentEntry.shelfNumber || '—'}
                                         </div>
                                     </div>
                                     <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Shelf No.</p>
@@ -496,7 +597,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 <div className="flex items-end">
                                     <span className="text-[14px] font-bold leading-tight mr-2 print:text-[12px]">የ</span>
                                     <div className="flex-1 border-b border-black h-[22px] flex items-end justify-center font-bold pb-1 text-[13px] print:h-[16px] print:text-[11px] print:pb-0">
-                                        {selectedMaterial.category || '—'}
+                                        {getDepartmentLabel(currentEntry.department || currentEntry.category || '')}
                                     </div>
                                 </div>
                                 <div className="text-[11px] italic ml-10 mt-1 leading-none print:text-[9px]">
@@ -518,7 +619,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="flex items-end">
                                         <span className="text-[14px] font-bold whitespace-nowrap mr-2 leading-tight print:text-[12px]">ስም</span>
                                         <div className="w-[45%] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                            {selectedMaterial.responsiblePerson || '—'}
+                                            {currentEntry.responsiblePerson || '—'}
                                         </div>
                                         <span className="text-[14px] font-bold whitespace-nowrap ml-4 leading-tight print:text-[12px]">ከዚህ በታች በዝርዝር የተመለከተውን</span>
                                         <div className="flex-1 border-b border-black h-[18px] ml-2 print:h-[14px]"></div>
@@ -533,13 +634,13 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <div className="w-[20%] border-b border-black h-[18px] print:h-[14px]"></div>
                                     <span className="text-[14px] font-bold whitespace-nowrap ml-2 leading-tight print:text-[12px]">ቀን ፳፻</span>
                                     <div className="w-[60px] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                        {selectedMaterial.purchaseDate || '—'}
+                                        {currentEntry.purchaseDate || '—'}
                                     </div>
                                     <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ዓ.ም</span>
 
                                     <span className="text-[14px] font-bold whitespace-nowrap ml-8 leading-tight print:text-[12px]">ከ</span>
                                     <div className="flex-1 border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                        {selectedMaterial.vendorName || '—'}
+                                        {currentEntry.vendorName || '—'}
                                     </div>
                                     <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ተቀብያለሁ ::</span>
                                 </div>
@@ -602,30 +703,30 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                                 <tr key={i} className="h-[26px] print:h-[20px]">
                                                     <td className="border border-black text-center print:text-[10px]">1</td>
                                                     <td className="border border-black px-2 py-1 relative">
-                                                        <div className="font-bold text-[13px] print:text-[10px]">{selectedMaterial.materialName}</div>
-                                                        {selectedMaterial.description && <div className="text-[10px] text-gray-700 print:text-[8px]">{selectedMaterial.description}</div>}
-                                                        {selectedMaterial.image && (
+                                                        <div className="font-bold text-[13px] print:text-[10px]">{currentEntry.materialName}</div>
+                                                        {currentEntry.description && <div className="text-[10px] text-gray-700 print:text-[8px]">{currentEntry.description}</div>}
+                                                        {currentEntry.image && (
                                                             <div className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 print:hidden">
-                                                                <Image src={selectedMaterial.image} alt={selectedMaterial.materialName} fill className="object-cover rounded border border-gray-300" />
+                                                                <Image src={currentEntry.image} alt={currentEntry.materialName} fill className="object-cover rounded border border-gray-300" />
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="border border-black text-center print:text-[10px]">{selectedMaterial.model || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{selectedMaterial.serie || selectedMaterial.serialNumber || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{selectedMaterial.pageFrom || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{selectedMaterial.pageTo || '—'}</td>
-                                                    <td className="border border-black text-center font-bold print:text-[10px]">{selectedMaterial.quantity}</td>
-                                                    <td className="border border-black text-center font-bold print:text-[10px]">{Math.floor(selectedMaterial.unitPrice || 0)}</td>
+                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.model || '—'}</td>
+                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.serie || currentEntry.serialNumber || '—'}</td>
+                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.pageFrom || '—'}</td>
+                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.pageTo || '—'}</td>
+                                                    <td className="border border-black text-center font-bold print:text-[10px]">{currentEntry.originalQuantity || currentEntry.quantity}</td>
+                                                    <td className="border border-black text-center font-bold print:text-[10px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
                                                     <td className="border border-black text-center text-[10px] print:text-[8px]">
-                                                        {selectedMaterial.unitPriceCents !== undefined
-                                                            ? selectedMaterial.unitPriceCents.toString().padStart(2, '0')
-                                                            : Math.round(((selectedMaterial.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                                        {currentEntry.unitPriceCents !== undefined
+                                                            ? currentEntry.unitPriceCents.toString().padStart(2, '0')
+                                                            : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
                                                     </td>
-                                                    <td className="border border-black text-center font-bold bg-[#fcfcfc] print:text-[10px]">{Math.floor(selectedMaterial.totalPrice || 0)}</td>
+                                                    <td className="border border-black text-center font-bold bg-[#fcfcfc] print:text-[10px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
                                                     <td className="border border-black text-center text-[10px] bg-[#fcfcfc] print:text-[8px]">
-                                                        {selectedMaterial.totalPriceCents !== undefined
-                                                            ? selectedMaterial.totalPriceCents.toString().padStart(2, '0')
-                                                            : Math.round(((selectedMaterial.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                                        {currentEntry.totalPriceCents !== undefined
+                                                            ? currentEntry.totalPriceCents.toString().padStart(2, '0')
+                                                            : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
                                                     </td>
                                                 </tr>
                                             );
@@ -654,17 +755,17 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                         <td className="border border-black border-t-[1.5px] border-r-0 text-right pr-2 leading-tight" style={{ borderWidth: '1px', borderTopWidth: '1.5px', borderRightWidth: '0' }}>
                                             <div className="font-bold text-[13px] print:text-[11px]">ድምር</div><div className="text-[11px] italic mt-[-2px] print:text-[9px]">Total</div>
                                         </td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[14px] print:text-[11px]">{Math.floor(selectedMaterial.unitPrice || 0)}</td>
+                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[14px] print:text-[11px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
                                         <td className="border border-black border-t-[1.5px] text-center font-bold text-[12px] print:text-[10px]">
-                                            {selectedMaterial.unitPriceCents !== undefined
-                                                ? selectedMaterial.unitPriceCents.toString().padStart(2, '0')
-                                                : Math.round(((selectedMaterial.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                            {currentEntry.unitPriceCents !== undefined
+                                                ? currentEntry.unitPriceCents.toString().padStart(2, '0')
+                                                : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
                                         </td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[15px] print:text-[12px]">{Math.floor(selectedMaterial.totalPrice || 0)}</td>
+                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[15px] print:text-[12px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
                                         <td className="border border-black border-t-[1.5px] text-center font-bold text-[13px] print:text-[11px]">
-                                            {selectedMaterial.totalPriceCents !== undefined
-                                                ? selectedMaterial.totalPriceCents.toString().padStart(2, '0')
-                                                : Math.round(((selectedMaterial.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                            {currentEntry.totalPriceCents !== undefined
+                                                ? currentEntry.totalPriceCents.toString().padStart(2, '0')
+                                                : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -675,14 +776,14 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     <p className="font-bold text-[15px] print:text-[12px]">አስረካቢው</p>
                                     <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Donor)</p>
                                     <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
-                                        {selectedMaterial.vendorName || '—'}
+                                        {currentEntry.vendorName || '—'}
                                     </div>
                                 </div>
                                 <div className="w-[280px] text-center">
                                     <p className="font-bold text-[15px] print:text-[12px]">ተረካቢው</p>
                                     <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Recipient)</p>
                                     <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
-                                        {selectedMaterial.delivererRecipient || selectedMaterial.responsiblePerson || '—'}
+                                        {currentEntry.delivererRecipient || currentEntry.responsiblePerson || '—'}
                                     </div>
                                 </div>
                             </div>
@@ -697,7 +798,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                         </div>
                     </div>
                 </div>
-            )}
+            ); })()}
         </div>
     );
 }

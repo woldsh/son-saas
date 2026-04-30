@@ -150,7 +150,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
             // This allows the Store Keeper to view the Model 22 document even after verification.
             if (record.request_id) {
                 const requestMaterialRef = doc(db!, 'Request_materials', record.request_id);
-                batch.update(requestMaterialRef, { 
+                batch.update(requestMaterialRef, {
                     status: 'handout_completed',
                     handoutCompletedAt: new Date().toISOString()
                 });
@@ -191,7 +191,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
 
     const openModel22 = async (record: RequestRecord) => {
         if (!record.request_id || !db) return;
-        
+
         try {
             setIsFetchingRequest(true);
             const requestDoc = await getDoc(doc(db!, 'Request_materials', record.request_id));
@@ -319,8 +319,8 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                 };
 
                                 return (
-                                    <tr 
-                                        key={req.id} 
+                                    <tr
+                                        key={req.id}
                                         onClick={() => openModel22(req)}
                                         className={`hover:bg-slate-50/50 transition-colors group cursor-pointer ${isFetchingRequest ? 'pointer-events-none opacity-80' : ''}`}
                                     >
@@ -443,7 +443,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                 <ClerkModel22Form
                     request={model22Request}
                     onClose={() => setModel22Request(null)}
-                    onApprove={async () => {}} // No approval needed from keeper view
+                    onApprove={async () => { }} // No approval needed from keeper view
                     readOnly={true}
                 />
             )}

@@ -13,9 +13,10 @@ interface ReadOnlyEmployeeModel22Props {
     employeeName: string;
     department: string;
     reports: ReportItem[];
+    materialDetails?: Record<string, any>;
 }
 
-export default function ReadOnlyEmployeeModel22({ employeeName, department, reports }: ReadOnlyEmployeeModel22Props) {
+export default function ReadOnlyEmployeeModel22({ employeeName, department, reports, materialDetails = {} }: ReadOnlyEmployeeModel22Props) {
     const inputClasses = "absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-1 text-[#0033aa] font-[Kalam] w-full text-center";
     const thClasses = "border-[1.5px] border-black p-1 text-center font-bold text-[12px] leading-tight";
     const tdClasses = "border-[1.5px] border-black p-1 text-center text-[12px] h-[30px] font-bold";
@@ -38,11 +39,16 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                 </button>
             </div>
 
-            {Object.entries(groupedReports).map(([, materialReports], formIdx) => {
+            {Object.entries(groupedReports).map(([materialName, materialReports], formIdx) => {
                 const displayRows = [...materialReports];
-                while (displayRows.length < 6) {
+                while (displayRows.length < 12) {
                     displayRows.push({ isEmpty: true });
                 }
+
+                // Try to get material metadata for this group
+                const firstReport = materialReports[0];
+                const mCode = (firstReport as any).materialCode;
+                const matData = materialDetails[mCode] || materialDetails[materialName?.trim().toLowerCase()] || {};
 
                 return (
                     <div key={formIdx} style={{
@@ -66,7 +72,7 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                             <div className="flex flex-col items-center ml-20">
                                 <div className="flex items-center gap-2 text-[20px] font-black">
                                     <span className="italic">No.</span>
-                                    <span className="font-[Kalam] text-[#0033aa]">------</span>
+                                    <span className="font-[Kalam] text-[#0033aa]">{(firstReport as any).receiptNo || (firstReport as any).verification_code || '---'}</span>
                                 </div>
                             </div>
                             <div className="text-right">
@@ -101,17 +107,21 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
 
                             <div className="flex-1 text-[11px] space-y-3 font-semibold w-[400px]">
                                 {[
-                                    { am: '1. ገንዘብ ወጪ መዝገብ የተመዘገበት ተራ ቁጥር', en: 'Item No. in Expenditure Registery' },
-                                    { am: '2. ዕቃ ገቢ መዝገብ የገባበት ገጽ', en: 'No. of entry in the register of incoming goods' },
-                                    { am: '3. ዕቃው የተሰጠው መደብ', en: 'Classification of Stock' },
-                                    { am: '4. ዕቃው የተቀመጠበት መጋዘን ቁጥር', en: 'Store No.' },
-                                    { am: '5. የመደርደሪያው ቁጥር', en: 'Shelf No.' },
-                                    { am: '6. ዕቃው የወጣበት የወጪ መዝገብ የተመዘገበት ተራ ቁጥር', en: 'No. of entry in the register of outgoing goods' }
+                                    { am: '1. ገንዘብ ወጪ መዝገብ የተመዘገበት ተራ ቁጥር', en: 'Item No. in Expenditure Registery', val: matData.expenditureRegistryNo || '' },
+                                    { am: '2. ዕቃ ገቢ መዝገብ የገባበት ገጽ', en: 'No. of entry in the register of incoming goods', val: matData.receiptNo || matData.incomingGoodsEntryNo || '' },
+                                    { am: '3. ዕቃው የተሰጠው መደብ', en: 'Classification of Stock', val: matData.classificationOfStock || matData.category || '' },
+                                    { am: '4. ዕቃው የተቀመጠበት መጋዘን ቁጥር', en: 'Store No.', val: matData.storeNo || matData.storeLocation || '' },
+                                    { am: '5. የመደርደሪያው ቁጥር', en: 'Shelf No.', val: matData.shelfNo || matData.shelfNumber || '' },
+                                    { am: '6. ዕቃው የወጣበት የወጪ መዝገብ የተመዘገበት ተራ ቁጥር', en: 'No. of entry in the register of outgoing goods', val: matData.outgoingGoodsEntryNo || '' }
                                 ].map((item, i) => (
                                     <React.Fragment key={i}>
                                         <div className="flex items-end">
                                             <span className="shrink-0 whitespace-nowrap">{item.am}</span>
-                                            <div className="flex-1 border-b-[0.5px] border-black ml-3 h-[18px] relative"></div>
+                                            <div className="flex-1 border-b-[0.5px] border-black ml-3 h-[18px] relative">
+                                                <div className="absolute inset-0 flex items-center justify-center font-[Kalam] text-[#0033aa] text-[13px] font-bold">
+                                                    {item.val}
+                                                </div>
+                                            </div>
                                         </div>
                                         <p className="text-[9px] italic pl-4 -mt-1 font-normal">{item.en}</p>
                                     </React.Fragment>
@@ -127,18 +137,34 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
 
                         {/* Sentence block */}
                         <div className="text-[13px] leading-[26px] mb-8 font-semibold w-full pr-4 text-justify">
-                            <div className="flex items-baseline flex-wrap">
-                                <span>እኔ</span>
-                                <span className="w-[30%] border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center">{employeeName}</span>
-                                <span className="ml-[2%]">ቀን</span>
-                                <span className="w-[10%] border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center">{new Date().getDate()}</span>
-                                <span>ዓ.ም በቁጥር</span>
-                                <span className="flex-1 border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center ml-2"></span>
-                            </div>
+                            {(() => {
+                                const rawDate = (firstReport as any).withdrawalDate || (firstReport as any).acceptedAt || (firstReport as any).createdAt;
+                                let dateObj = new Date();
+                                if (rawDate) {
+                                    if (typeof rawDate.toDate === 'function') dateObj = rawDate.toDate();
+                                    else dateObj = new Date(rawDate);
+                                }
+                                const formattedDate = dateObj.toLocaleDateString('am-ET');
+
+                                return (
+                                    <div className="flex items-baseline flex-wrap">
+                                        <span>እኔ</span>
+                                        <span className="w-[35%] border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center ml-1">{employeeName}</span>
+                                        <span className="ml-[1%]">ቀን</span>
+                                        <span className="w-[15%] border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center ml-1">
+                                            {formattedDate}
+                                        </span>
+                                        <span className="ml-1">ዓ.ም በቁጥር</span>
+                                        <span className="flex-1 border-b border-black text-[#0033aa] font-[Kalam] text-[16px] text-center ml-2"></span>
+                                        <span className="ml-1">በትእዛዝ</span>
+                                    </div>
+                                );
+                            })()}
                             <div className="flex justify-between text-[11px] font-normal italic -mt-2">
-                                <span className="ml-10">In accordance with the</span>
-                                <span className="ml-[35%]">order No.</span>
-                                <span className="mr-[15%]">dated of</span>
+                                <span className="ml-[15%]">I</span>
+                                <span className="ml-[30%]">dated of</span>
+                                <span className="ml-[10%]">order No.</span>
+                                <span className="mr-[5%]">In accordance with the</span>
                             </div>
 
                             <div className="flex items-baseline mt-2">
@@ -149,7 +175,7 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                                 <span>አገልግሎት በትክክል</span>
                             </div>
                             <div className="flex justify-between text-[11px] font-normal italic -mt-2">
-                                <span>20&nbsp;<span className="inline-block w-[30px] border-b border-black text-[#0033aa] text-[14px] text-center -mb-2">{String(new Date().getFullYear()).substring(2)}</span> here by certify that I have counted correctly and received the articles enumerated below for the use of</span>
+                                <span className="ml-[50%]">here by certify that I have counted correctly and received the articles enumerated below for the use of</span>
                             </div>
 
                             <div>
@@ -161,14 +187,15 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                         <table className="w-full border-collapse border-[1.5px] border-black mb-10">
                             <thead>
                                 <tr>
-                                    <th rowSpan={2} className={`${thClasses} w-[40px]`}>ተ.ቁ<br /><span className="text-[9px] font-normal italic">Serial<br />No.</span></th>
-                                    <th rowSpan={2} className={`${thClasses} w-[300px]`}>የዕቃው ወይም የንብረት<br />ዓይነት ዝርዝር<br /><span className="text-[9px] font-normal italic">Detailed Description of Articles<br />or property</span></th>
-                                    <th rowSpan={2} className={`${thClasses} w-[60px]`}>ሞዴል<br /><span className="text-[9px] font-normal italic">Model</span></th>
-                                    <th colSpan={2} className={`${thClasses}`}>ተከታታይ ቁጥር<br /><span className="text-[9px] font-normal italic">Serial</span></th>
-                                    <th rowSpan={2} className={`${thClasses} w-[60px]`}>ብዛት<br /><span className="text-[9px] font-normal italic">Quantity</span></th>
-                                    <th colSpan={2} className={`${thClasses}`}>ያንዱ ዋጋ<br /><span className="text-[9px] font-normal italic">Unit Price</span></th>
-                                    <th colSpan={2} className={`${thClasses}`}>የዋጋ ድምር<br /><span className="text-[9px] font-normal italic">Total Price</span></th>
-                                    <th rowSpan={2} className={`${thClasses} w-[70px]`}>ምርመራ<br /><span className="text-[9px] font-normal italic">Remarks</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[30px]`}>ተ.ቁ<br /><span className="text-[9px] font-normal italic">Serial<br />No.</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[280px]`}>የዕቃው ወይም የንብረት<br />ዓይነት ዝርዝር<br /><span className="text-[9px] font-normal italic">Detailed Description of Articles<br />or property</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[50px]`}>ሞዴል<br /><span className="text-[9px] font-normal italic">Model</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[45px]`}>ሴሪ<br /><span className="text-[9px] font-normal italic">Serial</span></th>
+                                    <th colSpan={2} className={`${thClasses} w-[100px]`}>ተከታታይ ቁጥር<br /><span className="text-[9px] font-normal italic">Serial</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[50px]`}>ብዛት<br /><span className="text-[9px] font-normal italic">Quantity</span></th>
+                                    <th colSpan={2} className={`${thClasses} w-[80px]`}>ያንዱ ዋጋ<br /><span className="text-[9px] font-normal italic">Unit Price</span></th>
+                                    <th colSpan={2} className={`${thClasses} w-[80px]`}>የዋጋ ድምር<br /><span className="text-[9px] font-normal italic">Total Price</span></th>
+                                    <th rowSpan={2} className={`${thClasses} w-[80px]`}>ምርመራ<br /><span className="text-[9px] font-normal italic">Remarks</span></th>
                                 </tr>
                                 <tr>
                                     <th className={`${thClasses} w-[45px]`}>ከ<br /><span className="text-[9px] font-normal italic">From</span></th>
@@ -180,34 +207,179 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                                 </tr>
                             </thead>
                             <tbody>
-                                {displayRows.map((row, idx) => (
-                                    <tr key={idx}>
-                                        <td className={tdClasses}>{idx + 1}</td>
-                                        <td className={`${tdClasses} text-left px-2`}>
-                                            <span className="font-[Kalam] text-[15px]">{row.isEmpty ? '' : row.materialName}</span>
-                                        </td>
-                                        <td className={tdClasses}>
-                                            <span className="font-[Kalam] text-[#0033aa] text-[15px]">{row.isEmpty ? '' : ''}</span>
-                                        </td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}>
-                                            <span className="font-[Kalam] text-[17px] font-bold">{row.isEmpty ? '' : row.quantity}</span>
-                                        </td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}></td>
-                                        <td className={tdClasses}>
-                                            <span className="font-[Kalam] text-[#0033aa] text-[13px]">{row.isEmpty ? '' : row.status}</span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {displayRows.map((row, idx) => {
+                                    if (row.isEmpty) {
+                                        return (
+                                            <tr key={idx}>
+                                                <td className={tdClasses}>{idx + 1}</td>
+                                                <td className={`${tdClasses} text-left px-2`}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                                <td className={tdClasses}></td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    const rowMCode = (row as any).materialCode;
+                                    const mat: any = materialDetails[rowMCode] || materialDetails[row.materialName?.trim().toLowerCase() || ''] || {};
+
+                                    // For Model 19 sub-items, find the specific sub-item in items array
+                                    let subItem: any = null;
+                                    if (mat.items && Array.isArray(mat.items)) {
+                                        subItem = mat.items.find((i: any) =>
+                                            (i.description || i.materialName || '').trim().toLowerCase() === (row.materialName || '').trim().toLowerCase()
+                                        );
+                                    }
+
+                                    const model = (row as any).model || subItem?.model || mat.model || '';
+                                    const serial = (row as any).serial || subItem?.serie || mat.serie || '';
+                                    const qty = Number(row.quantity) || 0;
+
+                                    // Get unit price - check sub-item first, then parent
+                                    const rawUnitPrice = subItem?.unitPriceBirr
+                                        ? (parseFloat(subItem.unitPriceBirr) || 0) + (parseFloat(subItem.unitPriceCents) || 0) / 100
+                                        : Number(subItem?.unitPrice || mat.unitPrice) || 0;
+
+                                    const unitPriceBirr = rawUnitPrice > 0 ? Math.floor(rawUnitPrice).toString() : '';
+                                    const unitPriceCents = rawUnitPrice > 0 ? Math.round((rawUnitPrice % 1) * 100).toString().padStart(2, '0') : '';
+                                    const totalVal = rawUnitPrice * qty;
+                                    const totalPriceBirr = totalVal > 0 ? Math.floor(totalVal).toString() : '';
+                                    const totalPriceCents = totalVal > 0 ? Math.round((totalVal - Math.floor(totalVal)) * 100).toString().padStart(2, '0') : '';
+
+                                    return (
+                                        <tr key={idx}>
+                                            <td className={tdClasses}>{idx + 1}</td>
+                                            <td className={`${tdClasses} text-left px-2`}>
+                                                <span className="font-[Kalam] text-[15px]">{row.materialName}</span>
+                                            </td>
+                                            {/* Model */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#0033aa] text-[15px]">{model}</span>
+                                            </td>
+                                            {/* Serial */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#0033aa] text-[15px]">{serial}</span>
+                                            </td>
+                                            {/* Serial From */}
+                                            <td className={tdClasses}></td>
+                                            {/* Serial To */}
+                                            <td className={tdClasses}></td>
+                                            {/* Quantity */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[17px] font-bold">{row.quantity}</span>
+                                            </td>
+                                            {/* Unit Price Birr */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#0033aa] text-[15px]">{unitPriceBirr}</span>
+                                            </td>
+                                            {/* Unit Price Cents */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#0033aa] text-[12px]">{unitPriceCents !== '00' ? unitPriceCents : ''}</span>
+                                            </td>
+                                            {/* Total Price Birr */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#e11d48] text-[15px] font-bold">{totalPriceBirr}</span>
+                                            </td>
+                                            {/* Total Price Cents */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#e11d48] text-[12px] font-bold">{totalPriceCents !== '00' ? totalPriceCents : ''}</span>
+                                            </td>
+                                            {/* Remarks */}
+                                            <td className={tdClasses}>
+                                                <span className="font-[Kalam] text-[#0033aa] text-[13px]">{row.status}</span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {/* Total Row */}
+                                <tr>
+                                    <td colSpan={6} className="border-r-[1.5px] border-t-[1.5px] border-black p-1 text-center font-bold text-[12px] h-[30px]">
+                                        ድምር <br /> <span className="text-[9px] italic font-normal">Total</span>
+                                    </td>
+                                    <td className={tdClasses}>
+                                        <span className="font-[Kalam] text-[17px] font-bold">
+                                            {displayRows.reduce((sum, row) => sum + (row.isEmpty ? 0 : Number(row.quantity) || 0), 0) || ''}
+                                        </span>
+                                    </td>
+                                    <td className={tdClasses}></td>
+                                    <td className={tdClasses}></td>
+                                    <td className={tdClasses}>
+                                        <span className="font-[Kalam] text-[#e11d48] text-[15px] font-bold">
+                                            {(() => {
+                                                const total = displayRows.reduce((sum, row) => {
+                                                    if (row.isEmpty) return sum;
+                                                    const mCode = (row as any).materialCode;
+                                                    const mat: any = materialDetails[mCode] || materialDetails[row.materialName?.trim().toLowerCase() || ''] || {};
+                                                    let subItem: any = null;
+                                                    if (mat.items && Array.isArray(mat.items)) {
+                                                        subItem = mat.items.find((i: any) =>
+                                                            (i.description || i.materialName || '').trim().toLowerCase() === (row.materialName || '').trim().toLowerCase()
+                                                        );
+                                                    }
+                                                    const rawPrice = subItem?.unitPriceBirr
+                                                        ? (parseFloat(subItem.unitPriceBirr) || 0) + (parseFloat(subItem.unitPriceCents) || 0) / 100
+                                                        : Number(subItem?.unitPrice || mat.unitPrice) || 0;
+                                                    const qty = Number(row.quantity) || 0;
+                                                    return sum + (rawPrice * qty);
+                                                }, 0);
+                                                return total > 0 ? Math.floor(total).toLocaleString() : '';
+                                            })()}
+                                        </span>
+                                    </td>
+                                    <td className={tdClasses}>
+                                        <span className="font-[Kalam] text-[#e11d48] text-[12px] font-bold">
+                                            {(() => {
+                                                const total = displayRows.reduce((sum, row) => {
+                                                    if (row.isEmpty) return sum;
+                                                    const mCode = (row as any).materialCode;
+                                                    const mat: any = materialDetails[mCode] || materialDetails[row.materialName?.trim().toLowerCase() || ''] || {};
+                                                    let subItem: any = null;
+                                                    if (mat.items && Array.isArray(mat.items)) {
+                                                        subItem = mat.items.find((i: any) =>
+                                                            (i.description || i.materialName || '').trim().toLowerCase() === (row.materialName || '').trim().toLowerCase()
+                                                        );
+                                                    }
+                                                    const rawPrice = subItem?.unitPriceBirr
+                                                        ? (parseFloat(subItem.unitPriceBirr) || 0) + (parseFloat(subItem.unitPriceCents) || 0) / 100
+                                                        : Number(subItem?.unitPrice || mat.unitPrice) || 0;
+                                                    const qty = Number(row.quantity) || 0;
+                                                    return sum + (rawPrice * qty);
+                                                }, 0);
+                                                const cents = Math.round((total % 1) * 100);
+                                                return cents > 0 ? cents.toString().padStart(2, '0') : '';
+                                            })()}
+                                        </span>
+                                    </td>
+                                    <td className={tdClasses}></td>
+                                </tr>
                             </tbody>
                         </table>
 
                         {/* Signatures Section */}
-                        <div className="flex justify-between mt-12 px-10">
+                        <div className="mt-4 flex flex-col items-center">
+                            <span className="w-[220px] border-b border-black text-center font-[Kalam] text-[15px] pb-1">
+                                {(() => {
+                                    const rawDate = (firstReport as any).withdrawalDate || (firstReport as any).acceptedAt || (firstReport as any).createdAt;
+                                    let dateObj = new Date();
+                                    if (rawDate) {
+                                        if (typeof rawDate.toDate === 'function') dateObj = rawDate.toDate();
+                                        else dateObj = new Date(rawDate);
+                                    }
+                                    return (
+                                        <>ቀን <span className="mx-2">{dateObj.toLocaleDateString('am-ET')}</span> ዓ.ም.</>
+                                    );
+                                })()}
+                            </span>
+                        </div>
+
+                        <div className="flex justify-between mt-8 px-10">
                             <div className="flex flex-col items-center">
                                 <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                                 <span className="font-bold text-[13px] mt-1">የግምጃ ቤቱ ፊርማ</span>
@@ -217,6 +389,19 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
                                 <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                                 <span className="font-bold text-[13px] mt-1">የተቀባይ ፊርማ</span>
                                 <span className="italic text-[11px]">Recipient's Signature</span>
+                            </div>
+                        </div>
+
+                        {/* Instructional Texts */}
+                        <div className="mt-12 px-6 space-y-6">
+                            <div className="text-[12px] leading-relaxed text-justify border-t border-black pt-4">
+                                <span className="font-bold block mb-2 underline">ማመልከቻ</span>
+                                <p>ይህ ካርኒ በ፫ ኮፒ ሆኖ በካርቦን ይሠራል :: ከነዚሁም ሁለቱ ተጐራጅ ሆነው ለኛው በክፍሉ መሥሪያ ቤት ሒሳብ ቤት አማካይነት የገንዘብ ሚኒስቴር ጠቅላይ ሒሳብ ቤት ለዕቃ መቆጣጠሪያ ክፍል ይተላለፋል ። ፪ኛው ለዕቃ ወጪ መዝገብ ማስተካከያ ሰነድ እንዲሆነው ለክፍሉ ሒሳብ ቤት ይሰጠዋል ። ፫ኛው ኮፒ ሳይጐረድ እንዳለ ሆኖ የዕቃ ግምጃ ቤት ዕቃውን በትዕዛዝ ያወጣው መሆኑን ለመርማሪ ለማስረዳት እንዲችል ከማዘዣው ጋር በሙጫ አያይዞ እንዲኖር ያደርጋል ።</p>
+                            </div>
+
+                            <div className="text-[12px] leading-relaxed text-justify border-t border-black pt-4">
+                                <span className="font-bold block mb-2 underline">ማስጠቀቂያ</span>
+                                <p>መደባቸው አንድ ዓይነት ለሆኑና ተቀባያቸው አንድ ሰው ብቻ ለሆኑ ልዩ ልዩ ዕቃዎች አንድ አንድ ቅጠል ይበቃል ። መደባቸው ሲለያይ ግን ለየራሳቸው አንዳንድ ደረሰኝ ሊጻፍላቸው ይችላል ። ይኸውም በየመደቡ እየለዩ ለማኖር እንዲመች ነው ። በዋጋው ድምር መጻፊያ ዓምድ ውስጥ የተመለከተው በውርስ ወይም በሌላ ምክንያት የተገኘ ዕቃ ወይም ንብረት የሆነ እንደሆነ ዋጋው በኤክስፐርት ተገምቶ ግምቱ በዋጋው ዓምድ ውስጥ ይገባል ።</p>
                             </div>
                         </div>
 

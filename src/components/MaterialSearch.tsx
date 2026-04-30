@@ -23,7 +23,7 @@ interface MaterialSearchProps {
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchProps) {
-    const { userRole, department } = useAuth();
+    const { user, userRole, department } = useAuth();
     const [materials, setMaterials] = useState<Material[]>([]);
     const [filteredMaterials, setFilteredMaterials] = useState<Material[]>([]);
     const [loading, setLoading] = useState(true);
@@ -40,6 +40,11 @@ export default function MaterialSearch({ onSelect, onCancel }: MaterialSearchPro
 
                 // Helper to check if user has access to a material document
                 const hasAccess = (d: any) => {
+                    // If assigned to a specific user, ONLY that user sees it
+                    if (d.targetUser && d.targetUser !== '') {
+                        return user && d.targetUser === user.uid;
+                    }
+
                     if (d.visibleToAll || d.targetDepartment === 'all' || !d.targetDepartment) {
                         return true; // Global / legacy visibility
                     }

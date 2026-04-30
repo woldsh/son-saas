@@ -39,20 +39,14 @@ export default function AdminLayout({
         <SidebarProvider>
             <InventoryProvider>
                 <IdleTimeoutGuard />
-                <div className="min-h-screen bg-white flex relative">
-                    {/* Global Decorative Mesh Gradient for Admin Panel */}
-                    <div className="fixed inset-0 pointer-events-none opacity-40 z-0 text-blue-500">
-                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" />
-                        <div className="absolute bottom-1/4 left-1/4 w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }} />
-                    </div>
-
+                <div className="min-h-screen bg-[#F8F9FA] flex relative">
                     <div className="relative z-10 flex w-full">
                         <AdminSidebar />
                         <div className="flex-1 flex flex-col min-w-0">
                             <div className="sticky top-0 z-40">
                                 <Header title="Dashboard" />
                             </div>
-                            
+
                             <main className="flex-1 overflow-y-auto relative z-0">
                                 {children}
                             </main>

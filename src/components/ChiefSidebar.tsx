@@ -19,7 +19,6 @@ import {
     FaCar,
     FaVideo,
     FaFileAlt,
-    FaExchangeAlt,
     FaShieldAlt,
     FaCrown,
     FaChevronRight,
@@ -49,7 +48,6 @@ export default function ChiefSidebar() {
         { label: t('meeting'), href: `${basePath}/start-meeting`, icon: FaVideo },
         { label: t('request_journey'), href: `${basePath}/request-journey`, icon: FaCar },
         { label: t('clerk_report'), href: `${basePath}/clerk-report`, icon: FaFileAlt },
-        { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: FaExchangeAlt },
         { label: t('set_ac_rules'), href: `/chief/set-ac-rules`, icon: FaShieldAlt },
         { label: t('update_ac_rules'), href: `/chief/update-ac-rules`, icon: FaShieldAlt },
     ];

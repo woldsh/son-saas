@@ -7,7 +7,10 @@ import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useRequestNotification } from '../hooks/useRequestNotification'
-import { useIsMobile } from '../hooks/useIsMobile';;
+import {
+    useStockAlerts
+} from '../hooks/useStockAlerts';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useUserNotifications } from '../hooks/useUserNotifications'
 import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
@@ -33,13 +36,16 @@ import {
     RefreshCw,
     ArrowUpRight,
     ArrowDownLeft,
-    Repeat,
     Settings,
     ChevronDown,
     ChevronUp,
     Building2,
     Eye,
-    Layers
+    Layers,
+    Bell,
+    TrendingDown,
+    PackageX,
+    Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -57,7 +63,9 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
     const { userRole, department } = useAuth();
     const requestCount = useRequestNotification(userRole, department);
     const { feedbackCount, transferCount } = useUserNotifications();
+    const stockAlerts = useStockAlerts();
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    const [openNestedDropdown, setOpenNestedDropdown] = useState<string | null>(null);
 
     const handleLinkClick = () => {
         if (window.innerWidth < 768) {
@@ -67,6 +75,10 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
 
     const toggleDropdown = (label: string) => {
         setOpenDropdown(openDropdown === label ? null : label);
+    };
+
+    const toggleNestedDropdown = (label: string) => {
+        setOpenNestedDropdown(openNestedDropdown === label ? null : label);
     };
 
     const menuItems = [
@@ -87,12 +99,21 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             subItems: [
                 { label: 'Register Material', href: `${basePath}/register-material`, icon: FilePlus },
                 { label: t('materials_list') || 'Materials List', href: `${basePath}/materials-list`, icon: Layers },
+                { label: 'Stock Record Card', href: `${basePath}/stock-record-card`, icon: ClipboardList },
                 { label: t('clerk_report') || "Clerk Report", href: `${basePath}/store-clerk-report`, icon: FileText },
-                { label: 'Expiry Alerts', href: `${basePath}/expiry-alerts`, icon: AlertTriangle },
-                { label: 'Bin Management', href: `${basePath}/bin-management`, icon: Grid },
-                { label: 'Cycle Count', href: `${basePath}/cycle-count`, icon: Clipboard },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
+                {
+                    label: t('stock_alert') || "Stock Alert",
+                    icon: Bell,
+                    badge: stockAlerts.total,
+                    subItems: [
+                        { label: t('low_stock'), href: `${basePath}/low-stock`, icon: TrendingDown, badge: stockAlerts.lowStock },
+                        { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: PackageX, badge: stockAlerts.outOfStock },
+                        { label: t('expiry_alerts'), href: `${basePath}/expiry-alerts`, icon: Clock, badge: stockAlerts.expireStock },
+                        { label: t('maintenance_alerts'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
+                    ]
+                },
             ],
             hasDivider: false
         },
@@ -124,7 +145,6 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             subItems: [
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft, badge: transferCount },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },
@@ -237,28 +257,75 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                                                         transition={{ duration: 0.2 }}
                                                         className="overflow-hidden"
                                                     >
-                                                        <div className="mt-1 space-y-0.5 pl-4">
-                                                            {item.subItems?.map((subItem, subIndex) => {
+                                                        <div className="mt-1 space-y-0.5 pl-4 border-l border-slate-100 ml-4">
+                                                            {item.subItems?.map((subItem: any, subIndex: number) => {
+                                                                const isNestedDropdown = !!subItem.subItems;
+                                                                const isNestedOpen = openNestedDropdown === subItem.label;
                                                                 const SubIcon = subItem.icon;
-                                                                const isSubActive = pathname === subItem.href;
 
+                                                                if (isNestedDropdown) {
+                                                                    return (
+                                                                        <div key={subIndex} className="space-y-0.5">
+                                                                            <button
+                                                                                onClick={() => toggleNestedDropdown(subItem.label)}
+                                                                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group ${isNestedOpen ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                                                            >
+                                                                                <SubIcon size={18} className={isNestedOpen ? 'text-blue-600' : 'text-slate-400'} />
+                                                                                <span className="text-[13px] font-bold flex-1 text-left">{subItem.label}</span>
+                                                                                {subItem.badge > 0 && !isNestedOpen && (
+                                                                                    <span className={`flex items-center justify-center min-w-[18px] h-4.5 px-1.5 bg-blue-600 text-white text-[9px] font-black rounded-full mr-2`}>
+                                                                                        {subItem.badge}
+                                                                                    </span>
+                                                                                )}
+                                                                                {isNestedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                                            </button>
+                                                                            <AnimatePresence>
+                                                                                {isNestedOpen && (
+                                                                                    <motion.div
+                                                                                        initial={{ opacity: 0, height: 0 }}
+                                                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                                                        exit={{ opacity: 0, height: 0 }}
+                                                                                        className="overflow-hidden pl-4 space-y-0.5 mt-0.5 border-l border-slate-100 ml-3"
+                                                                                    >
+                                                                                        {subItem.subItems.map((nestedItem: any, nIdx: number) => (
+                                                                                             <Link
+                                                                                                 key={nIdx}
+                                                                                                 href={nestedItem.href}
+                                                                                                 onClick={handleLinkClick}
+                                                                                                 className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all ${pathname === nestedItem.href ? 'text-blue-600 bg-blue-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                                                                                             >
+                                                                                                 {nestedItem.icon && <nestedItem.icon size={14} className={pathname === nestedItem.href ? 'text-blue-600' : 'text-slate-400'} />}
+                                                                                                 <span className="flex-1">{nestedItem.label}</span>
+                                                                                                 {nestedItem.badge > 0 && (
+                                                                                                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-700`}>
+                                                                                                         {nestedItem.badge}
+                                                                                                     </span>
+                                                                                                 )}
+                                                                                             </Link>
+                                                                                        ))}
+                                                                                    </motion.div>
+                                                                                )}
+                                                                            </AnimatePresence>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                const isSubActive = subItem.href ? pathname === subItem.href : false;
                                                                 return (
                                                                     <Link
                                                                         key={subIndex}
-                                                                        href={subItem.href}
+                                                                        href={subItem.href || '#'}
                                                                         onClick={handleLinkClick}
                                                                         className={`flex items-center gap-3.5 px-6 py-3 rounded-[12px] transition-all duration-200 ${isSubActive
                                                                             ? 'bg-blue-50/40 text-blue-700 font-bold'
                                                                             : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800 font-bold'
                                                                             }`}
                                                                     >
-                                                                        <SubIcon size={18} strokeWidth={1.5} className={isSubActive ? 'text-blue-600' : 'text-slate-400'} />
-                                                                        <span className="text-[14px]">
-                                                                            {subItem.label}
-                                                                        </span>
-                                                                        {(subItem as any).badge > 0 && (
+                                                                        <SubIcon size={18} className={isSubActive ? 'text-blue-600' : 'text-slate-400'} strokeWidth={1.5} />
+                                                                        <span className="text-[14px] flex-1">{subItem.label}</span>
+                                                                        {subItem.badge > 0 && (
                                                                             <div className={`ml-auto flex items-center justify-center min-w-[18px] h-4.5 px-1 bg-blue-600 rounded-full`}>
-                                                                                <span className="text-[9px] font-black text-white">{(subItem as any).badge}</span>
+                                                                                <span className="text-[9px] font-black text-white">{subItem.badge}</span>
                                                                             </div>
                                                                         )}
                                                                     </Link>

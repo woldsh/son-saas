@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 import { FaCheckCircle, FaTimes, FaSpinner, FaPlus, FaPrint, FaCamera, FaImage } from 'react-icons/fa';
 
 interface ClerkRegisterFormProps {
@@ -33,6 +34,7 @@ const createEmptyRow = (): TableRow => ({
 });
 
 export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
+    const { user } = useAuth();
     const isFixed = type === 'fixed';
 
     const [headerData, setHeaderData] = useState({
@@ -57,8 +59,20 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
 
-    // Target department for material visibility
     const [targetDepartment, setTargetDepartment] = useState('all');
+    const [targetUser, setTargetUser] = useState('');
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+    const [usersList, setUsersList] = useState<{
+        id: string;
+        name: string;
+        email: string;
+        department?: string;
+        subRole?: string;
+        userRole?: string;
+        role?: string;
+        mainRole?: string;
+    }[]>([]);
 
     // Department options (academic + admin)
     const DEFAULT_ACADEMIC_DEPTS = [
@@ -83,11 +97,11 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
         { id: 'procurement_admin', label: 'Procurement Admin' },
         { id: 'resource_development', label: 'Resource Dev & Revenue' },
         { id: 'building_renovation', label: 'Building Renovation' },
-        { id: 'general_service_admin', label: 'General Service' },
         { id: 'library_service', label: 'Library Service' },
         { id: 'security', label: 'Security' },
         { id: 'registrar', label: 'Registrar' },
         { id: 'student_service', label: 'Student Service' },
+        { id: 'store', label: 'Store Keeper' },
     ];
 
     const [academicDepts, setAcademicDepts] = useState(DEFAULT_ACADEMIC_DEPTS);
@@ -138,6 +152,34 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
             }
         };
         fetchDepts();
+
+        // Fetch users for specific assignment
+        const fetchUsers = async () => {
+            if (!db) return;
+            try {
+                const { getDocs, collection } = await import('firebase/firestore');
+                const usersSnap = await getDocs(collection(db, 'users'));
+                const uList = usersSnap.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        name: data.displayName || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : '') || data.email || 'Unknown',
+                        email: data.email || '',
+                        department: data.department || '',
+                        subRole: data.subRole || '',
+                        userRole: data.userRole || '',
+                        role: data.role || '',
+                        mainRole: data.mainRole || ''
+                    };
+                });
+                // Sort users alphabetically by name
+                uList.sort((a, b) => a.name.localeCompare(b.name));
+                setUsersList(uList);
+            } catch (err) {
+                console.error('Failed to fetch users:', err);
+            }
+        };
+        fetchUsers();
     }, []);
 
     const calculateRowTotal = useCallback((row: TableRow): TableRow => {
@@ -246,20 +288,27 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
         }
         try {
             if (!db) throw new Error('Firebase not initialized');
+            const materialsWithOriginalQty = filledRows.map(row => ({
+                ...row,
+                originalQuantity: row.quantity // Keep track of the initial amount
+            }));
             await addDoc(collection(db, 'materials'), {
                 ...headerData,
                 materialType: isFixed ? 'fixed_asset' : 'consumable',
                 formType: 'receipt_for_articles',
-                items: filledRows,
+                items: materialsWithOriginalQty,
                 grandTotalBirr: gBirr,
                 grandTotalCents: gCents,
                 unitPriceTotalBirr: uBirr,
                 unitPriceTotalCents: uCents,
-                targetDepartment,
-                visibleToAll: targetDepartment === 'all',
+                targetDepartment: targetDepartment,
+                targetUser: targetUser,
+                visibleToAll: targetDepartment === 'all' && !targetUser,
                 delivererDonor,
                 delivererRecipient,
                 currency: 'ETB',
+                registeredBy: user?.uid,
+                registeredByName: user?.displayName || 'Unknown Clerk',
                 createdAt: new Date().toISOString(),
             });
             setSubmitStatus({ type: 'success', message: 'Receipt registered successfully!' });
@@ -267,6 +316,7 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
             setRows(Array.from({ length: 15 }, () => createEmptyRow()));
             setDelivererDonor(''); setDelivererRecipient('');
             setTargetDepartment('all');
+            setTargetUser('');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch {
             setSubmitStatus({ type: 'error', message: 'Error. Please try again.' });
@@ -410,50 +460,162 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
                         </div>
                     </div>
 
-                    {/* Department line - Dropdown Selector */}
-                    <div className="mb-8 relative w-[350px]">
-                        <div className="flex items-end">
-                            <span className="text-[14px] font-bold leading-tight mr-2">የ</span>
-                            <div className="flex-1 border-b border-black h-[22px] relative">
-                                <select
-                                    name="department"
-                                    value={headerData.department}
-                                    onChange={(e) => {
-                                        handleHeaderChange(e);
-                                        setTargetDepartment(e.target.value);
-                                    }}
-                                    className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold appearance-none cursor-pointer w-full"
-                                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
-                                >
-                                    <option value="">-- ክፍል ይምረጡ / Select --</option>
-                                    <option value="all">✦ ➡️ለሁሉም ክፍሎች / All Departments</option>
-                                    <optgroup label="── አካዳሚክ ክፍሎች / Academic ──">
-                                        {academicDepts.map(dept => (
-                                            <option key={dept.id} value={dept.id}>{dept.label}</option>
-                                        ))}
-                                    </optgroup>
-                                    <optgroup label="── አስተዳደር ክፍሎች / Administrative ──">
-                                        {adminDepts.map(dept => (
-                                            <option key={dept.id} value={dept.id}>{dept.label}</option>
-                                        ))}
-                                    </optgroup>
-                                    <optgroup label="── ሌሎች / Other ──">
-                                        <option value="academic_coordinator">Academic Coordinator</option>
-                                        <option value="procurement_team_leader">Procurement Team Leader</option>
-                                        <option value="fixed_asset_stock_clerk">Stock Clerk (Fixed Assets)</option>
-                                        <option value="consumable_item_stock_clerk">Stock Clerk (Consumable)</option>
-                                        <option value="fixed_asset_store_keeper">Store Keeper (Fixed Assets)</option>
-                                        <option value="consumable_item_store_keeper">Store Keeper (Consumable)</option>
-                                        <option value="managing_director">Managing Director</option>
-                                        <option value="general_service">General Service</option>
-                                        <option value="chief">Chief / Institution Head</option>
-                                    </optgroup>
-                                </select>
+                    {/* Assignment Target Selectors */}
+                    <div className="mb-8 flex flex-col gap-6">
+                        {/* 1. Department Selector */}
+                        <div className="relative w-[450px]">
+                            <div className="flex items-end">
+                                <span className="text-[14px] font-bold leading-tight mr-2">የ</span>
+                                <div className="flex-1 border-b border-black h-[22px] relative">
+                                    <select
+                                        name="department"
+                                        value={headerData.department}
+                                        onChange={(e) => {
+                                            handleHeaderChange(e);
+                                            setTargetDepartment(e.target.value);
+                                            setTargetUser(''); // Reset user when department changes
+                                        }}
+                                        className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold appearance-none cursor-pointer w-full"
+                                        style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                                    >
+                                        <option value="">-- ክፍል ይምረጡ / Select Department --</option>
+                                        <option value="all">✦ ➡️ለሁሉም ክፍሎች / All Departments</option>
+                                        <optgroup label="── አካዳሚክ ክፍሎች / Academic ──">
+                                            {academicDepts.map(dept => (
+                                                <option key={dept.id} value={dept.id}>{dept.label}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="── አስተዳደር ክፍሎች / Administrative ──">
+                                            {adminDepts.map(dept => (
+                                                <option key={dept.id} value={dept.id}>{dept.label}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="── ሌሎች / Other ──">
+                                            <option value="academic_coordinator">Academic Coordinator</option>
+                                            <option value="procurement_team_leader">Procurement Team Leader</option>
+                                            <option value="fixed_asset_stock_clerk">Stock Clerk (Fixed Assets)</option>
+                                            <option value="consumable_item_stock_clerk">Stock Clerk (Consumable)</option>
+                                            <option value="fixed_asset_store_keeper">Store Keeper (Fixed Assets)</option>
+                                            <option value="consumable_item_store_keeper">Store Keeper (Consumable)</option>
+                                            <option value="managing_director">Managing Director</option>
+                                            <option value="chief">Chief / Institution Head</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="text-[11px] italic ml-10 mt-1 leading-none">
+                                Department
                             </div>
                         </div>
-                        <div className="text-[11px] italic ml-10 mt-1 leading-none">
-                            Department
-                        </div>
+
+                        {/* 2. Specific User Selector (Native Dropdown) - Shown when department is selected */}
+                        {targetDepartment && targetDepartment !== 'all' && (
+                            <div className="relative w-[450px]">
+                                <div className="flex items-end">
+                                    <span className="text-[14px] font-bold leading-tight mr-2">ለ / User</span>
+                                    <div className="flex-1 border-b border-black h-[22px] relative">
+                                        <select
+                                            value={targetUser}
+                                            onChange={(e) => setTargetUser(e.target.value)}
+                                            className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold appearance-none cursor-pointer w-full px-1"
+                                            style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                                        >
+                                            <option value="">-- ማንኛውም ተጠቃሚ / Any User in Department --</option>
+                                            {(() => {
+                                                const groups: { [key: string]: typeof usersList } = {};
+
+                                                // Pre-fill all known departments so they always show up
+                                                [...academicDepts, ...adminDepts].forEach(d => {
+                                                    groups[d.id] = [];
+                                                });
+
+                                                usersList.forEach(u => {
+                                                    let normalizedKey = 'other';
+
+                                                    // Gather all possible strings that might contain the department
+                                                    const possibleStrings = [
+                                                        u.department, u.subRole, u.userRole, u.role, u.mainRole
+                                                    ].filter(Boolean).map(s => s!.toLowerCase().trim());
+
+                                                    const allDepts = [...academicDepts, ...adminDepts];
+
+                                                    // 1. Clean suffixes and match exactly
+                                                    let matched: any = null;
+                                                    const cleanStrings = possibleStrings.map(s => s.replace(/_(manager|management|leader|head|officer|staff|admin|coordinator|user|employee|keeper)$/, ''));
+                                                    matched = allDepts.find(d => cleanStrings.some(s => s === d.id || s === d.label.toLowerCase().replace(/\s+/g, '_')));
+
+                                                    // 2. Partial Match on ID (fallback)
+                                                    if (!matched) {
+                                                        matched = allDepts.find(d => possibleStrings.some(s => s.includes(d.id)));
+                                                    }
+
+                                                    // 3. Special hardcodes for mismatches
+                                                    if (!matched) {
+                                                        if (possibleStrings.some(s => s.includes('human_resource'))) {
+                                                            matched = allDepts.find(d => d.id === 'hrm');
+                                                        } else if (possibleStrings.some(s => s.includes('store'))) {
+                                                            matched = allDepts.find(d => d.id === 'store');
+                                                        } else if (possibleStrings.some(s => s.includes('procurement'))) {
+                                                            matched = allDepts.find(d => d.id === 'procurement_admin');
+                                                        }
+                                                    }
+
+                                                    if (matched) {
+                                                        normalizedKey = matched.id;
+                                                    } else {
+                                                        // Fallback logic for completely unknown departments
+                                                        if (possibleStrings.length > 0) {
+                                                            const fallback = possibleStrings[0].replace(/_(manager|leader|head|officer|staff|admin|coordinator|user|employee)$/, '');
+                                                            if (fallback !== 'admin' && fallback !== 'other') normalizedKey = fallback;
+                                                        }
+                                                    }
+
+                                                    if (!groups[normalizedKey]) groups[normalizedKey] = [];
+                                                    groups[normalizedKey].push(u);
+                                                });
+
+                                                const sortedDepts = Object.keys(groups).sort((a, b) => {
+                                                    if (targetDepartment && targetDepartment !== 'all') {
+                                                        const target = targetDepartment.toLowerCase().trim();
+                                                        if (a === target) return -1;
+                                                        if (b === target) return 1;
+                                                    }
+                                                    if (a === 'other') return 1;
+                                                    if (b === 'other') return -1;
+                                                    return a.localeCompare(b);
+                                                });
+
+                                                return sortedDepts.map(dept => {
+                                                    // Only show empty departments if it's the currently selected one, to avoid clutter
+                                                    if (groups[dept].length === 0 && dept !== targetDepartment) return null;
+
+                                                    const deptObj = [...academicDepts, ...adminDepts].find(x => x.id === dept);
+                                                    let dName = deptObj ? deptObj.label : dept.replace(/_/g, ' ');
+                                                    if (!deptObj) {
+                                                        dName = dName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                                    }
+
+                                                    return (
+                                                        <optgroup key={dept} label={`── ${dName} ──`}>
+                                                            {groups[dept].length > 0 ? (
+                                                                groups[dept].sort((a, b) => a.name.localeCompare(b.name)).map(u => (
+                                                                    <option key={u.id} value={u.id}>{u.name} {u.email ? `(${u.email})` : ''}</option>
+                                                                ))
+                                                            ) : (
+                                                                <option disabled value="">No users registered in {dName}</option>
+                                                            )}
+                                                        </optgroup>
+                                                    );
+                                                });
+                                            })()}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="text-[11px] italic ml-14 mt-1 leading-none">
+                                    Specific User Assignment
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Main Title Section */}

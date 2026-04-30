@@ -88,6 +88,7 @@ export default function ViewMaterialTransferRequestPage() {
                         requesterId: transfer.receiverId,
                         requesterName: transfer.receiverName,
                         department: receiverDepartment,
+                        status: 'accepted', // Reset status to accepted for the new owner
                         // Add a history entry showing the transfer
                         history: [
                             {

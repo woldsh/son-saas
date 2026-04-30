@@ -39,11 +39,10 @@ interface RequestJourney {
 
 const JOURNEY_STEPS = [
     { id: 'submission', label: 'Submission', status: 'pending', icon: FiFileText, description: 'Request submitted to Dept Head' },
-    { id: 'student_service_leader', label: 'Student Service Leader', status: 'pending_student_service_leader', icon: FiUserCheck, description: 'Student Service Leader Approval' },
+    { id: 'student_service_leader', label: 'Student Service Dean', status: 'pending_student_service_leader', icon: FiUserCheck, description: 'Student Service Dean Approval' },
     { id: 'dept_head', label: 'Dept Head', status: 'approved_by_head', icon: FiUserCheck, description: 'Department Head Approval' },
     { id: 'coordinator', label: 'Coordinator', status: 'approved_by_coordinator', icon: FiShield, description: 'Academic Coordinator Review' },
     { id: 'md', label: 'Director', status: 'approved_by_md', icon: FiBriefcase, description: 'Managing Director Authorization' },
-    { id: 'gs', label: 'General Service', status: 'forwarded_to_team_leader', icon: FiTruck, description: 'General Service Processing' },
     { id: 'team_leader', label: 'Team Leader', status: 'approved_by_procurement_team_leader', icon: FiActivity, description: 'Procurement Team Oversight' },
     { id: 'clerk', label: 'Store Clerk', status: 'approved_by_clerk', icon: FiBox, description: 'Clerk Verification' },
     { id: 'store', label: 'Store', status: 'completed', icon: FiCheckCircle, description: 'Final Store Fulfillment' }
@@ -122,12 +121,11 @@ export default function RequestJourneyView() {
             'approved_by_head': 2,
             'approved_by_coordinator': 3,
             'approved_by_md': 4,
-            'pending_general_service': 5,
-            'forwarded_to_team_leader': 5,
-            'pending_procurement': 5,
-            'approved_by_procurement_team_leader': 6,
-            'approved_by_clerk': 7,
-            'completed': 8
+            'forwarded_to_team_leader': 4,
+            'pending_procurement': 4,
+            'approved_by_procurement_team_leader': 5,
+            'approved_by_clerk': 6,
+            'completed': 7
         };
 
         const currentStepIndex = statusMap[requestStatus] ?? -1;
@@ -254,11 +252,18 @@ export default function RequestJourneyView() {
                                                     return ['md', 'team_leader', 'clerk', 'store'].includes(step.id);
                                                 }
 
+                                                // For Store Staff (Clerks & Keepers)
+                                                const isStoreStaff = userRole?.includes('stock_clerk') || userRole?.includes('store_keeper');
+                                                if (isStoreStaff) {
+                                                    // Specialized Journey: Submission -> MD -> Clerk -> Store
+                                                    return ['submission', 'md', 'clerk', 'store'].includes(step.id);
+                                                }
+
                                                 // For Top-Level Leaders (SSL, HRM, Finance), skip to MD directly (no SSL step)
                                                 const isTopLeader = userRole === 'student_service_leader' ||
                                                     userRole === 'hrm_leader' ||
                                                     userRole === 'finance_leader';
-                                                
+
                                                 // Existing logic for other role types...
                                                 if (isTopLeader && (step.id === 'submission' || step.id === 'student_service_leader' || step.id === 'dept_head' || step.id === 'coordinator')) return false;
 
@@ -267,29 +272,32 @@ export default function RequestJourneyView() {
                                                     userRole === 'student_service_sport_leader' ||
                                                     userRole === 'student_service_cafeteria_leader';
 
-                                                // For HRM and Finance Employees/Leaders
+                                                // For HRM and Finance Employees/Leaders (admin staff only, not academic departments)
                                                 const isHRMFlow = userRole?.includes('hrm');
-                                                const isFinanceFlow = userRole?.includes('finance');
+                                                const isFinanceFlow = userRole === 'finance_leader' || userRole === 'finance_employee';
 
                                                 if (isHRMFlow || isFinanceFlow) {
-                                                    if (step.id === 'submission' || step.id === 'student_service_leader' || step.id === 'coordinator') return false;
+                                                    if (step.id === 'student_service_leader' || step.id === 'coordinator') return false;
                                                 }
 
                                                 if (isServiceLeader && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator')) return false;
 
-                                                const isRegularEmployee = !isServiceLeader && !isTopLeader && (userRole?.includes('teacher') || userRole?.includes('employee') || userRole === 'standard_user');
-                                                if (isRegularEmployee && step.id === 'student_service_leader') return false;
+                                                const isTeacher = userRole?.includes('teacher');
+                                                const isStudentServiceEmployee = userRole === 'student_service_dormitory_employee' || userRole === 'student_service_cafeteria_employee' || userRole === 'student_service_sport_employee';
+                                                const isRegularEmployee = !isServiceLeader && !isTopLeader && (isTeacher || userRole?.includes('employee') || userRole === 'standard_user');
+                                                if (isRegularEmployee && !isStudentServiceEmployee && step.id === 'student_service_leader') return false;
+                                                if (isStudentServiceEmployee && step.id === 'coordinator') return false;
+                                                if (isTeacher && step.id === 'md') return false;
 
                                                 if (userRole?.includes('_head') && (step.id === 'submission' || step.id === 'student_service_leader')) return false;
+                                                if (userData?.subRole === 'department_head' && step.id === 'md') return false;
 
                                                 if (userRole === 'academic_coordinator' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
 
                                                 const isMD = userRole === 'managing_director' || userRole === 'managing_director_leader';
                                                 if (isMD && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'student_service_leader')) return false;
 
-                                                if (userRole === 'procurement_team_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'md' || step.id === 'gs' || step.id === 'student_service_leader')) return false;
-
-                                                if (userRole === 'general_service_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'student_service_leader')) return false;
+                                                if (userRole === 'procurement_team_leader' && (step.id === 'submission' || step.id === 'dept_head' || step.id === 'coordinator' || step.id === 'md' || step.id === 'student_service_leader')) return false;
 
                                                 return true;
                                             }).map((step, index) => {
@@ -302,6 +310,18 @@ export default function RequestJourneyView() {
                                                     stepStatus = 'completed';
                                                 } else if (currentStatusIndex === thisStepIndex - 1 || (request.status === 'pending_managing_director' && step.id === 'md')) {
                                                     stepStatus = 'current';
+                                                }
+
+                                                // Handle pending_department_leader status for student service employees
+                                                if (request.status === 'pending_department_leader') {
+                                                    const isSSEmp = userData?.userRole?.startsWith('student_service_') && userData?.userRole?.includes('employee');
+                                                    if (isSSEmp) {
+                                                        if (step.id === 'submission') stepStatus = 'completed';
+                                                        else if (step.id === 'student_service_leader') stepStatus = 'current';
+                                                    } else {
+                                                        if (step.id === 'submission') stepStatus = 'completed';
+                                                        else if (step.id === 'dept_head') stepStatus = 'current';
+                                                    }
                                                 }
 
                                                 const Icon = step.icon;
@@ -325,18 +345,48 @@ export default function RequestJourneyView() {
                                                     description = 'Request submitted to Managing Director';
                                                 }
 
+                                                const isStoreStaffFlow = userRole?.includes('stock_clerk') || userRole?.includes('store_keeper');
+                                                if (isStoreStaffFlow) {
+                                                    if (step.id === 'submission') {
+                                                        description = 'Request submitted to property management team leader';
+                                                    } else if (step.id === 'md') {
+                                                        label = 'Director';
+                                                        description = 'Managing Director Authorization';
+                                                    }
+                                                }
+
                                                 if (userRole?.includes('_head') && step.id === 'dept_head') {
                                                     label = 'Submission';
                                                     description = 'Request submitted to academic coordinator';
                                                 }
 
-                                                const isHRMOrFinance = userRole?.includes('hrm') || userRole?.includes('finance');
-                                                if (isHRMOrFinance && step.id === 'dept_head' && !isSpecializedTeamLeader) {
-                                                    label = isHRMOrFinance && userRole?.includes('leader') ? 'Submission' : 'Leader Approval';
-                                                    description = userRole?.includes('hrm') ? 'HRM Leader Review' : 'Finance Leader Review';
+                                                const isHRMOrFinance = userRole?.includes('hrm') || userRole === 'finance_leader' || userRole === 'finance_employee';
+                                                if (isHRMOrFinance && !isSpecializedTeamLeader) {
+                                                    if (step.id === 'submission') {
+                                                        description = userRole?.includes('hrm') ? 'Request submitted to HRM Leader' : 'Request submitted to Finance Leader';
+                                                    } else if (step.id === 'dept_head') {
+                                                        label = isHRMOrFinance && userRole?.includes('leader') ? 'Submission' : 'Leader Approval';
+                                                        description = userRole?.includes('hrm') ? 'HRM Leader Review' : 'Finance Leader Review';
+                                                    }
                                                 }
 
-                                                if ((userRole === 'academic_coordinator' || userRole === 'general_service_leader')) {
+                                                // Student Service Employee labels
+                                                const isSSEmployee = userRole === 'student_service_dormitory_employee' || userRole === 'student_service_cafeteria_employee' || userRole === 'student_service_sport_employee';
+                                                if (isSSEmployee) {
+                                                    if (step.id === 'submission') {
+                                                        description = userRole === 'student_service_dormitory_employee' ? 'Request submitted to Dormitory Leader' :
+                                                            userRole === 'student_service_cafeteria_employee' ? 'Request submitted to Cafeteria Leader' : 'Request submitted to Sport Leader';
+                                                    } else if (step.id === 'student_service_leader') {
+                                                        label = userRole === 'student_service_dormitory_employee' ? 'Dormitory Leader' :
+                                                            userRole === 'student_service_cafeteria_employee' ? 'Cafeteria Leader' : 'Sport Leader';
+                                                        description = 'Sub-Leader Approval';
+                                                    } else if (step.id === 'dept_head') {
+                                                        label = 'Student Service Dean';
+                                                        description = 'Student Service Dean Approval';
+                                                    }
+                                                }
+
+                                                if (userRole === 'academic_coordinator') {
                                                     if (step.id === 'coordinator') {
                                                         label = 'Submission';
                                                         description = 'Request submitted to managing director';
@@ -346,7 +396,7 @@ export default function RequestJourneyView() {
                                                 const isMD = userRole === 'managing_director' || userRole === 'managing_director_leader';
                                                 if (isMD && step.id === 'md') {
                                                     label = 'Submission';
-                                                    description = 'Request submitted to general service';
+                                                    description = 'Forwarded to Procurement';
                                                 }
 
                                                 if (userRole === 'procurement_team_leader' && step.id === 'team_leader') {

@@ -19,7 +19,6 @@ import {
     Truck,
     RotateCcw,
     Route,
-    Repeat,
     Package,
     FilePlus,
     History,
@@ -95,7 +94,6 @@ export default function AdminTeamLeaderSidebar() {
             subItems: [
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Truck },
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

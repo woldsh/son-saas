@@ -105,7 +105,7 @@ export default function UserReportView() {
         if (!db) return;
         const q = query(
             collection(db!, 'Request_materials'),
-            where('status', '==', 'processed_by_general_service')
+            where('status', '==', 'approved_by_md')
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -337,9 +337,7 @@ export default function UserReportView() {
                                 </div>
                                 <div className="text-right">
                                     <div className="mb-2">
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-black uppercase tracking-tighter shadow-sm border border-amber-200/50">
-                                            <FiTruck className="text-xs" /> Processed by General Service
-                                        </span>
+                                        <FiTruck className="text-xs" /> Authorized by MD
                                     </div>
                                     <div className="flex items-center justify-end gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white/50 px-3 py-1.5 rounded-xl border border-slate-100/50">
                                         <FiCalendar className="text-teal-500" />
@@ -439,7 +437,7 @@ export default function UserReportView() {
                             Team Leader Approval Protocol
                         </h4>
                         <p className="text-slate-400 text-lg font-medium max-w-4xl leading-relaxed opacity-80">
-                            Review material withdrawal requests processed by General Service. Your approval authorizes the final distribution of materials to requesting departments. Ensure all quantities and conditions are verified before approval.
+                            Review material withdrawal requests authorized by the Managing Director. Your approval authorizes the final distribution of materials to requesting departments. Ensure all quantities and conditions are verified before approval.
                         </p>
                     </div>
                 </div>

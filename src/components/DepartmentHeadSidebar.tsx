@@ -18,7 +18,6 @@ import {
     Package,
     RefreshCw,
     RotateCcw,
-    Repeat,
     Send,
     FileBarChart,
     ArrowRightLeft,
@@ -121,7 +120,6 @@ export default function DepartmentHeadSidebar() {
             subItems: [
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft, badge: transferCount },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

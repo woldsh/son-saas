@@ -36,23 +36,70 @@ export default function ExpiryAlertsContent() {
             const thirtyDaysFromNow = new Date();
             thirtyDaysFromNow.setDate(now.getDate() + 30);
 
-            const expiringItems = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as Material))
-                .filter(m => m.expiryDate) // Only items with expiry
-                .map(m => {
-                    const exp = new Date(m.expiryDate!);
+            const expiringItems: any[] = [];
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+
+                const processItem = (qty: number, matName: string, matCode: string, cat: string, loc: string, unit: string, expDate?: string, img?: string) => {
+                    if (!expDate) return;
+
+                    const exp = new Date(expDate);
                     let status: 'expired' | 'expiring' | 'good' = 'good';
                     let daysRem = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
                     if (exp < now) status = 'expired';
                     else if (exp <= thirtyDaysFromNow) status = 'expiring';
 
-                    return { ...m, status, daysRem };
-                })
-                .filter(m => m.status !== 'good') // Keep only expired or expiring soon
-                .sort((a, b) => a.daysRem - b.daysRem); // Sort by days remaining (ascending)
+                    if (status !== 'good') {
+                        expiringItems.push({
+                            id: `${docSnap.id}-${matName}`,
+                            materialName: matName,
+                            materialCode: matCode,
+                            category: cat,
+                            quantity: qty,
+                            unit: unit,
+                            storeLocation: loc,
+                            expiryDate: expDate,
+                            image: img,
+                            status,
+                            daysRem
+                        });
+                    }
+                };
 
-            setMaterials(expiringItems as any);
+                if (data.items && Array.isArray(data.items) && (data.formType === 'receipt_for_articles' || (data.items.length > 0 && !data.materialName))) {
+                    // Model 19 structure
+                    data.items.forEach((item: any) => {
+                        if (item.description) {
+                            processItem(
+                                Number(item.quantity) || 0,
+                                item.description,
+                                item.code || data.model19Number || 'N/A',
+                                item.category || data.category || '',
+                                item.location || data.storeLocation || '',
+                                item.unit || data.unit || 'pcs',
+                                item.expiryDate || data.expiryDate,
+                                item.image || item.imageUrl || data.image
+                            );
+                        }
+                    });
+                } else if (data.materialName) {
+                    // Standard structure
+                    processItem(
+                        Number(data.quantity) || 0,
+                        data.materialName,
+                        data.materialCode || 'N/A',
+                        data.category || '',
+                        data.storeLocation || '',
+                        data.unit || 'pcs',
+                        data.expiryDate,
+                        data.image
+                    );
+                }
+            });
+
+            expiringItems.sort((a, b) => a.daysRem - b.daysRem);
+            setMaterials(expiringItems);
             setLoading(false);
         } catch (error) {
             console.error("Error fetching expiry data:", error);

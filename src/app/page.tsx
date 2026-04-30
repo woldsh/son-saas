@@ -1,22 +1,17 @@
 'use client';
 
+// Triggering re-compile after directory structure cleanup
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Building2,
   ChevronRight,
-  Package,
-  ShieldCheck,
   GraduationCap,
-  Globe2,
-  Users,
   Menu,
   X,
   Lock,
   ArrowUpRight,
   Layers,
-  Zap,
   Cpu,
   MousePointer2,
   BarChart3,
@@ -144,12 +139,12 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10 pt-32 pb-20 w-full">
-          <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
+          <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
             {/* Left Content */}
             <motion.div
               initial="hidden"
               animate="visible"
-              className="space-y-8"
+              className="space-y-8 flex flex-col items-center"
             >
               <motion.div
                 variants={fadeUp}
@@ -174,13 +169,13 @@ export default function LandingPage() {
                   {t('heroProperty')}
                 </span>
                 <br />
-                <span className="text-[0.8em] font-medium opacity-80">at Burie Campus</span>
+                <span className="text-[0.8em] font-medium opacity-80">{t('heroCampus')}</span>
               </motion.h1>
 
               <motion.p
                 variants={fadeUp}
                 custom={2}
-                className="text-lg leading-relaxed max-w-xl text-slate-500"
+                className="text-lg leading-relaxed max-w-2xl text-slate-500"
               >
                 {t('heroSub')}
               </motion.p>
@@ -196,178 +191,7 @@ export default function LandingPage() {
 
               </motion.div>
 
-              {/* Trust Indicators */}
-              <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center gap-5 pt-6">
-                {[
-                  { icon: <ShieldCheck size={15} />, text: 'SSL Secured', color: 'text-emerald-500' },
-                  { icon: <Zap size={15} />, text: 'Real-time Sync', color: 'text-amber-500' },
-                  { icon: <Globe2 size={15} />, text: 'Multi-language', color: 'text-blue-500' },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <div className={`w-7 h-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center ${item.color}`}>
-                      {item.icon}
-                    </div>
-                    {item.text}
-                  </div>
-                ))}
-              </motion.div>
-            </motion.div>
 
-            {/* Right - Interactive Dashboard Mockup */}
-            <motion.div
-              initial={{ opacity: 0, y: 60 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 1, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              className="relative hidden lg:flex items-center justify-center"
-            >
-              <div className="relative w-[480px] h-[480px] flex items-center justify-center">
-                {/* Outer decorative ring */}
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
-                  className="absolute inset-0 rounded-full"
-                  style={{ background: 'conic-gradient(from 0deg, transparent, rgba(99,102,241,0.08), transparent, rgba(139,92,246,0.06), transparent)' }}
-                />
-                <div className="absolute inset-[3px] rounded-full bg-white" />
-
-                {/* Animated ring pulse */}
-                <motion.div
-                  animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.1, 0.3] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute inset-[-20px] rounded-full border border-indigo-200/30"
-                />
-                <motion.div
-                  animate={{ scale: [1, 1.08, 1], opacity: [0.2, 0.05, 0.2] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute inset-[-40px] rounded-full border border-violet-200/20"
-                />
-
-                {/* Main Dashboard Card */}
-                <motion.div
-                  animate={{ y: [0, -6, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                  className="relative z-10 w-[320px] bg-white rounded-2xl shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden"
-                >
-                  {/* Dashboard Header */}
-                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
-                        <Building2 className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-bold text-slate-800">DMU Dashboard</div>
-                        <div className="text-[9px] text-slate-400">Property Management</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <div className="w-2 h-2 rounded-full bg-amber-400" />
-                      <div className="w-2 h-2 rounded-full bg-rose-400" />
-                    </div>
-                  </div>
-                  {/* Stats Row */}
-                  <div className="px-5 py-3 flex gap-3">
-                    {[
-                      { value: '2,847', label: 'Assets', color: 'from-indigo-500 to-blue-500' },
-                      { value: '156', label: 'Active', color: 'from-emerald-500 to-teal-500' },
-                      { value: '99.8%', label: 'Uptime', color: 'from-violet-500 to-purple-500' },
-                    ].map((stat, i) => (
-                      <div key={i} className="flex-1 bg-slate-50 rounded-lg p-2.5 text-center">
-                        <div className={`text-sm font-extrabold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>{stat.value}</div>
-                        <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">{stat.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Activity Bars */}
-                  <div className="px-5 pb-4 space-y-2">
-                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Weekly Activity</div>
-                    <div className="flex items-end gap-1.5 h-14">
-                      {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ height: 0 }}
-                          animate={{ height: `${h}%` }}
-                          transition={{ duration: 0.8, delay: 0.8 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                          className={`flex-1 rounded-md ${i === 5 ? 'bg-gradient-to-t from-indigo-600 to-violet-500' : 'bg-gradient-to-t from-slate-200 to-slate-100'
-                            }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Floating Cards */}
-                {/* Top-right notification card */}
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0, y: [0, -8, 0] }}
-                  transition={{ y: { duration: 3, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.6, delay: 0.8 }, x: { duration: 0.6, delay: 0.8 } }}
-                  className="absolute top-[12%] -right-[10%] z-20 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 px-4 py-3 flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <ShieldCheck size={14} className="text-emerald-500" />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold text-slate-800">System Secure</div>
-                    <div className="text-[9px] text-emerald-500 font-semibold">All systems operational</div>
-                  </div>
-                </motion.div>
-
-                {/* Bottom-left users card */}
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0, y: [0, -6, 0] }}
-                  transition={{ y: { duration: 3.5, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.6, delay: 1 }, x: { duration: 0.6, delay: 1 } }}
-                  className="absolute bottom-[15%] -left-[12%] z-20 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 px-4 py-3"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users size={12} className="text-indigo-500" />
-                    <span className="text-[10px] font-bold text-slate-800">Active Users</span>
-                  </div>
-                  <div className="flex -space-x-2">
-                    {['bg-indigo-400', 'bg-violet-400', 'bg-blue-400', 'bg-cyan-400'].map((color, i) => (
-                      <div key={i} className={`w-6 h-6 rounded-full ${color} border-2 border-white flex items-center justify-center`}>
-                        <span className="text-[7px] font-bold text-white">{String.fromCharCode(65 + i)}</span>
-                      </div>
-                    ))}
-                    <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center">
-                      <span className="text-[7px] font-bold text-slate-500">+12</span>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Top-left package card */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: [0, -10, 0] }}
-                  transition={{ y: { duration: 4, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.6, delay: 1.2 } }}
-                  className="absolute top-[8%] -left-[5%] z-20 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 px-4 py-3 flex items-center gap-3"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Package size={14} className="text-amber-500" />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold text-slate-800">+24 Items</div>
-                    <div className="text-[9px] text-slate-400 font-medium">Added today</div>
-                  </div>
-                </motion.div>
-
-                {/* Decorative connector lines */}
-                <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none" viewBox="0 0 480 480">
-                  <motion.circle cx="240" cy="240" r="160" fill="none" stroke="url(#heroGrad)" strokeWidth="1" strokeDasharray="8 8"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-                    style={{ transformOrigin: '240px 240px' }}
-                  />
-                  <defs>
-                    <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
-                      <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.1" />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity="0.2" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
             </motion.div>
           </div>
         </div>

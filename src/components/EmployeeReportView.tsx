@@ -57,6 +57,8 @@ interface EmployeeSummary {
     lastReportDate: any;
     reportCount: number;
     photoURL?: string;
+    materialNames: string[];
+    itemsBreakdown: Record<string, number>;
 }
 
 interface MaterialInventoryData {
@@ -82,6 +84,14 @@ interface MaterialInventoryData {
     unit: string;
     unitPrice: number;
     vendorName: string;
+    items?: any[];
+    expenditureRegistryNo?: string;
+    receiptNo?: string;
+    incomingGoodsEntryNo?: string;
+    classificationOfStock?: string;
+    storeNo?: string;
+    shelfNo?: string;
+    outgoingGoodsEntryNo?: string;
 }
 
 interface EmployeeReportViewProps {
@@ -105,6 +115,7 @@ export default function EmployeeReportView({
     const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
     const [employeeProfiles, setEmployeeProfiles] = useState<Record<string, { photoURL?: string; email?: string; role?: string; mainRole?: string }>>({});
     const [materialDetails, setMaterialDetails] = useState<Record<string, MaterialInventoryData>>({});
+    const [materialSearchTerm, setMaterialSearchTerm] = useState('');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -152,7 +163,6 @@ export default function EmployeeReportView({
         return () => unsubscribe();
     }, []);
 
-    // Derive unique employees and their stats
     const employees = useMemo(() => {
         const empMap = new Map<string, EmployeeSummary>();
 
@@ -160,8 +170,18 @@ export default function EmployeeReportView({
             if (!report.requesterId) return;
 
             const existing = empMap.get(report.requesterId);
+            const qty = Number(report.quantity) || 1;
+            const matName = report.materialName || 'Unknown Material';
+
             if (existing) {
                 existing.totalReports += 1;
+                if (!existing.materialNames.includes(matName)) {
+                    existing.materialNames.push(matName);
+                }
+
+                // Track item counts
+                existing.itemsBreakdown[matName] = (existing.itemsBreakdown[matName] || 0) + qty;
+
                 // Update last report date if this one is newer
                 const currentLast = existing.lastReportDate?.toDate?.() || new Date(0);
                 const reportDate = report.createdAt?.toDate?.() || new Date(0);
@@ -175,7 +195,9 @@ export default function EmployeeReportView({
                     department: report.department || 'General Staff',
                     totalReports: 1,
                     lastReportDate: report.createdAt,
-                    reportCount: 1
+                    reportCount: 1,
+                    materialNames: [matName],
+                    itemsBreakdown: { [matName]: qty }
                 });
             }
         });
@@ -196,43 +218,45 @@ export default function EmployeeReportView({
     // Fetch material inventory details for the reports shown
     useEffect(() => {
         const fetchMaterialDetails = async () => {
-            const uniqueCodes = Array.from(new Set(reports.map(r => r.materialCode).filter(Boolean)));
-            const newDetails: Record<string, MaterialInventoryData> = { ...materialDetails };
-            let updated = false;
+            if (!db) return;
 
-            const codesToFetch = uniqueCodes.filter(code => !newDetails[code]);
+            try {
+                // To be robust, we fetch all unique materials once. 
+                // In a larger system, we'd be more selective, but for this form, 
+                // we need to ensure we find the inventory metadata (store no, shelf no, etc.)
+                const materialsSnap = await getDocs(collection(db!, 'materials'));
+                const newDetails: Record<string, MaterialInventoryData> = {};
 
-            if (codesToFetch.length > 0) {
-                try {
-                    // Firestore 'in' query supports up to 10-30 items depending on version, 
-                    // splitting into chunks of 10 for safety
-                    for (let i = 0; i < codesToFetch.length; i += 10) {
-                        const chunk = codesToFetch.slice(i, i + 10);
-                        const q = query(
-                            collection(db!, 'materials'),
-                            where('materialCode', 'in', chunk)
-                        );
-                        const snap = await getDocs(q);
-                        snap.forEach(doc => {
-                            const data = doc.data() as MaterialInventoryData;
-                            newDetails[data.materialCode] = data;
-                            updated = true;
+                materialsSnap.forEach(doc => {
+                    const data = doc.data() as MaterialInventoryData;
+                    // Index by materialCode for direct lookup
+                    if (data.materialCode) {
+                        newDetails[data.materialCode] = data;
+                    }
+                    // Index by top-level name
+                    if (data.materialName) {
+                        newDetails[data.materialName.trim().toLowerCase()] = data;
+                    }
+                    // Index by sub-item names (Model 19 structure)
+                    const matAny = data as any;
+                    if (matAny.items && Array.isArray(matAny.items)) {
+                        matAny.items.forEach((subItem: any) => {
+                            const subName = subItem.description || subItem.materialName;
+                            if (subName) {
+                                newDetails[subName.trim().toLowerCase()] = data; // Link sub-item name to parent doc
+                            }
                         });
                     }
-                } catch (e) {
-                    console.error("Error fetching material details:", e);
-                }
-            }
+                });
 
-            if (updated) {
-                setMaterialDetails(newDetails);
+                setMaterialDetails(prev => ({ ...prev, ...newDetails }));
+            } catch (e) {
+                console.error("Error fetching material details:", e);
             }
         };
 
-        if (reports.length > 0) {
-            fetchMaterialDetails();
-        }
-    }, [reports]);
+        fetchMaterialDetails();
+    }, []); // Run once on mount to cache material info
 
     // Fetch employee profiles (avatars, emails, roles)
     useEffect(() => {
@@ -273,13 +297,20 @@ export default function EmployeeReportView({
     const [activeTab, setActiveTab] = useState<'all' | 'academic' | 'administrative'>('all');
 
     const filteredEmployees = employees.filter(emp => {
-        const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.department.toLowerCase().includes(searchTerm.toLowerCase());
+        const term = searchTerm.toLowerCase();
+        const matchesSearch =
+            emp.name.toLowerCase().includes(term) ||
+            emp.department.toLowerCase().includes(term) ||
+            emp.materialNames.some(m => m.toLowerCase().includes(term));
 
         const profile = employeeProfiles[emp.uid];
+        const roleStr = profile?.role || '';
+        const isAcademic = roleStr === 'academic_coordinator' || roleStr.endsWith('_teacher') || roleStr.endsWith('_head');
+
         const roleMatch =
             activeTab === 'all' ? true :
-                activeTab === 'academic' ? profile?.mainRole === 'academic_staff' :
-                    activeTab === 'administrative' ? profile?.mainRole === 'admin_staff' : true;
+                activeTab === 'academic' ? isAcademic :
+                    activeTab === 'administrative' ? !isAcademic : true;
 
         return matchesSearch && roleMatch;
     });
@@ -322,7 +353,7 @@ export default function EmployeeReportView({
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-10 animate-in fade-in duration-700">
+        <div className="max-w-[1600px] mx-auto p-2 md:p-4 space-y-4 animate-in fade-in duration-700">
             <AnimatePresence mode="wait">
                 {!selectedEmployee ? (
                     /* Directory View */
@@ -334,50 +365,53 @@ export default function EmployeeReportView({
                         className="space-y-4"
                     >
                         {/* Streamlined Header & Controls */}
-                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 mb-2">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-4">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-800 leading-tight">
                                     Employee Directory
                                 </h2>
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-slate-500 mt-1 font-medium text-indigo-600">
                                     Material Withdrawal Intelligence Tracking
                                 </p>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-                                {/* Segmented Controls for Categories */}
-                                <div className="flex items-center p-1 bg-slate-100 rounded-lg w-full sm:w-auto">
-                                    {[
-                                        { id: 'all', label: 'All' },
-                                        { id: 'academic', label: 'Academic' },
-                                        { id: 'administrative', label: 'Admin' }
-                                    ].map((tab) => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id as any)}
-                                            className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === tab.id
-                                                    ? 'bg-white text-indigo-600 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                                                }`}
-                                        >
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Compact Search */}
-                                <div className="relative w-full sm:w-64">
-                                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search employee or dept..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-xs font-medium text-slate-700 shadow-sm h-[32px]"
-                                    />
-                                </div>
+                            {/* Prominent Search */}
+                            <div className="relative w-full lg:w-96">
+                                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500 text-base" />
+                                <input
+                                    type="text"
+                                    placeholder="Search name, department, or material name..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-slate-100 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-semibold text-slate-700 shadow-sm"
+                                />
                             </div>
                         </div>
+
+                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                            {/* Segmented Controls for Categories */}
+                            <div className="flex items-center p-1 bg-slate-100 rounded-lg w-full sm:w-auto">
+                                {[
+                                    { id: 'all', label: 'All' },
+                                    { id: 'academic', label: 'Academic' },
+                                    { id: 'administrative', label: 'Admin' }
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`flex-1 sm:flex-none px-4 py-1.5 text-xs font-bold rounded-md transition-all ${activeTab === tab.id
+                                            ? 'bg-white text-indigo-600 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                                            }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+
+
+                        </div>
+
 
                         {/* Table View */}
                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -438,9 +472,18 @@ export default function EmployeeReportView({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-2 text-center">
-                                                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full text-[11px]">
-                                                            {emp.totalReports}
-                                                        </span>
+                                                        <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-[250px] mx-auto">
+                                                            {Object.entries(emp.itemsBreakdown).slice(0, 3).map(([name, qty]) => (
+                                                                <span key={name} className="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100 whitespace-nowrap">
+                                                                    {qty} {name}
+                                                                </span>
+                                                            ))}
+                                                            {Object.keys(emp.itemsBreakdown).length > 3 && (
+                                                                <span className="text-[10px] text-slate-400 font-medium italic">
+                                                                    +{Object.keys(emp.itemsBreakdown).length - 3} more
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-2 text-right">
                                                         <button className="text-indigo-600 hover:text-indigo-800 font-semibold text-[13px] flex items-center justify-end gap-1 ml-auto">
@@ -480,8 +523,8 @@ export default function EmployeeReportView({
                                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 disabled={currentPage === 1}
                                                 className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${currentPage === 1
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
                                             >
                                                 Previous
@@ -498,8 +541,8 @@ export default function EmployeeReportView({
                                                                 key={idx}
                                                                 onClick={() => setCurrentPage(page)}
                                                                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold transition-all ${currentPage === page
-                                                                        ? 'bg-indigo-600 text-white shadow-sm'
-                                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                                     }`}
                                                             >
                                                                 {page}
@@ -518,8 +561,8 @@ export default function EmployeeReportView({
                                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                                 disabled={currentPage === totalPages}
                                                 className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${currentPage === totalPages
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
                                             >
                                                 Next
@@ -537,10 +580,10 @@ export default function EmployeeReportView({
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        className="space-y-8"
+                        className="space-y-4"
                     >
-                        {/* Detail Header (Compact) */}
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative">
+                        {/* Detail Header (Condensed) */}
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-5 relative">
                             <button
                                 onClick={() => setSelectedEmployee(null)}
                                 className="absolute top-6 right-6 p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
@@ -553,21 +596,21 @@ export default function EmployeeReportView({
                                 const profile = employeeProfiles[selectedEmployee.uid];
                                 return (
                                     <>
-                                        <div className="w-20 h-20 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                        <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                                             {profile?.photoURL ? (
                                                 <img src={profile.photoURL} alt={selectedEmployee.name} className="w-full h-full object-cover" />
                                             ) : (
-                                                <FiUser className="text-3xl text-slate-300" />
+                                                <FiUser className="text-2xl text-slate-300" />
                                             )}
                                         </div>
 
-                                        <div className="flex-1 text-center md:text-left space-y-3 pt-2">
+                                        <div className="flex-1 text-center md:text-left space-y-2 pt-1">
                                             <div>
-                                                <h3 className="text-2xl font-bold text-slate-800">
+                                                <h3 className="text-xl font-bold text-slate-800">
                                                     {selectedEmployee.name}
                                                 </h3>
                                                 {profile?.email && (
-                                                    <p className="text-sm text-slate-500 flex items-center justify-center md:justify-start gap-1 mt-0.5">
+                                                    <p className="text-xs text-slate-500 flex items-center justify-center md:justify-start gap-1 mt-0.5">
                                                         <FiMail /> {profile.email}
                                                     </p>
                                                 )}
@@ -583,7 +626,7 @@ export default function EmployeeReportView({
                                                     </span>
                                                 )}
                                                 <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-xs font-semibold flex items-center gap-1.5">
-                                                    <FiBox className="text-indigo-400" /> {selectedEmployee.totalReports} Items
+                                                    <FiBox className="text-indigo-400" /> {Object.values(selectedEmployee.itemsBreakdown).reduce((a, b) => a + b, 0)} Total Items
                                                 </span>
                                             </div>
                                         </div>
@@ -592,24 +635,39 @@ export default function EmployeeReportView({
                             })()}
                         </div>
 
-                        {/* Material Selection Tabs */}
+                        {/* Material Selection & Search */}
                         {uniqueMaterials.length > 0 ? (
-                            <div className="flex flex-col gap-3">
-                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest pl-1">Materials History</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {uniqueMaterials.map(mat => (
-                                        <button
-                                            key={mat}
-                                            onClick={() => setSelectedMaterialFilter(mat)}
-                                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${selectedMaterialFilter === mat
-                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105'
-                                                    : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'
-                                                }`}
-                                        >
-                                            <FiPackage className={selectedMaterialFilter === mat ? 'text-indigo-200' : 'text-slate-400'} />
-                                            {mat}
-                                        </button>
-                                    ))}
+                            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-2 px-2 border-r border-slate-100 hidden md:flex">
+                                    <FiPackage className="text-indigo-500 text-lg" />
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                                        Material View:
+                                    </h4>
+                                </div>
+
+                                <select
+                                    value={selectedMaterialFilter || ''}
+                                    onChange={(e) => setSelectedMaterialFilter(e.target.value)}
+                                    className="w-full md:w-80 bg-white border-2 border-indigo-50 rounded-lg px-4 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all cursor-pointer shadow-sm"
+                                >
+                                    <option value="">Select a material to view Model 22...</option>
+                                    {uniqueMaterials
+                                        .filter(mat => mat.toLowerCase().includes(materialSearchTerm.toLowerCase()))
+                                        .map(mat => (
+                                            <option key={mat} value={mat}>{mat}</option>
+                                        ))}
+                                </select>
+
+                                {/* Search Materials within Employee */}
+                                <div className="relative flex-1">
+                                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search materials..."
+                                        value={materialSearchTerm}
+                                        onChange={(e) => setMaterialSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                                    />
                                 </div>
                             </div>
                         ) : (
@@ -626,6 +684,7 @@ export default function EmployeeReportView({
                                         employeeName={selectedEmployee.name}
                                         department={selectedEmployee.department?.replace(/_/g, ' ') || 'General'}
                                         reports={filteredReportsForModel22}
+                                        materialDetails={materialDetails}
                                     />
                                 </div>
                             </div>

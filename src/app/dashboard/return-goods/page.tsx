@@ -12,7 +12,7 @@ import {
     FiFileText, FiBox, FiClock, FiCheckCircle, FiXCircle, FiArrowRight,
     FiPackage, FiTag
 } from 'react-icons/fi';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserReportItem {
@@ -57,12 +57,17 @@ export default function ReturnGoodsPage() {
     const [transfers, setTransfers] = useState<TransferRecord[]>([]);
     const [userName, setUserName] = useState('');
 
+    // User Search State
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showResults, setShowResults] = useState(false);
+
     useEffect(() => {
         if (!user || !db) return;
 
         const fetchUserName = async () => {
             if (!db) return;
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const userDoc = await getDoc(doc(db!, 'users', user.uid));
             if (userDoc.exists()) {
                 setUserName(userDoc.data().displayName || '');
             }
@@ -71,7 +76,7 @@ export default function ReturnGoodsPage() {
 
         // Real-time listener for User-Report (materials taken out from store)
         const q = query(
-            collection(db, 'User-Report'),
+            collection(db!, 'User-Report'),
             where('requesterId', '==', user.uid),
         );
 
@@ -89,7 +94,7 @@ export default function ReturnGoodsPage() {
         // Fetch transfer history
         const fetchTransfers = async () => {
             if (!db) return;
-            const transfersRef = collection(db, 'Material_transfers');
+            const transfersRef = collection(db!, 'Material_transfers');
             const tq = query(transfersRef, where('senderId', '==', user.uid), orderBy('createdAt', 'desc'));
             const tSnapshot = await getDocs(tq);
             setTransfers(tSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransferRecord)));
@@ -98,6 +103,48 @@ export default function ReturnGoodsPage() {
 
         return () => unsubscribe();
     }, [user]);
+
+    // Handle User Search
+    useEffect(() => {
+        const searchUsers = async () => {
+            if (!receiverName.trim() || receiverName.length < 2) {
+                setSearchResults([]);
+                return;
+            }
+
+            setIsSearching(true);
+            try {
+                const usersRef = collection(db!, 'users');
+                const q = query(usersRef);
+                const snapshot = await getDocs(q);
+
+                const filtered = snapshot.docs
+                    .map(uDoc => ({ id: uDoc.id, ...uDoc.data() }))
+                    .filter((u: any) =>
+                        (u.id !== user?.uid && u.email !== user?.email) && (
+                            u.displayName?.toLowerCase().includes(receiverName.toLowerCase()) ||
+                            u.email?.toLowerCase().includes(receiverName.toLowerCase())
+                        )
+                    )
+                    .slice(0, 5); // Limit results
+
+                setSearchResults(filtered);
+            } catch (error) {
+                console.error("Error searching users:", error);
+            } finally {
+                setIsSearching(false);
+            }
+        };
+
+        const timeoutId = setTimeout(searchUsers, 300);
+        return () => clearTimeout(timeoutId);
+    }, [receiverName]);
+
+    const handleSelectUser = (u: any) => {
+        setReceiverName(u.displayName || '');
+        setReceiverEmail(u.email || '');
+        setShowResults(false);
+    };
 
     const toggleMaterial = (id: string) => {
         const newSelected = new Set(selectedIds);
@@ -127,7 +174,7 @@ export default function ReturnGoodsPage() {
                 userReportId: m.id,
             }));
 
-            await addDoc(collection(db, 'Material_transfers'), {
+            await addDoc(collection(db!, 'Material_transfers'), {
                 senderId: user.uid,
                 senderName: userName || user.displayName || 'Unknown',
                 senderEmail: user.email,
@@ -150,7 +197,7 @@ export default function ReturnGoodsPage() {
             setReason('');
 
             // Refresh transfers
-            const transfersRef = collection(db, 'Material_transfers');
+            const transfersRef = collection(db!, 'Material_transfers');
             const tq = query(transfersRef, where('senderId', '==', user.uid), orderBy('createdAt', 'desc'));
             const tSnapshot = await getDocs(tq);
             setTransfers(tSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransferRecord)));
@@ -176,7 +223,7 @@ export default function ReturnGoodsPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center p-12 min-h-screen bg-slate-50">
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center space-y-4"
@@ -192,7 +239,7 @@ export default function ReturnGoodsPage() {
         <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
@@ -215,7 +262,7 @@ export default function ReturnGoodsPage() {
                 {/* Success Banner */}
                 <AnimatePresence>
                     {submitted && (
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: -10, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: -10, scale: 0.98 }}
@@ -235,7 +282,7 @@ export default function ReturnGoodsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Left Column: My Materials */}
                     <div className="lg:col-span-7 space-y-6">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
@@ -253,7 +300,7 @@ export default function ReturnGoodsPage() {
                                 </div>
                                 <AnimatePresence>
                                     {selectedIds.size > 0 && (
-                                        <motion.span 
+                                        <motion.span
                                             initial={{ scale: 0.9, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
                                             exit={{ scale: 0.9, opacity: 0 }}
@@ -288,14 +335,14 @@ export default function ReturnGoodsPage() {
                                                     transition={{ delay: index * 0.05 }}
                                                     key={mat.id}
                                                     onClick={() => toggleMaterial(mat.id)}
-                                                    className={`p-4 m-2 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition-all border ${isSelected 
-                                                        ? 'bg-blue-50/50 border-blue-200' 
+                                                    className={`p-4 m-2 rounded-xl flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition-all border ${isSelected
+                                                        ? 'bg-blue-50/50 border-blue-200'
                                                         : 'border-transparent hover:bg-slate-50 hover:border-slate-200'}`}
                                                 >
                                                     {/* Checkbox & Image container */}
                                                     <div className="flex items-center gap-4 w-full sm:w-auto">
-                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected 
-                                                            ? 'bg-blue-600 border-blue-600 text-white' 
+                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${isSelected
+                                                            ? 'bg-blue-600 border-blue-600 text-white'
                                                             : 'border border-slate-300 bg-white'}`}>
                                                             {isSelected && <FiCheckSquare className="text-xs" />}
                                                         </div>
@@ -307,7 +354,7 @@ export default function ReturnGoodsPage() {
                                                                 <FiBox className="text-xl text-slate-300" />
                                                             )}
                                                         </div>
-                                                        
+
                                                         <div className="flex-1 min-w-0 sm:hidden">
                                                             <h3 className="font-semibold text-slate-900 text-sm truncate">{mat.materialName}</h3>
                                                             <p className="text-xs text-slate-500 mt-0.5">{mat.quantity} {mat.unit}</p>
@@ -340,7 +387,7 @@ export default function ReturnGoodsPage() {
 
                     {/* Right Column: Transfer Form */}
                     <div className="lg:col-span-5 space-y-8">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
@@ -362,7 +409,7 @@ export default function ReturnGoodsPage() {
                                 {/* Selected indicator */}
                                 <AnimatePresence>
                                     {selectedMaterials.length > 0 && (
-                                        <motion.div 
+                                        <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: 'auto' }}
                                             exit={{ opacity: 0, height: 0 }}
@@ -382,7 +429,7 @@ export default function ReturnGoodsPage() {
                                 </AnimatePresence>
 
                                 <div className="space-y-4">
-                                    <div className="space-y-1.5">
+                                    <div className="space-y-1.5 relative">
                                         <label className="text-sm font-semibold text-slate-700">
                                             {t('receiver_name') || "Receiver Name"}
                                         </label>
@@ -391,13 +438,60 @@ export default function ReturnGoodsPage() {
                                             <input
                                                 type="text"
                                                 value={receiverName}
-                                                onChange={(e) => setReceiverName(e.target.value)}
-                                                placeholder="e.g. John Doe"
-                                                className="w-full pl-10 pr-4 py-2.5 bg-white rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-800 placeholder:text-slate-400"
+                                                onChange={(e) => {
+                                                    setReceiverName(e.target.value);
+                                                    setShowResults(true);
+                                                }}
+                                                onFocus={() => setShowResults(true)}
+                                                placeholder={t('search_user_placeholder') || "Search user by name or email..."}
+                                                className="w-full pl-10 pr-4 py-2.5 bg-blue-50/50 border-2 border-blue-100 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-400"
                                             />
+                                            {isSearching && (
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                    <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                                                </div>
+                                            )}
+
+                                            {/* Search Results Dropdown */}
+                                            <AnimatePresence>
+                                                {showResults && (receiverName.length >= 2) && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: 10 }}
+                                                        className="absolute z-[60] left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-blue-500/10 overflow-hidden"
+                                                    >
+                                                        {searchResults.length > 0 ? (
+                                                            <div className="p-2">
+                                                                {searchResults.map((u) => (
+                                                                    <button
+                                                                        key={u.id}
+                                                                        onClick={() => handleSelectUser(u)}
+                                                                        className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 rounded-xl transition-colors text-left group"
+                                                                    >
+                                                                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                                                            <FiUser />
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className="text-sm font-bold text-slate-900 truncate">{u.displayName}</p>
+                                                                            <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                                                                        </div>
+                                                                        <UserCheck className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        ) : !isSearching ? (
+                                                            <div className="p-8 text-center">
+                                                                <Search className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No users found</p>
+                                                            </div>
+                                                        ) : null}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-semibold text-slate-700">
                                             {t('receiver_email') || "Receiver Email"}
@@ -458,7 +552,7 @@ export default function ReturnGoodsPage() {
                 {/* Transfer History */}
                 <AnimatePresence>
                     {transfers.length > 0 && (
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
@@ -476,11 +570,11 @@ export default function ReturnGoodsPage() {
                                     const badge = getStatusBadge(transfer.status);
                                     const BadgeIcon = badge.icon;
                                     return (
-                                        <motion.div 
+                                        <motion.div
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             transition={{ delay: idx * 0.05 }}
-                                            key={transfer.id} 
+                                            key={transfer.id}
                                             className="p-5 hover:bg-slate-50/50 transition-colors"
                                         >
                                             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -492,7 +586,7 @@ export default function ReturnGoodsPage() {
                                                         </div>
                                                         <span className="text-xs text-slate-500">{transfer.receiverEmail}</span>
                                                     </div>
-                                                    
+
                                                     <div className="flex flex-wrap gap-2">
                                                         {transfer.materials?.map((item: any, i: number) => (
                                                             <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 shadow-sm flex items-center gap-1">

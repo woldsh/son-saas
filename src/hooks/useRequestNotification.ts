@@ -49,13 +49,7 @@ export function useRequestNotification(userRole: string | null | undefined, depa
                 where('status', 'in', ['approved_by_coordinator', 'pending_managing_director', 'approved_by_student_service_leader'])
             );
         }
-        else if (effectiveRole === 'general_service_leader') {
-            q = query(
-                requestsRef,
-                where('status', 'in', ['approved_by_md', 'pending_general_service'])
-            );
-        }
-        else if (effectiveRole === 'procurement_team_leader') {
+        else if (effectiveRole === 'procurement_team_leader' || effectiveRole === 'team_leader') {
             q = query(
                 requestsRef,
                 where('status', 'in', ['forwarded_to_team_leader', 'pending_procurement'])

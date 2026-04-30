@@ -14,7 +14,6 @@ import {
     Package,
     RefreshCw,
     RotateCcw,
-    Repeat,
     FileBarChart,
     Settings,
     Building2,
@@ -93,7 +92,6 @@ export default function CafeteriaLeaderSidebar() {
             subItems: [
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

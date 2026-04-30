@@ -119,7 +119,7 @@ export default function MyRequisitionHistory() {
     };
 
     const stats = {
-        pending: requests.filter(r => ['pending', 'pending_department_leader', 'approved_by_head', 'approved_by_coordinator', 'forwarded_to_chief', 'pending_managing_director', 'pending_general_service', 'pending_procurement', 'forwarded_to_team_leader', 'approved_by_procurement_team_leader', 'approved_by_clerk'].includes(r.status)).length,
+        pending: requests.filter(r => ['pending', 'pending_department_leader', 'approved_by_head', 'approved_by_coordinator', 'forwarded_to_chief', 'pending_managing_director', 'pending_procurement', 'forwarded_to_team_leader', 'approved_by_procurement_team_leader', 'approved_by_clerk'].includes(r.status)).length,
         approved: requests.filter(r => ['approved', 'approved_by_md'].includes(r.status)).length,
         issued: requests.filter(r => ['completed', 'received', 'issued', 'handout_completed'].includes(r.status)).length,
         total: requests.length
@@ -130,7 +130,7 @@ export default function MyRequisitionHistory() {
             r.items.some(item => item.materialName.toLowerCase().includes(searchTerm.toLowerCase()));
 
         const matchesStatus = statusFilter === 'all' ||
-            (statusFilter === 'pending' && stats.pending > 0 && ['pending', 'pending_department_leader', 'approved_by_head', 'approved_by_coordinator', 'forwarded_to_chief', 'pending_managing_director', 'pending_general_service', 'pending_procurement', 'forwarded_to_team_leader', 'approved_by_procurement_team_leader', 'approved_by_clerk'].includes(r.status)) ||
+            (statusFilter === 'pending' && stats.pending > 0 && ['pending', 'pending_department_leader', 'approved_by_head', 'approved_by_coordinator', 'forwarded_to_chief', 'pending_managing_director', 'pending_procurement', 'forwarded_to_team_leader', 'approved_by_procurement_team_leader', 'approved_by_clerk'].includes(r.status)) ||
             (statusFilter === 'approved' && ['approved', 'approved_by_md'].includes(r.status)) ||
             (statusFilter === 'issued' && ['completed', 'received', 'issued'].includes(r.status)) ||
             (statusFilter === 'rejected' && r.status === 'rejected');
@@ -212,8 +212,8 @@ export default function MyRequisitionHistory() {
                 <ReadOnlyPaperForm20
                     request={selectedRequest}
                     onClose={() => setSelectedRequest(null)}
-                    onApprove={() => {}}
-                    onReject={() => {}}
+                    onApprove={() => { }}
+                    onReject={() => { }}
                     isProcessing={false}
                 />
             )}

@@ -6,19 +6,15 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
-  FiUser,
   FiUsers,
-  FiShield,
-  FiZap,
-  FiTrendingUp,
   FiCheckCircle,
   FiXCircle,
   FiBookOpen,
   FiUserCheck
 } from 'react-icons/fi';
+import { Loader2 } from 'lucide-react';
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -29,7 +25,9 @@ export default function AdminPage() {
     active: 0,
     inactive: 0,
     academic: 0,
-    admin: 0
+    admin: 0,
+    procurement: 0,
+    executive: 0
   });
 
   useEffect(() => {
@@ -42,8 +40,10 @@ export default function AdminPage() {
       const active = total - inactive;
       const academic = docs.filter(d => d.mainRole === 'academic_staff').length;
       const admin = docs.filter(d => d.mainRole === 'admin_staff').length;
+      const procurement = docs.filter(d => d.mainRole === 'procurement_management').length;
+      const executive = docs.filter(d => d.mainRole === 'managing_director' || d.mainRole === 'chief').length;
 
-      setUserStats({ total, active, inactive, academic, admin });
+      setUserStats({ total, active, inactive, academic, admin, procurement, executive });
     }, (error) => {
       console.error('Error listening to user stats:', error);
     });
@@ -59,82 +59,42 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020205] flex items-center justify-center relative overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full animate-pulse" />
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="relative w-24 h-24">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 border-t-4 border-r-4 border-blue-500 rounded-full"
-            />
-            <div className="absolute inset-0 border-4 border-white/5 rounded-full" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <FiShield className="text-3xl text-blue-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="mt-8 text-white font-black tracking-[0.5em] text-[10px] uppercase animate-pulse">{t('establishing_secure_link')}</p>
-        </div>
+      <div className="flex h-[calc(100vh-100px)] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     );
   }
 
   if (!user) return null;
 
-  return (
-    <div className="min-h-full pb-20 px-6 lg:px-12 max-w-[1600px] mx-auto space-y-12">
-      {/* Welcome Section */}
-      <div className="pt-12">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col md:flex-row md:items-end justify-between gap-8"
-        >
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
-              <FiZap className="text-blue-600 text-xs" />
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{t('administrative_lead')}</span>
-            </div>
-            <h2 className="text-3xl lg:text-5xl font-black text-slate-900 tracking-tighter leading-none italic uppercase">
-              {t('systems_header')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500">{t('overview_header')}</span>
-            </h2>
-            <p className="text-slate-400 font-bold text-lg max-w-xl leading-relaxed">
-              {t('admin_overview_desc')}
-            </p>
-          </div>
+  const stats = [
+    { label: t('total_registered'), value: userStats.total.toString(), icon: FiUsers, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Executive', value: userStats.executive.toString(), icon: FiUsers, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: t('academic_staff'), value: userStats.academic.toString(), icon: FiBookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: t('admin_staff'), value: userStats.admin.toString(), icon: FiUserCheck, color: 'text-sky-600', bg: 'bg-sky-50' },
+    { label: 'Procurement', value: userStats.procurement.toString(), icon: FiUsers, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: t('active_personnel'), value: userStats.active.toString(), icon: FiCheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: t('deactivated_employee'), value: userStats.inactive.toString(), icon: FiXCircle, color: 'text-red-600', bg: 'bg-red-50' }
+  ];
 
-        </motion.div>
+  return (
+    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{t('systems_header')} {t('overview_header')}</h1>
+        <p className="text-gray-500 mt-1">{t('admin_overview_desc')}</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
-        {[
-          { label: t('total_registered'), value: userStats.total.toString(), icon: FiUsers, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: t('academic_staff'), value: userStats.academic.toString(), icon: FiBookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: t('admin_staff'), value: userStats.admin.toString(), icon: FiUserCheck, color: 'text-sky-600', bg: 'bg-sky-50' },
-          { label: t('active_personnel'), value: userStats.active.toString(), icon: FiCheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: t('deactivated_employee'), value: userStats.inactive.toString(), icon: FiXCircle, color: 'text-rose-600', bg: 'bg-rose-50' }
-        ].map((stat, idx) => (
-          <motion.div
-            key={idx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 group"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6`}>
-                <stat.icon className="text-2xl" />
-              </div>
-              <FiTrendingUp className="text-slate-200" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+        {stats.map((stat, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
+            <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-4`}>
+              <stat.icon className="text-xl" />
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{stat.label}</p>
-            <p className="text-3xl font-black text-slate-900 mt-1 italic tracking-tight">{stat.value}</p>
-          </motion.div>
+            <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+          </div>
         ))}
       </div>
-
     </div>
   );
 }

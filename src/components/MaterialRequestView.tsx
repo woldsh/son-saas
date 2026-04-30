@@ -14,8 +14,7 @@ import {
     where,
     getDocs,
     getDoc,
-    writeBatch,
-    Firestore
+    writeBatch
 } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { usePathname } from 'next/navigation';
@@ -82,18 +81,19 @@ interface MaterialRequest {
     signature?: string;
     isAdjusted?: boolean;
     isFeedbackSeen?: boolean;
+    requesterRole?: string;
 }
 
 interface MaterialRequestViewProps {
-    roleOverride?: 'department_head' | 'academic_coordinator' | 'managing_director' | 'general_service' | 'stock_clerk' | 'team_leader' | 'store_keeper' | 'student_service_leader' | 'consumable_item_stock_clerk' | 'fixed_asset_stock_clerk' | 'consumable_item_store_keeper' | 'fixed_asset_store_keeper';
+    roleOverride?: 'department_head' | 'academic_coordinator' | 'managing_director' | 'stock_clerk' | 'team_leader' | 'store_keeper' | 'student_service_leader' | 'consumable_item_stock_clerk' | 'fixed_asset_stock_clerk' | 'consumable_item_store_keeper' | 'fixed_asset_store_keeper';
     materialTypeFilter?: 'fixed_asset' | 'consumable';
 }
 
-type RoleType = 'department_head' | 'academic_coordinator' | 'requester' | 'procurement_md' | 'chief_executive' | 'managing_director' | 'general_service' | 'stock_clerk' | 'team_leader' | 'store_keeper' | 'dormitory_leader' | 'cafeteria_leader' | 'sports_leader' | 'student_service_leader' | 'hrm_leader' | 'finance_leader' | 'dynamic_leader' | 'consumable_item_stock_clerk' | 'fixed_asset_stock_clerk' | 'consumable_item_store_keeper' | 'fixed_asset_store_keeper';
+type RoleType = 'department_head' | 'academic_coordinator' | 'requester' | 'procurement_md' | 'chief_executive' | 'managing_director' | 'stock_clerk' | 'team_leader' | 'store_keeper' | 'dormitory_leader' | 'cafeteria_leader' | 'sports_leader' | 'student_service_leader' | 'hrm_leader' | 'finance_leader' | 'dynamic_leader' | 'consumable_item_stock_clerk' | 'fixed_asset_stock_clerk' | 'consumable_item_store_keeper' | 'fixed_asset_store_keeper';
 
 export default function MaterialRequestView({ roleOverride, materialTypeFilter }: MaterialRequestViewProps) {
     if (!db) return <div className="p-8 text-center text-red-500">Database connection error. Please refresh.</div>;
-    const { user } = useAuth();
+    const { user, userRole: authUserRole } = useAuth();
     const [requests, setRequests] = useState<MaterialRequest[]>([]);
     const [materialImages, setMaterialImages] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
@@ -162,14 +162,23 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     userData?.userRole === 'academic_coordinator' ? 'academic_coordinator' :
                         userData?.userRole || 'academic_coordinator'
             ) :
-                pathname?.includes('/service') ? 'general_service' :
-                    pathname?.includes('/workspace') ? (
-                        userData?.userRole === 'procurement_team_leader' ? 'team_leader' :
-                            userData?.userRole?.includes('stock_clerk') ? (userData?.userRole || 'stock_clerk') :
-                                userData?.userRole?.includes('store_keeper') ? (userData?.userRole || 'store_keeper') :
-                                    'team_leader'
+                pathname?.includes('/workspace') ? (
+                    (userData?.userRole === 'procurement_team_leader' || authUserRole?.toLowerCase().replace(/\s+/g, '_') === 'procurement_team_leader') ? 'team_leader' :
+                        userData?.userRole?.includes('stock_clerk') ? (userData?.userRole || 'stock_clerk') :
+                            userData?.userRole?.includes('store_keeper') ? (userData?.userRole || 'store_keeper') :
+                                'team_leader'
+                ) :
+                    pathname?.includes('/admin-staff/team-leader') ? (
+                        userData?.userRole === 'student_service_leader' ? 'student_service_leader' :
+                            userData?.userRole === 'student_service_dormitory_leader' ? 'dormitory_leader' :
+                                userData?.userRole === 'student_service_cafeteria_leader' ? 'cafeteria_leader' :
+                                    userData?.userRole === 'student_service_sport_leader' ? 'sports_leader' :
+                                        userData?.userRole === 'hrm_leader' ? 'hrm_leader' :
+                                            userData?.userRole === 'finance_leader' ? 'finance_leader' :
+                                                userData?.userRole?.endsWith('_leader') ? 'dynamic_leader' :
+                                                    'team_leader'
                     ) :
-                        pathname?.includes('/admin-staff/team-leader') ? (
+                        pathname?.includes('/admin-panel') ? (
                             userData?.userRole === 'student_service_leader' ? 'student_service_leader' :
                                 userData?.userRole === 'student_service_dormitory_leader' ? 'dormitory_leader' :
                                     userData?.userRole === 'student_service_cafeteria_leader' ? 'cafeteria_leader' :
@@ -177,35 +186,22 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                             userData?.userRole === 'hrm_leader' ? 'hrm_leader' :
                                                 userData?.userRole === 'finance_leader' ? 'finance_leader' :
                                                     userData?.userRole?.endsWith('_leader') ? 'dynamic_leader' :
-                                                        'team_leader'
+                                                        userData?.userRole?.includes('_head') ? 'department_head' :
+                                                            userData?.userRole || 'team_leader'
                         ) :
-                            pathname?.includes('/admin-panel') ? (
-                                userData?.userRole === 'student_service_leader' ? 'student_service_leader' :
-                                    userData?.userRole === 'student_service_dormitory_leader' ? 'dormitory_leader' :
-                                        userData?.userRole === 'student_service_cafeteria_leader' ? 'cafeteria_leader' :
-                                            userData?.userRole === 'student_service_sport_leader' ? 'sports_leader' :
-                                                userData?.userRole === 'hrm_leader' ? 'hrm_leader' :
-                                                    userData?.userRole === 'finance_leader' ? 'finance_leader' :
-                                                        userData?.userRole?.endsWith('_leader') ? 'dynamic_leader' :
-                                                            userData?.userRole?.includes('_head') ? 'department_head' :
-                                                                userData?.userRole || 'team_leader'
+                            pathname?.includes('/procurement-management/stock-clerk') ? (
+                                userData?.userRole || 'stock_clerk'
                             ) :
-                                // Check for Stock Clerk and Store Keeper specific roles in the URL or User Role?
-                                // This part ensures effectiveRole carries the full role name like 'consumable_item_stock_clerk'
-                                pathname?.includes('/procurement-management/stock-clerk') ? (
-                                    userData?.userRole || 'stock_clerk'
+                                pathname?.includes('/procurement-management/store') ? (
+                                    userData?.userRole || 'store_keeper'
                                 ) :
-                                    pathname?.includes('/procurement-management/store') ? (
-                                        userData?.userRole || 'store_keeper'
-                                    ) :
-                                        // Fallback to old path detection for compatibility
-                                        pathname?.includes('/managing-director') ? 'managing_director' :
-                                            pathname?.includes('/academic-coordinator') ? 'academic_coordinator' :
-                                                pathname?.includes('/general-service') ? 'general_service' :
-                                                    pathname?.includes('/stock-clerk') ? 'stock_clerk' :
-                                                        pathname?.includes('/team-leader') ? 'team_leader' :
-                                                            userData?.userRole?.includes('_head') ? 'department_head' :
-                                                                'academic_coordinator'
+                                    // Fallback to old path detection for compatibility
+                                    pathname?.includes('/managing-director') ? 'managing_director' :
+                                        pathname?.includes('/academic-coordinator') ? 'academic_coordinator' :
+                                            pathname?.includes('/stock-clerk') ? 'stock_clerk' :
+                                                (pathname?.includes('/team-leader') || authUserRole?.toLowerCase().replace(/\s+/g, '_') === 'procurement_team_leader' || userData?.userRole?.toLowerCase().replace(/\s+/g, '_') === 'procurement_team_leader') ? 'team_leader' :
+                                                    (authUserRole?.includes('_head') || userData?.userRole?.includes('_head')) ? 'department_head' :
+                                                        'academic_coordinator'
     );
 
     const effectiveRole = rawRole.toLowerCase().replace(/\s+/g, '_');
@@ -215,7 +211,6 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             'managing_director': 'Managing Director',
             'academic_coordinator': 'Academic Coordinator',
             'department_head': 'Department Head',
-            'general_service': 'General Service',
             'stock_clerk': 'Stock Clerk',
             'store_keeper': 'Store Keeper',
             'team_leader': 'Team Leader',
@@ -297,19 +292,13 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 requestsRef,
                 where('status', 'in', ['approved_by_coordinator', 'pending_managing_director', 'approved_by_student_service_leader'])
             );
-        } else if (effectiveRole === 'general_service') {
-            q = query(
-                requestsRef,
-                where('status', 'in', ['approved_by_md', 'pending_general_service'])
-            );
         } else if (effectiveRole.includes('stock_clerk')) {
             const clerkRoles = effectiveRole === 'stock_clerk'
                 ? ['stock_clerk', 'fixed_asset_stock_clerk', 'consumable_item_stock_clerk']
                 : [effectiveRole];
             q = query(
                 collection(db!, 'Request_materials'),
-                where('currentApproverRole', 'in', clerkRoles),
-                where('status', '==', 'approved_by_procurement_team_leader')
+                where('status', 'in', ['approved_by_procurement_team_leader', 'approved_by_md'])
             );
         } else if (effectiveRole.includes('store_keeper')) {
             // Store Keepers do NOT see requests here.
@@ -486,10 +475,48 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     type: 'coordinator'
                 });
             } else if (effectiveRole === 'managing_director') {
-                const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
-                const ptlSnapshot = await getDocs(ptlQuery);
-                const nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
-                const nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
+                const requesterIsPTL = request.requesterRole === 'procurement_team_leader' || request.history[0]?.userRole === 'procurement_team_leader';
+                const requesterIsStoreStaff = request.requesterRole?.includes('stock_clerk') || request.requesterRole?.includes('store_keeper');
+
+                let nextRole = 'procurement_team_leader';
+                let nextStatus = 'pending_procurement';
+                let nextApproverId = '';
+                let nextApproverName = 'Procurement Team Leader';
+
+                if (requesterIsPTL || requesterIsStoreStaff) {
+                    // PTL or Store Staff requests: MD -> Clerk
+                    // If requester IS a specific clerk type, route back to that same type
+                    let clerkRole = '';
+                    let clerkLabel = '';
+
+                    if (request.requesterRole?.includes('fixed_asset_stock_clerk')) {
+                        clerkRole = 'fixed_asset_stock_clerk';
+                        clerkLabel = 'Fixed Asset Stock Clerk';
+                    } else if (request.requesterRole?.includes('consumable_item_stock_clerk')) {
+                        clerkRole = 'consumable_item_stock_clerk';
+                        clerkLabel = 'Consumable Stock Clerk';
+                    } else {
+                        // For store keepers or PTL, determine by material type
+                        const firstItem = request.items[0];
+                        const type = firstItem?.materialType?.toLowerCase() || '';
+                        const isConsumable = type.includes('consumable');
+                        clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+                        clerkLabel = isConsumable ? 'Consumable Stock Clerk' : 'Fixed Asset Stock Clerk';
+                    }
+
+                    nextRole = clerkRole;
+                    nextStatus = 'approved_by_md';
+
+                    const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
+                    const clerkSnapshot = await getDocs(clerkQuery);
+                    nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
+                    nextApproverName = clerkSnapshot.empty ? clerkLabel : clerkSnapshot.docs[0].data().displayName;
+                } else {
+                    const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
+                    const ptlSnapshot = await getDocs(ptlQuery);
+                    nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
+                    nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
+                }
 
                 const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
                 const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
@@ -500,90 +527,96 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 }).filter(Boolean);
                 const hasChanges = changes.length > 0;
 
-                let noteToSave = 'Approved by Managing Director. Forwarded to Procurement Team Leader.';
+                let noteToSave = `Approved by Managing Director. Forwarded to ${nextApproverName}.`;
                 if (hasChanges || finalAdjustmentNote) {
                     const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
                     noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
                 }
 
                 await updateDoc(requestRef, {
-                    status: 'pending_procurement',
+                    status: nextStatus,
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
-                    currentApproverRole: 'procurement_team_leader',
+                    currentApproverRole: nextRole,
                     items: finalItems,
                     isAdjusted: hasChanges || !!finalAdjustmentNote,
                     isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                     history: [
                         ...request.history,
                         {
-                            status: 'pending_procurement',
+                            status: nextStatus,
                             user: user.uid,
                             userName: userData.displayName || 'Anonymous',
                             userRole: getRoleTitle(effectiveRole),
                             timestamp: new Date().toISOString(),
                             note: noteToSave
                         }
-                    ]
+                    ],
+                    ...(signature && { managingDirectorSignature: signature })
                 });
-                setSuccessMessage({ text: "Request approved and forwarded to Procurement Team Leader", type: 'md' });
-            } else if (effectiveRole === 'general_service') {
-                const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
-                const ptlSnapshot = await getDocs(ptlQuery);
-                const nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
-                const nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
-
-                await updateDoc(requestRef, {
-                    status: 'pending_procurement',
-                    currentApproverId: nextApproverId,
-                    currentApproverName: nextApproverName,
-                    currentApproverRole: 'procurement_team_leader',
-                    history: [
-                        ...request.history,
-                        {
-                            status: 'pending_procurement',
-                            user: user.uid,
-                            userName: userData.displayName || 'Anonymous',
-                            userRole: getRoleTitle(effectiveRole),
-                            timestamp: new Date().toISOString(),
-                            note: 'Approved by General Service. Forwarded to Procurement Team Leader.'
-                        }
-                    ]
-                });
-                setSuccessMessage({ text: "Request approved and forwarded to Procurement Team Leader", type: 'general' });
+                setSuccessMessage({ text: `Request approved and forwarded to ${nextApproverName}`, type: 'md' });
             } else if (effectiveRole === 'team_leader') {
-                // Procurement Team Leader -> Forward to Stock Clerk
-                // Determine material type from the request items to route correctly
-                const firstItem = request.items[0];
-                const type = firstItem?.materialType?.toLowerCase() || '';
-                const isConsumable = type.includes('consumable');
+                const requesterIsStoreStaff = request.requesterRole?.includes('stock_clerk') || request.requesterRole?.includes('store_keeper');
 
-                const clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+                if (requesterIsStoreStaff) {
+                    // Store staff flow: PTL -> MD
+                    const mdQuery = query(collection(db!, 'users'), where('userRole', '==', 'managing_director'));
+                    const mdSnapshot = await getDocs(mdQuery);
+                    const nextApproverId = mdSnapshot.empty ? 'PENDING_MD_ASSIGNMENT' : mdSnapshot.docs[0].id;
+                    const nextApproverName = mdSnapshot.empty ? 'Managing Director' : mdSnapshot.docs[0].data().displayName;
 
-                // Find Clerk
-                const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
-                const clerkSnapshot = await getDocs(clerkQuery);
-                const nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
-                const nextApproverName = clerkSnapshot.empty ? (isConsumable ? 'Consumable Stock Clerk' : 'Fixed Stock Clerk') : clerkSnapshot.docs[0].data().displayName;
+                    await updateDoc(requestRef, {
+                        status: 'pending_managing_director',
+                        currentApproverId: nextApproverId,
+                        currentApproverName: nextApproverName,
+                        currentApproverRole: 'managing_director',
+                        history: [
+                            ...request.history,
+                            {
+                                status: 'pending_managing_director',
+                                user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
+                                timestamp: new Date().toISOString(),
+                                note: `Approved by Procurement Team Leader. Forwarded to ${nextApproverName} (Managing Director).`
+                            }
+                        ],
+                        ...(signature && { ptlSignature: signature })
+                    });
+                    setSuccessMessage({ text: "Request approved and forwarded to Managing Director", type: 'general' });
+                } else {
+                    // Normal flow: PTL -> Stock Clerk
+                    const firstItem = request.items[0];
+                    const type = firstItem?.materialType?.toLowerCase() || '';
+                    const isConsumable = type.includes('consumable');
 
-                await updateDoc(requestRef, {
-                    status: 'approved_by_procurement_team_leader',
-                    currentApproverId: nextApproverId,
-                    currentApproverName: nextApproverName,
-                    currentApproverRole: clerkRole,
-                    history: [
-                        ...request.history,
-                        {
-                            status: 'approved_by_procurement_team_leader',
-                            user: user.uid,
-                            userName: userData.displayName || 'Anonymous',
-                            userRole: getRoleTitle(effectiveRole),
-                            timestamp: new Date().toISOString(),
-                            note: `Approved by Procurement Team Leader. Forwarded to ${nextApproverName}.`
-                        }
-                    ]
-                });
-                setSuccessMessage({ text: "Request approved and forwarded to Stock Clerk", type: 'general' });
+                    const clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+
+                    const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
+                    const clerkSnapshot = await getDocs(clerkQuery);
+                    const nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
+                    const nextApproverName = clerkSnapshot.empty ? (isConsumable ? 'Consumable Stock Clerk' : 'Fixed Stock Clerk') : clerkSnapshot.docs[0].data().displayName;
+
+                    await updateDoc(requestRef, {
+                        status: 'approved_by_procurement_team_leader',
+                        currentApproverId: nextApproverId,
+                        currentApproverName: nextApproverName,
+                        currentApproverRole: clerkRole,
+                        history: [
+                            ...request.history,
+                            {
+                                status: 'approved_by_procurement_team_leader',
+                                user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
+                                timestamp: new Date().toISOString(),
+                                note: `Approved by Procurement Team Leader. Forwarded to ${nextApproverName}.`
+                            }
+                        ],
+                        ...(signature && { ptlSignature: signature })
+                    });
+                    setSuccessMessage({ text: "Request approved and forwarded to Stock Clerk", type: 'general' });
+                }
 
             } else if (effectiveRole === 'stock_clerk' || effectiveRole.includes('stock_clerk')) {
                 // Stock Clerk -> Forward to Store Keeper AND send verification to employee
@@ -662,13 +695,26 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     return;
                 }
 
-                const keeperRole = isConsumable ? 'consumable_item_store_keeper' : 'fixed_asset_store_keeper';
+                // Determine keeper type: if requester IS a specific keeper, route back to that type
+                let keeperRole = '';
+                let keeperLabel = '';
+
+                if (request.requesterRole?.includes('fixed_asset_store_keeper')) {
+                    keeperRole = 'fixed_asset_store_keeper';
+                    keeperLabel = 'Fixed Asset Store Keeper';
+                } else if (request.requesterRole?.includes('consumable_item_store_keeper')) {
+                    keeperRole = 'consumable_item_store_keeper';
+                    keeperLabel = 'Consumable Store Keeper';
+                } else {
+                    keeperRole = isConsumable ? 'consumable_item_store_keeper' : 'fixed_asset_store_keeper';
+                    keeperLabel = isConsumable ? 'Consumable Store Keeper' : 'Fixed Asset Store Keeper';
+                }
 
                 // Find Keeper
                 const keeperQuery = query(collection(db!, 'users'), where('userRole', '==', keeperRole));
                 const keeperSnapshot = await getDocs(keeperQuery);
                 const nextApproverId = keeperSnapshot.empty ? 'PENDING_KEEPER_ASSIGNMENT' : keeperSnapshot.docs[0].id;
-                const nextApproverName = keeperSnapshot.empty ? (isConsumable ? 'Consumable Store Keeper' : 'Fixed Store Keeper') : keeperSnapshot.docs[0].data().displayName;
+                const nextApproverName = keeperSnapshot.empty ? keeperLabel : keeperSnapshot.docs[0].data().displayName;
 
                 await updateDoc(requestRef, {
                     status: 'approved_by_clerk',
@@ -1005,26 +1051,6 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         ]
                     });
                     approvedCount++;
-                } else if (effectiveRole === 'general_service') {
-                    // GS -> Procurement Team Leader
-                    batch.update(ref, {
-                        status: 'pending_procurement',
-                        currentApproverId: ptl.id,
-                        currentApproverName: ptl.name,
-                        currentApproverRole: 'procurement_team_leader',
-                        history: [
-                            ...req.history,
-                            {
-                                status: 'pending_procurement',
-                                user: user.uid,
-                                userName: userData.displayName || 'Anonymous',
-                                userRole: getRoleTitle(effectiveRole),
-                                timestamp: new Date().toISOString(),
-                                note: 'Approved by General Service. Forwarded to Procurement Team Leader (Bulk).'
-                            }
-                        ]
-                    });
-                    approvedCount++;
                 } else if (effectiveRole === 'team_leader') {
                     // Procurement Team Leader -> Forward to Stock Clerk
                     const firstItem = req.items[0];
@@ -1288,8 +1314,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             <div className={`flex items-center justify-center p-12`}>
                 <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${effectiveRole === 'department_head' ? 'border-orange-600' :
                     effectiveRole === 'managing_director' ? 'border-indigo-600' :
-                        effectiveRole === 'general_service' ? 'border-violet-600' :
-                            'border-lime-600'
+                        'border-lime-600'
                     }`}></div>
             </div>
         );
@@ -1297,12 +1322,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
     const themeColor = effectiveRole === 'academic_coordinator' ? 'amber' :
         effectiveRole === 'managing_director' ? 'indigo' :
-            effectiveRole === 'general_service' ? 'emerald' :
-                effectiveRole === 'dormitory_leader' ? 'blue' :
-                    effectiveRole === 'cafeteria_leader' ? 'orange' :
-                        effectiveRole === 'sports_leader' ? 'rose' :
-                            effectiveRole === 'student_service_leader' ? 'violet' :
-                                'blue';
+            effectiveRole === 'dormitory_leader' ? 'blue' :
+                effectiveRole === 'cafeteria_leader' ? 'orange' :
+                    effectiveRole === 'sports_leader' ? 'rose' :
+                        effectiveRole === 'student_service_leader' ? 'violet' :
+                            'blue';
 
     return (
         <div className="w-full min-h-screen bg-[#f8fafc] pb-20">
@@ -1319,646 +1343,558 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             )}
 
             <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 pt-10 space-y-6 animate-in fade-in duration-500">
-            {selectedRequest && (
-                <ReadOnlyPaperForm20
-                    request={selectedRequest}
-                    onClose={() => setSelectedRequest(null)}
-                    onApprove={(updatedItems: any[], sig, note) => {
-                        // Map updated quantities back to original items to preserve type safety and full metadata
-                        const finalizedItems = selectedRequest.items.map((orig, i) => ({
-                            ...orig,
-                            quantity: updatedItems[i]?.quantity ?? orig.quantity
-                        }));
-                        handleApprove(selectedRequest, finalizedItems, note, sig);
-                        setSelectedRequest(null);
-                    }}
-                    onReject={() => {
-                        handleReject(selectedRequest);
-                        setSelectedRequest(null);
-                    }}
-                    isProcessing={processingId === selectedRequest.id}
-                    isDepartmentHead={effectiveRole === 'department_head'}
-                    isAcademicCoordinator={effectiveRole === 'academic_coordinator'}
-                    isManagingDirector={effectiveRole === 'managing_director'}
-                    isStockClerk={effectiveRole === 'stock_clerk' || effectiveRole.includes('stock_clerk')}
-                    onProcessModel22={() => {
-                        setModel22Request(selectedRequest);
-                        setSelectedRequest(null);
-                    }}
-                />
-            )}
-            {selectedRequest && selectedRequest.formType !== 'paper_form_20' && (
-                <MaterialRequestReviewModal
-                    request={selectedRequest}
-                    onClose={() => setSelectedRequest(null)}
-                    onApprove={() => {
-                        handleApprove(selectedRequest);
-                        setSelectedRequest(null);
-                    }}
-                    onReject={() => {
-                        handleReject(selectedRequest);
-                        setSelectedRequest(null);
-                    }}
-                    isProcessing={processingId === selectedRequest.id}
-                />
-            )}
-            {/* Notification Bar */}
-            {successMessage && (
-                <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-8 duration-500`}>
-                    <div className={`flex items-center gap-5 px-8 py-5 rounded-[2.5rem] shadow-2xl backdrop-blur-2xl border-2 ${successMessage.type === 'coordinator' ? 'bg-lime-600 border-lime-400 text-white shadow-lime-500/30' :
-                        successMessage.type === 'md' ? 'bg-indigo-600 border-indigo-400 text-white shadow-indigo-500/30' :
-                            'bg-orange-600 border-orange-400 text-white shadow-orange-500/30'
-                        }`}>
-                        <FiCheckCircle className="text-3xl animate-bounce" />
-                        <div className="flex flex-col text-left">
-                            <span className="font-black uppercase tracking-[0.2em] text-[10px] opacity-80">Security Protocol</span>
-                            <span className="font-bold text-sm tracking-tight">{successMessage.text}</span>
+                {selectedRequest && selectedRequest.formType === 'paper_form_20' && (
+                    <ReadOnlyPaperForm20
+                        request={selectedRequest}
+                        onClose={() => setSelectedRequest(null)}
+                        onApprove={(updatedItems: any[], sig, note) => {
+                            // Map updated quantities back to original items to preserve type safety and full metadata
+                            const finalizedItems = selectedRequest.items.map((orig, i) => ({
+                                ...orig,
+                                quantity: updatedItems[i]?.quantity ?? orig.quantity
+                            }));
+                            handleApprove(selectedRequest, finalizedItems, note, sig);
+                            setSelectedRequest(null);
+                        }}
+                        onReject={() => {
+                            handleReject(selectedRequest);
+                            setSelectedRequest(null);
+                        }}
+                        isProcessing={processingId === selectedRequest.id}
+                        isDepartmentHead={effectiveRole === 'department_head'}
+                        isAcademicCoordinator={effectiveRole === 'academic_coordinator'}
+                        isManagingDirector={effectiveRole === 'managing_director'}
+                        isProcurementTeamLeader={effectiveRole === 'team_leader'}
+                        isStockClerk={effectiveRole === 'stock_clerk' || effectiveRole.includes('stock_clerk')}
+                        onProcessModel22={() => {
+                            setModel22Request(selectedRequest);
+                            setSelectedRequest(null);
+                        }}
+                    />
+                )}
+                {selectedRequest && selectedRequest.formType !== 'paper_form_20' && (
+                    <MaterialRequestReviewModal
+                        request={selectedRequest}
+                        onClose={() => setSelectedRequest(null)}
+                        onApprove={() => {
+                            handleApprove(selectedRequest);
+                            setSelectedRequest(null);
+                        }}
+                        onReject={() => {
+                            handleReject(selectedRequest);
+                            setSelectedRequest(null);
+                        }}
+                        isProcessing={processingId === selectedRequest.id}
+                    />
+                )}
+                {/* Notification Bar */}
+                {successMessage && (
+                    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-8 duration-500">
+                        <div className="flex items-center gap-3 px-6 py-3 rounded-xl shadow-lg bg-emerald-600 text-white">
+                            <FiCheckCircle className="text-lg" />
+                            <span className="font-bold text-sm">{successMessage.text}</span>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Header Section */}
-            {effectiveRole.includes('store_keeper') ? (
-                <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group/header">
-                    {/* Decorative glow */}
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-[100px] -mr-32 -mt-32 opacity-50 group-hover/header:opacity-100 transition-opacity duration-700" />
-                    
-                    <div className="flex items-center gap-8 relative z-10">
-                        <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 relative">
-                            <FiActivity className="text-4xl animate-pulse" />
-                            <div className="absolute -inset-2 bg-blue-500/20 rounded-[2.2rem] animate-ping duration-[3000ms]" />
+                {/* Header Section */}
+                {effectiveRole.includes('store_keeper') ? (
+                    <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group/header">
+                        {/* Decorative glow */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full blur-[100px] -mr-32 -mt-32 opacity-50 group-hover/header:opacity-100 transition-opacity duration-700" />
+
+                        <div className="flex items-center gap-8 relative z-10">
+                            <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 relative">
+                                <FiActivity className="text-4xl animate-pulse" />
+                                <div className="absolute -inset-2 bg-blue-500/20 rounded-[2.2rem] animate-ping duration-[3000ms]" />
+                            </div>
+                            <div>
+                                <h1 className="text-5xl font-black text-slate-900 tracking-tight">Store Verification</h1>
+                                <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">AUTOMATED HANDOUT PIPELINE</p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-5xl font-black text-slate-900 tracking-tight">Store Verification</h1>
-                            <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">AUTOMATED HANDOUT PIPELINE</p>
+                        <div className="relative w-full max-w-md z-10">
+                            <FiSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-2xl group-focus-within:text-blue-500 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search by requester name..."
+                                className="w-full pl-16 pr-8 py-5 bg-slate-50 border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-lg shadow-inner"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                         </div>
                     </div>
-                    <div className="relative w-full max-w-md z-10">
-                        <FiSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-2xl group-focus-within:text-blue-500 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Search by requester name..."
-                            className="w-full pl-16 pr-8 py-5 bg-slate-50 border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-lg shadow-inner"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-3 bg-white p-3 md:p-4 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-xl font-black text-slate-800 tracking-tighter flex items-center gap-3">
-                                {effectiveRole === 'academic_coordinator' ? (
-                                    <>Managerial <span className="text-blue-600">Review</span></>
-                                ) : effectiveRole === 'managing_director' ? (
-                                    <>Executive <span className="text-blue-600">Approval</span></>
-                                ) : (
-                                    <>Material <span className="text-blue-600">Requests</span></>
-                                )}
+                ) : (
+                    <div className="bg-white p-4 rounded-xl border border-slate-200">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <h2 className="text-lg font-black text-slate-800">
+                                {effectiveRole === 'academic_coordinator' ? 'Managerial Review' :
+                                    effectiveRole === 'managing_director' ? 'Approval Queue' :
+                                        'Material Requests'}
+                                <span className="ml-2 text-sm font-bold text-slate-400">({filteredRequests.length})</span>
                             </h2>
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-100">
-                                <FiActivity size={10} /> System Management
+
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    <FiList />
+                                </button>
+                                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    <FiGrid />
+                                </button>
+                                <button
+                                    onClick={() => handleSelectAll(selectedRequests.length !== filteredRequests.length)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${selectedRequests.length === filteredRequests.length && filteredRequests.length > 0
+                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300'
+                                        }`}
+                                >
+                                    {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? 'Deselect' : 'Select All'}
+                                </button>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3">
-                            {/* View Mode Toggle */}
-                            <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                                <button
-                                    onClick={() => setViewMode('list')}
-                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'list'
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-600'
-                                        }`}
-                                >
-                                    <FiList className="text-base" /> List
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('grid')}
-                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'grid'
-                                        ? 'bg-white text-blue-600 shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-600'
-                                        }`}
-                                >
-                                    <FiGrid className="text-base" /> Grid
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={() => handleSelectAll(selectedRequests.length !== filteredRequests.length)}
-                                className={`px-6 py-2 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all border-2 flex items-center gap-2 ${selectedRequests.length === filteredRequests.length && filteredRequests.length > 0
-                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                    : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:text-blue-600'
-                                    }`}
-                            >
-                                {selectedRequests.length === filteredRequests.length && filteredRequests.length > 0 ? (
-                                    <><FiCheckCircle className="text-base" /> Deselect All</>
-                                ) : (
-                                    <><div className="w-4 h-4 rounded-md border-2 border-current"></div> Select All</>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="relative group w-full z-10 border-t border-slate-100 pt-3 flex flex-col md:flex-row items-center gap-3">
-                        <div className="relative flex-1 w-full">
-                            <FiSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors text-xl" />
+                        <div className="mt-3 relative">
+                            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
                                 placeholder="Search by requester or material name..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-12 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 text-sm"
+                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-blue-400 focus:bg-white outline-none text-sm text-slate-700 placeholder:text-slate-300"
                             />
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl whitespace-nowrap">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Queue:</span>
-                            <span className="text-[10px] font-black text-slate-700 uppercase">
-                                {filteredRequests.length} {filteredRequests.length === 1 ? 'Task' : 'Tasks'}
-                            </span>
+                    </div>
+                )}
+
+                {/* Bulk Action Bar */}
+                {selectedRequests.length > 0 && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                        <div className="bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-4 text-sm">
+                            <span className="font-bold">{selectedRequests.length} selected</span>
+                            <div className="h-5 w-px bg-slate-600"></div>
+                            <button onClick={handleBulkApprove} disabled={isBulkProcessing} className="font-bold hover:text-emerald-400 transition-colors flex items-center gap-1">
+                                <FiCheckCircle /> Approve
+                            </button>
+                            <button onClick={handleBulkReject} disabled={isBulkProcessing} className="font-bold hover:text-red-400 transition-colors flex items-center gap-1">
+                                <FiXCircle /> Reject
+                            </button>
+                            <button onClick={() => setSelectedRequests([])} className="text-slate-400 hover:text-white">
+                                <FiXCircle />
+                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Bulk Action Bar */}
-            {selectedRequests.length > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
-                    <div className="bg-slate-900 text-white px-8 py-4 rounded-full shadow-2xl flex items-center gap-8 border border-slate-700">
-                        <div className="flex items-center gap-3">
-                            <span className="bg-blue-600 text-white text-xs font-black px-2 py-1 rounded-md">{selectedRequests.length}</span>
-                            <span className="text-sm font-bold tracking-wide">Selected</span>
+                {filteredRequests.length === 0 ? (
+                    <div className="bg-white border border-dashed border-slate-200 rounded-xl p-12 text-center">
+                        <FiClock className="text-2xl text-slate-300 mx-auto mb-3" />
+                        <h3 className="text-base font-bold text-slate-700">No Pending Requests</h3>
+                        <p className="text-sm text-slate-400 mt-1">All caught up — nothing requires your attention.</p>
+                    </div>
+                ) : effectiveRole.includes('store_keeper') ? (
+                    <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/20 overflow-hidden mt-8">
+                        {/* Table Header */}
+                        <div className="hidden md:grid grid-cols-[350px_1fr_250px_200px] gap-8 px-14 py-8 bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm">
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">REQUESTER</span>
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">ITEMS REQUESTED</span>
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">STATUS</span>
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">SERIAL CODES</span>
                         </div>
-                        <div className="h-8 w-px bg-slate-700"></div>
-                        <button
-                            onClick={handleBulkApprove}
-                            disabled={isBulkProcessing}
-                            className="text-sm font-black uppercase tracking-widest hover:text-blue-400 transition-colors flex items-center gap-2"
-                        >
-                            {isBulkProcessing ? 'Processing...' : 'Approve All'}
-                            {!isBulkProcessing && <FiCheckCircle className="text-lg" />}
-                        </button>
-                        <div className="h-8 w-px bg-slate-700"></div>
-                        <button
-                            onClick={handleBulkReject}
-                            disabled={isBulkProcessing}
-                            className="text-sm font-black uppercase tracking-widest hover:text-red-400 transition-colors flex items-center gap-2"
-                        >
-                            {isBulkProcessing ? 'Processing...' : 'Reject All'}
-                            {!isBulkProcessing && <FiXCircle className="text-lg" />}
-                        </button>
-                        <button
-                            onClick={() => setSelectedRequests([])}
-                            className="text-slate-500 hover:text-white transition-colors"
-                        >
-                            <FiXCircle className="text-xl" />
-                        </button>
-                    </div>
-                </div>
-            )}
+                        <div className="flex flex-col">
+                            {filteredRequests.map(request => (
+                                <div
+                                    key={request.id}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setModel22Request(request);
+                                    }}
+                                    className={`flex flex-col md:grid md:grid-cols-[350px_1fr_250px_200px] gap-8 px-8 md:px-14 py-8 items-center border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer transition-all duration-300 group ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                    {/* User Column */}
+                                    <div className="flex items-center gap-6 w-full">
+                                        <div className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm shrink-0 transition-transform group-hover:scale-110 ${request.id.charCodeAt(0) % 3 === 0 ? 'bg-indigo-50 border border-indigo-100 text-indigo-500' :
+                                            request.id.charCodeAt(0) % 3 === 1 ? 'bg-emerald-50 border border-emerald-100 text-emerald-500' :
+                                                'bg-amber-50 border border-amber-100 text-amber-500'
+                                            }`}>
+                                            <FiUser className="text-2xl" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h4 className="font-black text-slate-800 text-lg tracking-tight truncate">{request.requesterName}</h4>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1">
+                                                {request.createdAt?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) || 'N/A'}
+                                            </p>
+                                        </div>
+                                    </div>
 
-            {filteredRequests.length === 0 ? (
-                <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center space-y-4">
-                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300 border border-slate-200">
-                        <FiClock className="text-3xl" />
+                                    {/* Items Column */}
+                                    <div className="flex justify-center w-full">
+                                        <div className="pl-4 pr-1 py-1.5 rounded-full border border-slate-200 bg-white shadow-sm flex items-center gap-4 group-hover:border-blue-300 transition-colors">
+                                            <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{request.items[0]?.materialName || 'Items'}</span>
+                                            <span className="px-4 py-1.5 rounded-full bg-slate-100 text-[11px] font-black text-slate-500">
+                                                {request.items.reduce((sum, item) => sum + item.quantity, 0)} pcs
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Status Column */}
+                                    <div className="flex justify-center w-full">
+                                        {request.status.includes('waiting') ? (
+                                            <div className="px-6 py-2 rounded-full bg-[#fffcf0] border border-[#ffedcc] flex items-center gap-3 shadow-sm group-hover:bg-amber-50 transition-colors">
+                                                <FiClock className="text-[#f59e0b] text-sm animate-spin-slow" />
+                                                <span className="text-[11px] font-black text-[#ea580c] uppercase tracking-[0.15em]">WAITING ...</span>
+                                            </div>
+                                        ) : (
+                                            <div className="px-6 py-2 rounded-full bg-[#f0fdf4] border border-[#bcf0da] flex items-center gap-3 shadow-sm group-hover:bg-emerald-50 transition-colors">
+                                                <FiCheckCircle className="text-[#10b981] text-sm" />
+                                                <span className="text-[11px] font-black text-[#059669] uppercase tracking-[0.15em]">VERIFIED</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Action Column */}
+                                    <div className="text-right w-full hidden md:flex justify-end items-center gap-6">
+                                        <div className="flex flex-col items-end gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setModel22Request(request);
+                                                }}
+                                                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-blue-600/20 hover:bg-blue-500 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn"
+                                            >
+                                                View Model 22
+                                                <FiArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
+                                            </button>
+                                            <span className="text-[9px] italic font-bold text-slate-400 tracking-wide pr-1">
+                                                {request.status.includes('waiting') ? 'Auto-verifying...' : 'Verified Record'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Queue Clear</h3>
-                        <p className="text-slate-400 font-semibold uppercase text-[9px] tracking-widest">No pending material requests require your attention.</p>
-                    </div>
-                </div>
-            ) : effectiveRole.includes('store_keeper') ? (
-                <div className="bg-white rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-200/20 overflow-hidden mt-8">
-                    {/* Table Header */}
-                    <div className="hidden md:grid grid-cols-[350px_1fr_250px_200px] gap-8 px-14 py-8 bg-slate-50/80 border-b border-slate-100 backdrop-blur-sm">
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">REQUESTER</span>
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">ITEMS REQUESTED</span>
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">STATUS</span>
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">SERIAL CODES</span>
-                    </div>
-                    <div className="flex flex-col">
+                ) : (
+                    <div className={viewMode === 'grid' ? "grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4" : "flex flex-col gap-3 mt-4"}>
                         {filteredRequests.map(request => (
                             <div
                                 key={request.id}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setModel22Request(request);
-                                }}
-                                className={`flex flex-col md:grid md:grid-cols-[350px_1fr_250px_200px] gap-8 px-8 md:px-14 py-8 items-center border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer transition-all duration-300 group ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
+                                className={`bg-white border border-slate-200 rounded-xl overflow-hidden transition-all hover:shadow-md ${viewMode === 'grid' ? 'p-4' : ''
+                                    } ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
                             >
-                                {/* User Column */}
-                                <div className="flex items-center gap-6 w-full">
-                                    <div className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm shrink-0 transition-transform group-hover:scale-110 ${request.id.charCodeAt(0) % 3 === 0 ? 'bg-indigo-50 border border-indigo-100 text-indigo-500' :
-                                            request.id.charCodeAt(0) % 3 === 1 ? 'bg-emerald-50 border border-emerald-100 text-emerald-500' :
-                                                'bg-amber-50 border border-amber-100 text-amber-500'
-                                        }`}>
-                                        <FiUser className="text-2xl" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <h4 className="font-black text-slate-800 text-lg tracking-tight truncate">{request.requesterName}</h4>
-                                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1">
-                                            {request.createdAt?.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) || 'N/A'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Items Column */}
-                                <div className="flex justify-center w-full">
-                                    <div className="pl-4 pr-1 py-1.5 rounded-full border border-slate-200 bg-white shadow-sm flex items-center gap-4 group-hover:border-blue-300 transition-colors">
-                                        <span className="text-sm font-bold text-slate-600 truncate max-w-[200px]">{request.items[0]?.materialName || 'Items'}</span>
-                                        <span className="px-4 py-1.5 rounded-full bg-slate-100 text-[11px] font-black text-slate-500">
-                                            {request.items.reduce((sum, item) => sum + item.quantity, 0)} pcs
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Status Column */}
-                                <div className="flex justify-center w-full">
-                                    {request.status.includes('waiting') ? (
-                                        <div className="px-6 py-2 rounded-full bg-[#fffcf0] border border-[#ffedcc] flex items-center gap-3 shadow-sm group-hover:bg-amber-50 transition-colors">
-                                            <FiClock className="text-[#f59e0b] text-sm animate-spin-slow" />
-                                            <span className="text-[11px] font-black text-[#ea580c] uppercase tracking-[0.15em]">WAITING ...</span>
-                                        </div>
-                                    ) : (
-                                        <div className="px-6 py-2 rounded-full bg-[#f0fdf4] border border-[#bcf0da] flex items-center gap-3 shadow-sm group-hover:bg-emerald-50 transition-colors">
-                                            <FiCheckCircle className="text-[#10b981] text-sm" />
-                                            <span className="text-[11px] font-black text-[#059669] uppercase tracking-[0.15em]">VERIFIED</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Action Column */}
-                                <div className="text-right w-full hidden md:flex justify-end items-center gap-6">
-                                    <div className="flex flex-col items-end gap-2">
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setModel22Request(request);
-                                            }}
-                                            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-blue-600/20 hover:bg-blue-500 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn"
-                                        >
-                                            View Model 22
-                                            <FiArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
-                                        </button>
-                                        <span className="text-[9px] italic font-bold text-slate-400 tracking-wide pr-1">
-                                            {request.status.includes('waiting') ? 'Auto-verifying...' : 'Verified Record'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            ) : (
-                <div className={viewMode === 'grid' ? "grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6" : "flex flex-col gap-4 mt-6"}>
-                    {filteredRequests.map(request => (
-                        <div
-                            key={request.id}
-                            className={`group relative bg-white border border-slate-200 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 flex flex-col overflow-hidden ${viewMode === 'grid' ? 'rounded-[2rem] p-4' : 'rounded-2xl md:flex-row md:items-center'
-                                } ${processingId === request.id ? 'opacity-50 pointer-events-none' : ''}`}
-                        >
-                            {viewMode === 'list' ? (
-                                <>
-                                    {/* LIST VIEW LAYOUT */}
-                                    <div className="flex-1 px-4 py-3 flex flex-col md:flex-row md:items-center gap-4">
-                                        <div className="flex items-center gap-4 min-w-[280px]">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedRequests.includes(request.id)}
-                                                onChange={() => toggleSelect(request.id)}
-                                                className="w-5 h-5 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                            />
-                                            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
-                                                <FiUser className="text-xl text-slate-400 group-hover:text-blue-600" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h4 className="font-bold text-slate-900 text-base truncate tracking-tight">{request.requesterName}</h4>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                                                        {request.department?.replace('_', ' ')}
-                                                    </span>
-                                                    {request.formType === 'paper_form_20' && (
-                                                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-                                                            Form 20
+                                {viewMode === 'list' ? (
+                                    <>
+                                        {/* LIST VIEW */}
+                                        <div className="flex-1 px-4 py-3 flex flex-col md:flex-row md:items-center gap-3">
+                                            <div className="flex items-center gap-3 min-w-[250px]">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRequests.includes(request.id)}
+                                                    onChange={() => toggleSelect(request.id)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                                    <FiUser className="text-slate-500" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-slate-900 text-sm truncate">{request.requesterName}</h4>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">
+                                                            {request.department?.replace('_', ' ')}
                                                         </span>
-                                                    )}
+                                                        {request.formType === 'paper_form_20' && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold">
+                                                                Form 20
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        <div className="flex-1 flex flex-wrap items-center gap-4">
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
-                                                <div className={`w-2 h-2 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
+                                            <div className="flex-1 flex flex-wrap items-center gap-3">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-100">
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
                                                         request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
-                                                    }`} />
-                                                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                                                    {request.status.replace(/_/g, ' ')}
+                                                        }`} />
+                                                    <span className="text-[11px] font-bold text-slate-600 uppercase">
+                                                        {request.status.replace(/_/g, ' ')}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                                    <FiCalendar className="text-slate-300" />
+                                                    {request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) || 'N/A'}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">
-                                                <FiCalendar className="text-slate-300" />
-                                                {request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) || 'N/A'}
+
+                                            <div className="flex items-center gap-2">
+                                                {request.formType === 'paper_form_20' ? (
+                                                    <button
+                                                        onClick={() => setSelectedRequest(request)}
+                                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-500 transition-all flex items-center gap-1.5"
+                                                    >
+                                                        Process Model 20 <FiArrowRight />
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                        <FiBox size={14} />
+                                                        {request.items.length} Items
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3">
-                                            {request.formType === 'paper_form_20' ? (
-                                                <button
-                                                    onClick={() => setSelectedRequest(request)}
-                                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-500 transition-all flex items-center gap-2 whitespace-nowrap"
-                                                >
-                                                    Process Model 20
-                                                    <FiArrowRight />
-                                                </button>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-slate-400 text-[11px] font-bold uppercase tracking-widest opacity-60">
-                                                    <FiBox size={14} />
-                                                    {request.items.length} Items
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {request.formType !== 'paper_form_20' && (
-                                        <div className="px-4 pb-4 pt-1 border-t border-slate-50 bg-slate-50/20">
-                                            {/* Standard Item List - Nested */}
-                                            <div className="flex flex-col gap-3">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {request.formType !== 'paper_form_20' && (
+                                            <div className="px-4 pb-3 border-t border-slate-100 pt-3">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                                     {request.items.map((item, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 hover:border-blue-200 group/item transition-all">
-                                                            <div className="flex items-center gap-3 truncate">
-                                                                <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-100">
+                                                        <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
+                                                            <div className="flex items-center gap-2.5 truncate">
+                                                                <div className="w-8 h-8 rounded-md bg-white border border-slate-100 flex items-center justify-center flex-shrink-0">
                                                                     {item.image || materialImages[item.materialId] ? (
-                                                                        <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={40} height={40} className="rounded-lg object-cover" />
-                                                                    ) : <FiBox className="text-slate-200" />}
+                                                                        <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={32} height={32} className="rounded-md object-cover" />
+                                                                    ) : <FiBox className="text-slate-300 text-xs" />}
                                                                 </div>
                                                                 <div className="truncate">
                                                                     <p className="text-sm font-bold text-slate-800 truncate">{item.materialName}</p>
-                                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{item.materialCode || 'No Code'}</p>
+                                                                    <p className="text-[10px] text-slate-400">{item.materialCode || 'No Code'}</p>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                                                            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
                                                                 {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
                                                                     <input
                                                                         type="number"
                                                                         value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
                                                                         onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
-                                                                        className={`w-16 px-2 py-1 bg-slate-50 border rounded-lg text-right font-bold text-sm focus:border-blue-500 outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
+                                                                        className={`w-14 px-2 py-1 border rounded text-right font-bold text-sm outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
                                                                             ? 'text-rose-600 border-rose-200 bg-rose-50'
-                                                                            : 'text-slate-800 border-slate-200'
+                                                                            : 'text-slate-800 border-slate-200 bg-white'
                                                                             }`}
                                                                     />
                                                                 ) : (
-                                                                    <span className="text-sm font-black text-slate-700">{item.quantity}</span>
+                                                                    <span className="text-sm font-bold text-slate-700">{item.quantity}</span>
                                                                 )}
-                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{item.unit}</span>
+                                                                <span className="text-[10px] text-slate-400">{item.unit}</span>
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
 
                                                 {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
-                                                    <div className="mt-2 p-4 bg-rose-50 border border-rose-100 rounded-xl space-y-2">
-                                                        <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
-                                                            <FiAlertCircle /> Reason for Adjustment Required
+                                                    <div className="mt-2 p-3 bg-rose-50 border border-rose-100 rounded-lg">
+                                                        <label className="text-[10px] font-bold text-rose-600 uppercase flex items-center gap-1 mb-1">
+                                                            <FiAlertCircle /> Adjustment Reason
                                                         </label>
                                                         <textarea
                                                             value={adjustmentReasons[request.id] || ''}
                                                             onChange={(e) => setAdjustmentReasons({ ...adjustmentReasons, [request.id]: e.target.value })}
-                                                            placeholder="Specify why quantities were changed..."
-                                                            className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/10 resize-none h-16"
+                                                            placeholder="Why were quantities changed?"
+                                                            className="w-full bg-white border border-rose-200 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none h-14"
                                                         />
                                                     </div>
                                                 )}
 
-                                                <div className="flex items-center gap-3 pt-3">
+                                                <div className="flex items-center gap-2 pt-3">
                                                     {effectiveRole.includes('stock_clerk') ? (
-                                                        <button onClick={() => setModel22Request(request)} className={`flex-1 py-3 bg-${themeColor}-600 hover:bg-${themeColor}-500 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all`}>
+                                                        <button onClick={() => setModel22Request(request)} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all">
                                                             Proceed to Model 22 <FiArrowRight />
-                                                        </button>
-                                                    ) : effectiveRole === 'general_service' ? (
-                                                        <button onClick={() => setSelectedRequest(request)} className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all">
-                                                            Process Service <FiArrowRight />
                                                         </button>
                                                     ) : (
                                                         <button
                                                             onClick={() => setSelectedRequest(request)}
-                                                            className={`flex-1 py-3 rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                                effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                                    'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
-                                                                }`}
+                                                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
                                                         >
                                                             Process Request <FiArrowRight />
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handleReject(request)} className="px-4 py-3 bg-white border border-slate-200 text-slate-400 rounded-xl hover:text-red-500 hover:border-red-500 hover:bg-red-50 transition-all">
-                                                        <FiXCircle size={18} />
+                                                    <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
+                                                        <FiXCircle size={16} />
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    {/* GRID VIEW LAYOUT */}
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedRequests.includes(request.id)}
-                                                onChange={() => toggleSelect(request.id)}
-                                                className="w-5 h-5 rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                            />
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-blue-600">
-                                                <FiUser className="text-xl" />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-slate-800 text-lg tracking-tight">{request.requesterName}</h4>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{request.department?.replace('_', ' ')}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="flex items-center gap-2 mb-1 justify-end">
-                                                <div className={`w-2 h-2 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
-                                                    request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
-                                                    }`} />
-                                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{request.status.replace(/_/g, ' ')}</span>
-                                            </div>
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none mt-1.5">{request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                                        </div>
-                                    </div>
-
-                                    {request.formType === 'paper_form_20' ? (
-                                        <div className="bg-slate-50/50 rounded-3xl p-8 flex flex-col items-center justify-center border border-slate-100 border-dashed">
-                                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-4">
-                                                <FiArrowRight className="text-2xl text-blue-500" />
-                                            </div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Model 20 Requisition</p>
-                                            <button
-                                                onClick={() => setSelectedRequest(request)}
-                                                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-600/20 hover:bg-blue-500 transition-all"
-                                            >
-                                                Process Request
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4 flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Requested Items ({request.items.length})</p>
-                                            </div>
-                                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                                {request.items.map((item, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
-                                                                {item.image || materialImages[item.materialId] ? (
-                                                                    <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={40} height={40} className="object-cover" />
-                                                                ) : <FiBox className="text-slate-200" />}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-black text-slate-700">{item.materialName}</p>
-                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{item.materialCode || 'No Code'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
-                                                                <input
-                                                                    type="number"
-                                                                    value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
-                                                                    onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
-                                                                    className={`w-16 px-2 py-1 bg-white border rounded-lg text-right font-black text-sm focus:ring-2 focus:ring-blue-500/10 outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
-                                                                        ? 'text-rose-600 border-rose-200 bg-rose-50'
-                                                                        : 'text-slate-800 border-slate-200'
-                                                                        }`}
-                                                                />
-                                                            ) : (
-                                                                <p className="text-sm font-black text-slate-800">{item.quantity} <span className="text-[10px] text-slate-400 uppercase tracking-widest ml-1">{item.unit}</span></p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
-                                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl space-y-2">
-                                                    <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
-                                                        <FiAlertCircle /> Reason for Adjustment Required
-                                                    </label>
-                                                    <textarea
-                                                        value={adjustmentReasons[request.id] || ''}
-                                                        onChange={(e) => setAdjustmentReasons({ ...adjustmentReasons, [request.id]: e.target.value })}
-                                                        placeholder="Specify why quantities were changed..."
-                                                        className="w-full bg-white border border-rose-200 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/10 resize-none h-16"
-                                                    />
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* GRID VIEW */}
+                                        <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRequests.includes(request.id)}
+                                                    onChange={() => toggleSelect(request.id)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+                                                    <FiUser />
                                                 </div>
-                                            )}
-
-                                            <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-auto">
-                                                <button
-                                                    onClick={() => effectiveRole.includes('stock_clerk') ? setModel22Request(request) : setSelectedRequest(request)}
-                                                    className={`flex-1 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all ${effectiveRole === 'academic_coordinator' ? 'bg-lime-600 hover:bg-lime-500 text-white shadow-lime-600/20' :
-                                                        effectiveRole === 'managing_director' ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20' :
-                                                            'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
-                                                        }`}
-                                                >
-                                                    {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
-                                                </button>
-                                                <button onClick={() => handleReject(request)} className="px-5 py-4 bg-white border border-slate-200 text-slate-400 rounded-2xl hover:text-red-500 hover:border-red-500 hover:bg-red-50 transition-all group/reject">
-                                                    <FiXCircle size={20} className="group-hover/reject:rotate-90 transition-transform duration-300" />
-                                                </button>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-900 text-sm">{request.requesterName}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase">{request.department?.replace('_', ' ')}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="flex items-center gap-1.5 justify-end mb-1">
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${request.status.includes('rejected') ? 'bg-red-500' :
+                                                        request.status.includes('pending') ? 'bg-amber-500' : 'bg-emerald-500'
+                                                        }`} />
+                                                    <span className="text-[10px] font-bold text-slate-600 uppercase">{request.status.replace(/_/g, ' ')}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400">{request.createdAt?.toDate().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                             </div>
                                         </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
 
+                                        {request.formType === 'paper_form_20' ? (
+                                            <div className="bg-slate-50 rounded-xl p-6 flex flex-col items-center justify-center border border-slate-200 border-dashed">
+                                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100 mb-3">
+                                                    <FiArrowRight className="text-xl text-blue-500" />
+                                                </div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">Model 20 Requisition</p>
+                                                <button
+                                                    onClick={() => setSelectedRequest(request)}
+                                                    className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-500 transition-all"
+                                                >
+                                                    Process Request
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3 flex-1 flex flex-col">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Requested Items ({request.items.length})</p>
+                                                <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                                    {request.items.map((item, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-md bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                                    {item.image || materialImages[item.materialId] ? (
+                                                                        <Image src={item.image || materialImages[item.materialId]} alt={item.materialName} width={32} height={32} className="object-cover" />
+                                                                    ) : <FiBox className="text-slate-300" />}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-slate-700">{item.materialName}</p>
+                                                                    <p className="text-[10px] text-slate-400">{item.materialCode || 'No Code'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
+                                                                    <input
+                                                                        type="number"
+                                                                        value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
+                                                                        onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
+                                                                        className={`w-14 px-2 py-1 bg-white border rounded text-right font-bold text-sm outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
+                                                                            ? 'text-rose-600 border-rose-200 bg-rose-50'
+                                                                            : 'text-slate-800 border-slate-200'
+                                                                            }`}
+                                                                    />
+                                                                ) : (
+                                                                    <p className="text-sm font-bold text-slate-800">{item.quantity} <span className="text-[10px] text-slate-400 ml-1">{item.unit}</span></p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
 
+                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
+                                                    <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg space-y-1">
+                                                        <label className="text-[10px] font-bold text-rose-600 uppercase flex items-center gap-1">
+                                                            <FiAlertCircle /> Adjustment Reason
+                                                        </label>
+                                                        <textarea
+                                                            value={adjustmentReasons[request.id] || ''}
+                                                            onChange={(e) => setAdjustmentReasons({ ...adjustmentReasons, [request.id]: e.target.value })}
+                                                            placeholder="Why were quantities changed?"
+                                                            className="w-full bg-white border border-rose-200 rounded-lg px-2 py-1.5 text-sm outline-none resize-none h-12"
+                                                        />
+                                                    </div>
+                                                )}
 
-
-
-            {/* Rejection Modal */}
-            {rejectModalOpen && requestToReject && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-[2rem] w-full max-w-lg p-8 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
-                        {/* decorative background element */}
-                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-rose-500/10 rounded-full blur-[40px] pointer-events-none" />
-
-                        <div className="flex items-center gap-4 mb-6 relative">
-                            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100 flex-shrink-0">
-                                <FiXCircle className="text-rose-600 text-xl" />
+                                                <div className="flex items-center gap-2 pt-3 mt-auto">
+                                                    <button
+                                                        onClick={() => effectiveRole.includes('stock_clerk') ? setModel22Request(request) : setSelectedRequest(request)}
+                                                        className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
+                                                    >
+                                                        {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
+                                                    </button>
+                                                    <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
+                                                        <FiXCircle size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight">Reject Request</h3>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Provide Reason for Rejection</p>
-                            </div>
-                        </div>
+                        ))}
+                    </div>
+                )}
 
-                        <div className="space-y-4 relative">
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                                    <FiUser size={14} className="text-slate-500" />
+
+
+
+
+                {/* Rejection Modal */}
+                {rejectModalOpen && requestToReject && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+                                    <FiXCircle className="text-xl" />
                                 </div>
-                                <div className="min-w-0">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Requester</p>
-                                    <p className="text-sm font-black text-slate-700 truncate">{requestToReject.requesterName}</p>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">Reject Request</h3>
+                                    <p className="text-xs text-slate-500">Provide a reason for rejection</p>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Rejection Reason</label>
-                                <textarea
-                                    value={rejectReason}
-                                    onChange={(e) => setRejectReason(e.target.value)}
-                                    placeholder="Please provide a clear reason for the requester..."
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-400 focus:bg-white transition-all resize-none h-32"
-                                />
-                            </div>
-                        </div>
+                            <div className="space-y-4">
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center">
+                                        <FiUser className="text-slate-500" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Requester</p>
+                                        <p className="text-sm font-bold text-slate-700 truncate">{requestToReject.requesterName}</p>
+                                    </div>
+                                </div>
 
-                        <div className="flex gap-3 justify-end mt-8 relative">
-                            <button
-                                onClick={() => {
-                                    setRejectModalOpen(false);
-                                    setRequestToReject(null);
-                                    setRejectReason('');
-                                }}
-                                className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 border-2 border-transparent transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmReject}
-                                disabled={!rejectReason.trim()}
-                                className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${!rejectReason.trim()
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    : 'bg-rose-500 text-white shadow-lg shadow-rose-500/30 hover:bg-rose-600 hover:shadow-rose-600/40 hover:-translate-y-0.5'
-                                    }`}
-                            >
-                                Confirm Reject
-                            </button>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1.5">Rejection Reason</label>
+                                    <textarea
+                                        value={rejectReason}
+                                        onChange={(e) => setRejectReason(e.target.value)}
+                                        placeholder="Explain why this request is being rejected..."
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none focus:border-rose-400 focus:bg-white resize-none h-28"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 justify-end mt-6">
+                                <button
+                                    onClick={() => {
+                                        setRejectModalOpen(false);
+                                        setRequestToReject(null);
+                                        setRejectReason('');
+                                    }}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmReject}
+                                    disabled={!rejectReason.trim()}
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${!rejectReason.trim()
+                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                        : 'bg-rose-500 text-white hover:bg-rose-600'
+                                        }`}
+                                >
+                                    Confirm Reject
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            <style jsx global>{`
-                @keyframes float {
-                    0% { transform: translateY(0px); }
-                    50% { transform: translateY(-10px); }
-                    100% { transform: translateY(0px); }
-                }
-                .animate-float {
-                    animation: float 6s ease-in-out infinite;
-                }
+                {/* @ts-ignore */}
+                <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }

@@ -54,8 +54,6 @@ export default function RequestNotificationBanner() {
             q = query(requestsRef, where('currentApproverRole', '==', 'academic_coordinator'), where('status', '==', 'approved_by_head'));
         } else if (role === 'managing_director' || role === 'managing_director_leader') {
             q = query(requestsRef, where('status', 'in', ['approved_by_coordinator', 'pending_managing_director', 'approved_by_student_service_leader']));
-        } else if (role === 'general_service_leader') {
-            q = query(requestsRef, where('status', 'in', ['approved_by_md', 'pending_general_service']));
         } else if (role === 'procurement_team_leader') {
             q = query(requestsRef, where('currentApproverRole', '==', 'procurement_team_leader'), where('status', 'in', ['forwarded_to_team_leader', 'pending_procurement']));
         } else if (role.includes('stock_clerk')) {
@@ -110,16 +108,12 @@ export default function RequestNotificationBanner() {
             basePath = '/dashboard';
             approvalPath = '/approve-requests';
         }
-        else if (normalizedRole.includes('_leader') && !['managing_director_leader', 'general_service_leader', 'procurement_team_leader'].includes(normalizedRole)) {
+        else if (normalizedRole.includes('_leader') && !['managing_director_leader', 'procurement_team_leader'].includes(normalizedRole)) {
             basePath = '/admin-staff/team-leader';
             approvalPath = '/approve-requests';
         }
         else if (normalizedRole === 'managing_director' || normalizedRole === 'chief' || normalizedRole === 'managing_director_leader') {
             basePath = '/portal';
-            approvalPath = '/view-requests';
-        }
-        else if (normalizedRole === 'general_service_leader') {
-            basePath = '/service';
             approvalPath = '/view-requests';
         }
         else if (normalizedRole === 'procurement_team_leader') {

@@ -22,6 +22,8 @@ interface ReadOnlyPaperForm20Props {
         items: RequestItem[];
         signature?: string; // Base64 signature
         headSignature?: string; // Department Head signature
+        managingDirectorSignature?: string;
+        ptlSignature?: string;
         createdAt?: any;
         status?: string;
         history?: { status: string; note: string; timestamp: string; user: string }[];
@@ -33,12 +35,13 @@ interface ReadOnlyPaperForm20Props {
     isDepartmentHead?: boolean;
     isAcademicCoordinator?: boolean;
     isManagingDirector?: boolean;
+    isProcurementTeamLeader?: boolean;
     isStockClerk?: boolean;
     onProcessModel22?: () => void;
 }
 
-export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead, isAcademicCoordinator, isManagingDirector, isStockClerk, onProcessModel22 }: ReadOnlyPaperForm20Props) {
-    const { receiptNo, requesterName, department, items, signature, headSignature, createdAt, status, history } = request;
+export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead, isAcademicCoordinator, isManagingDirector, isProcurementTeamLeader, isStockClerk, onProcessModel22 }: ReadOnlyPaperForm20Props) {
+    const { receiptNo, requesterName, department, items, signature, headSignature, managingDirectorSignature, ptlSignature, createdAt, status, history } = request;
 
     const rejectionNote = history?.filter(h => h.status === 'rejected').pop()?.note;
     const canAdjust = isAcademicCoordinator || isManagingDirector;
@@ -140,13 +143,19 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
     };
 
     const handleApproveWithSignature = () => {
-        if (isDepartmentHead && !signatureData && !headSignature) {
+        if ((isDepartmentHead || isManagingDirector || isProcurementTeamLeader) && !signatureData && !headSignature && !managingDirectorSignature && !ptlSignature) {
             alert("Please sign the form before approving.");
             return;
         }
 
         if (canAdjust && isQuantityChanged && !adjustmentNote.trim()) {
             alert("Please provide a reason for the quantity adjustment.");
+            return;
+        }
+
+        const zeroQuantityItems = editableItems.filter(i => i.materialName && i.quantity <= 0);
+        if (zeroQuantityItems.length > 0) {
+            alert("Quantity must be greater than 0 for all items.");
             return;
         }
 
@@ -187,23 +196,23 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
 
     return createPortal(
         <div style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
+            position: 'fixed', inset: 0, zIndex: 99999,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
             display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto',
-            padding: '40px 16px'
-        }} onClick={onClose}>
+            padding: '40px 20px'
+        }} onClick={onClose} className="print-reset-bg">
             <div style={{
                 background: '#fff',
                 width: '100%', maxWidth: '210mm',
-                minHeight: '297mm',
-                height: 'max-content',
+                minHeight: 'auto',
                 margin: '0 auto',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 padding: '48px 56px',
                 color: '#000',
                 fontFamily: "'Noto Sans Ethiopic', 'Nyala', Arial, sans-serif",
                 position: 'relative',
-                borderRadius: 4
+                borderRadius: '16px'
             }} onClick={e => e.stopPropagation()} className="printable-form">
 
                 {/* Print Button */}
@@ -392,16 +401,20 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                             </div>
 
                             <div style={{ height: 90, borderBottom: '2px solid #000', marginTop: 4, position: 'relative' }}>
-                                {headSignature ? (
+                                {headSignature || managingDirectorSignature || ptlSignature ? (
                                     // Already signed via database (view mode)
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={headSignature} alt="Head Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+                                    <img
+                                        src={managingDirectorSignature || ptlSignature || headSignature}
+                                        alt="Approver Signature"
+                                        style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }}
+                                    />
                                 ) : signatureData ? (
                                     // Just signed in current session
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={signatureData} alt="New Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
-                                ) : isDepartmentHead ? (
-                                    // Department Head Action Area
+                                ) : (isDepartmentHead || isManagingDirector || isProcurementTeamLeader) ? (
+                                    // Action Area
                                     isSigningMode ? (
                                         <div style={{ position: 'absolute', inset: 0, background: '#fafafa', cursor: 'crosshair' }}>
                                             <canvas ref={canvasRef}
@@ -466,6 +479,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                     </button>
                 </div>
 
+                {/* @ts-ignore */}
                 <style jsx global>{`
                     @keyframes spin {
                         from { transform: rotate(0deg); }
@@ -490,6 +504,10 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                             padding: 0 !important;
                             box-shadow: none !important;
                             background: white !important;
+                        }
+                        .print-reset-bg {
+                            background: transparent !important;
+                            padding: 0 !important;
                         }
                         .print-hide {
                             display: none !important;

@@ -11,8 +11,6 @@ export const ROUTE_MAPPINGS: RouteMapping[] = [
     { userRole: 'managing_director_leader', cleanUrl: '/portal', displayName: 'Portal' },
     { userRole: 'chief', cleanUrl: '/chief', displayName: 'Chief' },
 
-    // General Service
-    { userRole: 'general_service_leader', cleanUrl: '/service', displayName: 'Service' },
 
     // Academic Staff - Coordinator
     { userRole: 'academic_coordinator', cleanUrl: '/dashboard', displayName: 'Dashboard' },
@@ -72,9 +70,6 @@ export const ROUTE_MAPPINGS: RouteMapping[] = [
     { userRole: 'building_renovation_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Building Renovation Leader' },
     { userRole: 'building_renovation_employee', cleanUrl: '/admin-panel', displayName: 'Building Renovation Employee' },
 
-    // General Service (Admin)
-    { userRole: 'general_service_admin_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'General Service Leader' },
-    { userRole: 'general_service_admin_employee', cleanUrl: '/admin-panel', displayName: 'General Service Employee' },
 
     // Library Service
     { userRole: 'library_service_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Library Service Leader' },
@@ -118,7 +113,6 @@ export function isLeaderRole(userRole: string | null): boolean {
     return userRole.endsWith('_leader') ||
         userRole === 'academic_coordinator' ||
         userRole.endsWith('_head') ||
-        userRole === 'general_service_leader' ||
         userRole === 'managing_director_leader' ||
         userRole === 'chief';
 }
@@ -178,4 +172,4 @@ export function getDisplayNameForRole(userRole: string): string {
 export const PUBLIC_ROUTES = ['/', '/login'];
 
 // Protected routes that require authentication
-export const PROTECTED_ROUTES = ['/dashboard', '/portal', '/service', '/workspace', '/admin-panel', '/chief'];
+export const PROTECTED_ROUTES = ['/dashboard', '/portal', '/workspace', '/admin-panel', '/chief'];

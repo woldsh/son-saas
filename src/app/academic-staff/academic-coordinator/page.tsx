@@ -265,7 +265,7 @@ export default function AcademicCoordinatorPage() {
                                             <FiPackage className="text-xl text-white" />
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="font-bold text-slate-900 group-hover:text-slate-700 transition-colors">Full Inventory</h3>
+                                            <h3 className="font-bold text-slate-900 group-hover:text-slate-700 transition-colors">Material List</h3>
                                             <p className="text-sm text-slate-500">View all store materials</p>
                                         </div>
                                         <FiArrowRight className="text-xl text-slate-500 group-hover:translate-x-2 transition-transform" />

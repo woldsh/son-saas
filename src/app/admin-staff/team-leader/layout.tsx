@@ -68,7 +68,6 @@ export default function TeamLeaderLayout({
             case 'finance_leader': return t('finance_leader');
 
             // Admin Staff Leaders
-            case 'general_service_admin_leader': return 'General Service Lead';
             case 'procurement_admin_leader': return 'Procurement Lead';
             case 'resource_development_leader': return 'Resource Dev Lead';
             case 'building_renovation_leader': return 'Renovation Lead';

@@ -15,7 +15,6 @@ import DepartmentHeadSidebar from '@/components/DepartmentHeadSidebar';
 import TeacherSidebar from '@/components/TeacherSidebar';
 import AdminTeamLeaderSidebar from '@/components/AdminTeamLeaderSidebar';
 import ManagingDirectorSidebar from '@/components/ManagingDirectorSidebar';
-import GeneralServiceSidebar from '@/components/GeneralServiceSidebar';
 
 import IdleTimeoutGuard from '@/components/IdleTimeoutGuard';
 import RequestNotificationBanner from '@/components/RequestNotificationBanner';
@@ -68,7 +67,6 @@ export default function WorkspaceLayout({
         if (userRole === 'chief') return <ChiefSidebar />;
         if (userRole === 'managing_director_leader') return <ManagingDirectorSidebar />;
         if (userRole === 'academic_coordinator') return <AcademicCoordinatorSidebar />;
-        if (userRole === 'general_service_leader') return <GeneralServiceSidebar />;
         if (userRole.endsWith('_head')) return <DepartmentHeadSidebar />;
         if (userRole.endsWith('_teacher')) return <TeacherSidebar />;
         if (isEmployeeRole(userRole)) return <EmployeeSidebar />;

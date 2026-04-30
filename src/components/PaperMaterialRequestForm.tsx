@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
@@ -22,6 +23,12 @@ interface PaperMaterialRequestFormProps {
 
 export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperMaterialRequestFormProps) {
     const { user, userRole, department } = useAuth();
+    const [mounted, setMounted] = useState(false);
+    
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const [receiptNo, setReceiptNo] = useState('');
     const [dateDay, setDateDay] = useState('');
     const [dateYear, setDateYear] = useState('');
@@ -188,6 +195,12 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             return;
         }
 
+        const zeroQuantityItems = activeItems.filter(i => Number(i.quantity) <= 0);
+        if (zeroQuantityItems.length > 0) {
+            setCooldownAlert('እባክዎ የዕቃውን ብዛት ከ 0 በላይ ያድርጉ።\n(Quantity must be greater than 0 for all requested items)');
+            return;
+        }
+
         if (!signatureData) { setCooldownAlert('እባክዎ ከማቅረብዎ በፊት ይፈርሙ። (Please sign before submitting)'); return; }
 
         setIsSubmitting(true);
@@ -205,18 +218,16 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 for (const m of materialsList) {
                     // Check top-level materialName match
                     if (m.materialName?.trim().toLowerCase() === item.itemType?.trim().toLowerCase()) {
-                        storeQty = Number(m.quantity) || 0;
+                        storeQty += Number(m.quantity) || 0;
                         found = true;
-                        break;
                     }
                     // Check inside items array (Model 19 structure: items[] with description & quantity)
                     if (m.items && Array.isArray(m.items)) {
                         const matchedItem = m.items.find((i: any) => i.description?.trim().toLowerCase() === item.itemType?.trim().toLowerCase());
                         if (matchedItem) {
                             // Quantity can be on the matched item itself, or on the parent document
-                            storeQty = Number(matchedItem.quantity) || Number(m.quantity) || 0;
+                            storeQty += Number(matchedItem.quantity) || Number(m.quantity) || 0;
                             found = true;
-                            break;
                         }
                     }
                 }
@@ -306,14 +317,25 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 'admin_lead' // Generic fallback for admin-style leads
             ];
 
-            // Determine the correct approver role based on naming patterns
+            // Robust role detection
+            const normalizedRole = userRole?.toLowerCase().replace(/\s+/g, '_') || '';
+            const isMDSubmitting = normalizedRole === 'managing_director' || normalizedRole === 'managing_director_leader' || normalizedRole === 'chief';
+            const isACSubmitting = normalizedRole === 'academic_coordinator';
+            const isTeamLeaderSubmitting = (TEAM_LEADER_ROLES.includes(normalizedRole) || normalizedRole.includes('leader')) && !isMDSubmitting && !isACSubmitting;
+            const isHeadSubmitting = normalizedRole.endsWith('_head');
+            const isStoreStaff = normalizedRole.includes('stock_clerk') || normalizedRole.includes('store_keeper');
+
+            // Determine target role and status
             let targetRole = 'department_head';
             let rolePrefix = '';
 
-            const isTeamLeaderSubmitting = userRole && TEAM_LEADER_ROLES.includes(userRole);
-            const isHeadSubmitting = userRole && userRole.endsWith('_head');
-
-            if (isTeamLeaderSubmitting) {
+            if (isStoreStaff) {
+                targetRole = 'procurement_team_leader';
+            } else if (isMDSubmitting || isACSubmitting) {
+                targetRole = 'procurement_team_leader';
+            } else if (isHeadSubmitting) {
+                targetRole = 'academic_coordinator';
+            } else if (isTeamLeaderSubmitting) {
                 targetRole = 'managing_director';
             } else if (userRole) {
                 if (userRole.endsWith('_teacher')) {
@@ -322,17 +344,15 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 } else if (userRole.endsWith('_employee')) {
                     rolePrefix = userRole.replace('_employee', '');
                     targetRole = `${rolePrefix}_leader`;
-                } else if (userRole.endsWith('_head')) {
-                    targetRole = 'academic_coordinator';
                 }
             }
 
             // Fallback for currentApproverRole categorization
-            let approverCategory = isTeamLeaderSubmitting ? 'managing_director' : 'department_head';
-            if (!isTeamLeaderSubmitting && targetRole.endsWith('_leader')) approverCategory = targetRole;
+            let approverCategory = isStoreStaff ? 'procurement_team_leader' : (isTeamLeaderSubmitting ? 'managing_director' : ((isMDSubmitting || isACSubmitting) ? 'procurement_team_leader' : 'department_head'));
+            if (!isStoreStaff && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && targetRole.endsWith('_leader')) approverCategory = targetRole;
 
-            let currentApproverId = 'PENDING_APPROVER_ASSIGNMENT';
-            let currentApproverName = targetRole.replace(/_/g, ' ').toUpperCase();
+            let currentApproverId = (isHeadSubmitting && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && !isStoreStaff) ? 'PENDING_COORDINATOR' : 'PENDING_APPROVER_ASSIGNMENT';
+            let currentApproverName = (isHeadSubmitting && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && !isStoreStaff) ? 'Academic Coordinator' : targetRole.replace(/_/g, ' ').toUpperCase();
 
             // Try to find the specific leader
             const approversQuery = query(
@@ -344,35 +364,19 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             if (!approversSnap.empty) {
                 // If multiple, try to match department
                 let bestMatch = approversSnap.docs[0];
-                if (dept && !isTeamLeaderSubmitting) { // MD doesn't need dept match usually
+                if (dept && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && !isStoreStaff) { 
                     const deptMatch = approversSnap.docs.find(d => d.data().department === dept);
                     if (deptMatch) bestMatch = deptMatch;
                 }
                 currentApproverId = bestMatch.id;
                 currentApproverName = bestMatch.data().displayName || currentApproverName;
-            } else if (dept && !isTeamLeaderSubmitting) {
-                // Generic fallback search by department if role-specific search fails
-                const deptUsersQuery = query(
-                    collection(db, 'users'),
-                    where('department', '==', dept)
-                );
-                const deptUsersSnap = await getDocs(deptUsersQuery);
-                const leadDoc = deptUsersSnap.docs.find(d => {
-                    const r = d.data().userRole || '';
-                    return r.endsWith('_head') || r.endsWith('_leader');
-                });
-                if (leadDoc) {
-                    currentApproverId = leadDoc.id;
-                    currentApproverName = leadDoc.data().displayName || currentApproverName;
-                    targetRole = leadDoc.data().userRole;
-                }
             }
 
-            // Define status and approver info based on submission role
-            const finalStatus = isTeamLeaderSubmitting ? 'pending_managing_director' : (isHeadSubmitting ? 'approved_by_head' : 'pending_department_leader');
-            const finalApproverRole = isTeamLeaderSubmitting ? 'managing_director' : (isHeadSubmitting ? 'academic_coordinator' : approverCategory);
-            const finalApproverId = isHeadSubmitting && !isTeamLeaderSubmitting ? 'PENDING_COORDINATOR' : currentApproverId;
-            const finalApproverName = isHeadSubmitting && !isTeamLeaderSubmitting ? 'Academic Coordinator' : currentApproverName;
+            // Define final status and roles
+            const finalStatus = isStoreStaff ? 'pending_procurement' : (isTeamLeaderSubmitting ? 'pending_managing_director' : ((isMDSubmitting || isACSubmitting) ? 'pending_procurement' : (isHeadSubmitting ? 'approved_by_head' : 'pending_department_leader')));
+            const finalApproverRole = isStoreStaff ? 'procurement_team_leader' : (isTeamLeaderSubmitting ? 'managing_director' : ((isMDSubmitting || isACSubmitting) ? 'procurement_team_leader' : (isHeadSubmitting ? 'academic_coordinator' : approverCategory)));
+            const finalApproverId = currentApproverId;
+            const finalApproverName = currentApproverName;
 
             await addDoc(collection(db, 'Request_materials'), {
                 requesterId: user.uid,
@@ -398,12 +402,14 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 currentApproverRole: finalApproverRole,
                 currentApproverId: finalApproverId,
                 currentApproverName: finalApproverName,
+                requesterRole: normalizedRole,
                 createdAt: serverTimestamp(),
                 formType: 'paper_form_20',
                 history: [
                     {
                         status: 'submitted',
                         user: user.uid,
+                        userRole: normalizedRole,
                         timestamp: new Date().toISOString(),
                         note: `ሞዴል 20 ቅጽ ቀርቧል:: Forwarded to ${finalApproverName} (${finalApproverRole.replace(/_/g, ' ')})`
                     },
@@ -464,10 +470,10 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
     const blank = (w: string) => <span style={{ display: 'inline-block', width: w, borderBottom: '1px solid #000' }}>&nbsp;</span>;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#e5e7eb', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
+        <div style={{ minHeight: '100vh', background: '#fff', padding: '0', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
             {/* Navigation */}
             {onBack && (
-                <div className="w-full max-w-[210mm] mb-4 flex justify-start print-hide">
+                <div className="w-full max-w-[210mm] mt-8 mb-4 flex justify-start print-hide">
                     <button
                         onClick={onBack}
                         className="px-4 py-2 bg-white text-slate-600 rounded-lg shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium"

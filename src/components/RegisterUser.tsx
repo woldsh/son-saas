@@ -11,16 +11,12 @@ import {
   FiUser,
   FiMail,
   FiLock,
-  FiBriefcase,
   FiCheckCircle,
   FiAlertCircle,
   FiChevronRight,
   FiShield,
-  FiLayers,
-  FiCommand,
   FiTarget,
-  FiCpu,
-  FiHardDrive
+  FiCommand
 } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 
@@ -69,7 +65,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
     { id: 'procurement_admin', label: 'Procurement Admin (ግዥ አስተዳደር)' },
     { id: 'resource_development', label: 'Resource Dev & Revenue (ሃብት ልማት)' },
     { id: 'building_renovation', label: 'Building Renovation (ህንጻ እድሳት)' },
-    { id: 'general_service_admin', label: 'General Service' },
     { id: 'library_service', label: 'Library Service' },
     { id: 'security', label: 'Security' },
     { id: 'registrar', label: 'Registrar' },
@@ -168,12 +163,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           userRole: 'managing_director_leader',
           subRole: 'executive'
         };
-      case 'general_service':
-        return {
-          mainRole: 'general_service',
-          userRole: 'general_service_leader',
-          subRole: 'service_supervisor'
-        };
       case 'chief':
         return {
           mainRole: 'chief',
@@ -191,7 +180,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           let rolePrefix = departmentSelection;
 
           if (departmentSelection === 'other' && customDepartment) {
-            // Convert custom department name to snake_case for the role
             rolePrefix = customDepartment
               .toLowerCase()
               .trim()
@@ -200,7 +188,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           }
 
           if (rolePrefix) {
-            // Ensure we use the proper label for the department field
             let deptLabel = departmentSelection;
             if (departmentSelection === 'other') deptLabel = customDepartment;
             else {
@@ -264,9 +251,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         } else if (adminSelection === 'building_renovation') {
           if (adminRoleSelection === 'leader') return { mainRole: 'admin_staff', userRole: 'building_renovation_leader', subRole: 'building_renovation_manager' };
           if (adminRoleSelection === 'employee') return { mainRole: 'admin_staff', userRole: 'building_renovation_employee', subRole: 'building_renovation_staff' };
-        } else if (adminSelection === 'general_service_admin') {
-          if (adminRoleSelection === 'leader') return { mainRole: 'admin_staff', userRole: 'general_service_admin_leader', subRole: 'general_service_admin_manager' };
-          if (adminRoleSelection === 'employee') return { mainRole: 'admin_staff', userRole: 'general_service_admin_employee', subRole: 'general_service_admin_staff' };
         } else if (adminSelection === 'library_service') {
           if (adminRoleSelection === 'leader') return { mainRole: 'admin_staff', userRole: 'library_service_leader', subRole: 'library_service_manager' };
           if (adminRoleSelection === 'employee') return { mainRole: 'admin_staff', userRole: 'library_service_employee', subRole: 'library_service_staff' };
@@ -297,35 +281,16 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         break;
     }
 
-    // Dynamic Logic for Admin Staff (Predefined or Custom)
     if (mainRole === 'admin_staff') {
-      if (adminSelection === 'student_service' && studentServiceSelection && adminRoleSelection) {
-        // Student service specific logic is already handled above in switch, but if it fell through or for clarity:
-        // Actually, switch case 'admin_staff' handles specific predefined ones.
-        // We need to verify if the switch case handled it.
-        // The switch case returns early for known static IDs.
-        // If we are here, it means it wasn't one of the static ones in the switch OR it matches our new logic.
-        // BUT, getRoleData uses multiple return statements inside switch.
-        // The issue is that `adminSelection` for dynamic depts will essentially match their ID.
-        // We need to inject logic for "other" OR for dynamic IDs that are NOT in the switch.
-      }
-
-      // Handle "Other"
       if (adminSelection === 'other' && customAdminDept) {
         const normalizedDept = customAdminDept.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
         if (adminRoleSelection === 'leader') return { mainRole: 'admin_staff', userRole: `${normalizedDept}_leader`, subRole: `${normalizedDept}_manager`, department: customAdminDept };
         if (adminRoleSelection === 'employee') return { mainRole: 'admin_staff', userRole: `${normalizedDept}_employee`, subRole: `${normalizedDept}_staff`, department: customAdminDept };
       }
 
-      // Handle Dynamic/Persisted Departments (that are not predefined in switch)
-      // We can check if `adminSelection` is present in availableAdminDepts but NOT in the switch cases.
-      // The switch cases cover: hrm, finance, procurement_admin, resource_development, building_renovation, general_service_admin, library_service, security, registrar, student_service.
-      // Any other ID is a dynamic department.
-      const isPredefined = ['hrm', 'finance', 'procurement_admin', 'resource_development', 'building_renovation', 'general_service_admin', 'library_service', 'security', 'registrar', 'student_service'].includes(adminSelection);
+      const isPredefined = ['hrm', 'finance', 'procurement_admin', 'resource_development', 'building_renovation', 'library_service', 'security', 'registrar', 'student_service'].includes(adminSelection);
 
       if (!isPredefined && adminSelection && adminSelection !== 'other') {
-        // It's a persisted dynamic department
-        // adminSelection is the ID (snake_case)
         if (adminRoleSelection === 'leader') return { mainRole: 'admin_staff', userRole: `${adminSelection}_leader`, subRole: `${adminSelection}_manager` };
         if (adminRoleSelection === 'employee') return { mainRole: 'admin_staff', userRole: `${adminSelection}_employee`, subRole: `${adminSelection}_staff` };
       }
@@ -376,7 +341,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         throw new Error(result.error || 'Failed to register user.');
       }
 
-      // Persist custom admin department
       if (mainRole === 'admin_staff' && adminSelection === 'other' && customAdminDept && db) {
         try {
           const settingsRef = doc(db, 'settings', 'admin_configurations');
@@ -391,7 +355,6 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         }
       }
 
-      // Persist custom academic department
       if (mainRole === 'academic_staff' && academicSelection === 'department' && departmentSelection === 'other' && customDepartment && db) {
         try {
           const settingsRef = doc(db, 'settings', 'academic_configurations');
@@ -436,128 +399,108 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
   };
 
   return (
-    <div className="bg-white rounded-[2.5rem] overflow-hidden max-w-5xl mx-auto relative">
-      {/* Header - Simple & Clean */}
-      <div className="px-10 py-12 border-b border-slate-100 bg-slate-50/50">
-        <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-3xl text-white shadow-sm">
-            <FiUser />
-          </div>
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100 mb-2">
-              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{t('personnel_enrollment_tag')}</span>
-            </div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">{t('system_registration_header')}</h2>
-            <p className="mt-1 text-slate-500 font-medium">{t('registration_desc')}</p>
-          </div>
-        </div>
+    <div className="w-full max-w-4xl mx-auto bg-white">
+      <div className="mb-8 border-b border-gray-100 pb-6">
+        <h2 className="text-2xl font-semibold text-gray-900">{t('system_registration_header')}</h2>
+        <p className="mt-1 text-sm text-gray-500">{t('registration_desc')}</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-10 space-y-12">
-        {/* Step 1: Identity */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-              <FiTarget />
-            </div>
-            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">{t('core_identity_header')}</h3>
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="space-y-4">
+          <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
+            <FiUser className="text-gray-400" />
+            {t('core_identity_header')}
+          </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('first_name_label')}</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('first_name_label')}</label>
               <input
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 required
-                placeholder="e.g. Abebe"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 font-bold text-slate-900"
+                placeholder="Abebe"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('last_name_label')}</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('last_name_label')}</label>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required
-                placeholder="e.g. Kebede"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 font-bold text-slate-900"
+                placeholder="Kebede"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
               />
             </div>
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('email_address_label')}</label>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('email_address_label')}</label>
               <div className="relative">
-                <FiMail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="user@institution.edu"
-                  className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 font-bold text-slate-900"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Step 2: Role Assignment */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-              <FiCommand />
-            </div>
-            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">{t('role_selection_header')}</h3>
-          </div>
+        <div className="space-y-4 pt-4 border-t border-gray-100">
+          <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
+            <FiCommand className="text-gray-400" />
+            {t('role_selection_header')}
+          </h3>
 
-          <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-8">
-            <div className="space-y-3">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">{t('functional_domain_label')}</label>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('functional_domain_label')}</label>
               <select
                 value={mainRole}
                 onChange={(e) => setMainRole(e.target.value)}
                 required
-                className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-900 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTQ0QjU1IiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:1.25rem] bg-[right_1.25rem_center] bg-no-repeat"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow appearance-none"
               >
                 <option value="" disabled>Select Domain...</option>
                 <option value="academic_staff">{t('edu_academic_research')}</option>
                 <option value="managing_director">{t('exec_directorate_office')}</option>
-                <option value="general_service">{t('func_general_ops')}</option>
                 <option value="chief">{t('inst_high_command')}</option>
                 <option value="procurement_management">{t('supply_chain_logistics')}</option>
                 <option value="admin_staff">{t('inst_administration')}</option>
               </select>
             </div>
 
-            <AnimatePresence mode="wait">
-              {mainRole && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-6 border-t border-slate-200/60 space-y-8">
-                  {/* Academic Options */}
-                  {mainRole === 'academic_staff' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('assignment_type')}</label>
-                        <div className="flex bg-white p-1 rounded-xl border border-slate-200 gap-1 shadow-sm">
-                          {['academic_coordinator', 'department'].map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => setAcademicSelection(type)}
-                              className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${academicSelection === type ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
-                            >
-                              {type === 'academic_coordinator' ? t('coordinator_label') : t('dept_head_teacher_label')}
-                            </button>
-                          ))}
-                        </div>
+            {mainRole && (
+              <div className="pl-4 border-l-2 border-gray-100 space-y-6">
+                {mainRole === 'academic_staff' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('assignment_type')}</label>
+                      <div className="flex gap-2">
+                        {['academic_coordinator', 'department'].map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setAcademicSelection(type)}
+                            className={`flex-1 py-2 rounded-lg text-sm transition-colors border ${academicSelection === type ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            {type === 'academic_coordinator' ? t('coordinator_label') : t('dept_head_teacher_label')}
+                          </button>
+                        ))}
                       </div>
+                    </div>
 
-                      {academicSelection === 'department' && (
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('department_label')}</label>
-                          <select value={departmentSelection} onChange={(e) => setDepartmentSelection(e.target.value)} required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-xs font-bold text-slate-900">
+                    {academicSelection === 'department' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('department_label')}</label>
+                          <select value={departmentSelection} onChange={(e) => setDepartmentSelection(e.target.value)} required className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow">
                             <option value="">Select Faculty...</option>
                             {availableAcademicDepts.map((dept) => (
                               <option key={dept.id} value={dept.id}>{dept.label}</option>
@@ -565,69 +508,77 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
                             <option value="other">Other (Add New)</option>
                           </select>
                         </div>
-                      )}
 
-                      {academicSelection === 'department' && departmentSelection === 'other' && (
-                        <div className="space-y-3 md:col-span-2">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('new_dept_name')}</label>
-                          <input
-                            type="text"
-                            value={customDepartment}
-                            onChange={(e) => setCustomDepartment(e.target.value)}
-                            required
-                            placeholder="e.g. Applied Physics"
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-xs font-bold text-slate-900"
-                          />
-                        </div>
-                      )}
+                        {departmentSelection === 'other' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('new_dept_name')}</label>
+                            <input
+                              type="text"
+                              value={customDepartment}
+                              onChange={(e) => setCustomDepartment(e.target.value)}
+                              required
+                              placeholder="e.g. Applied Physics"
+                              className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                      {academicSelection === 'department' && departmentSelection && (
-                        <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                    {academicSelection === 'department' && departmentSelection && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Role inside department</label>
+                        <div className="flex gap-2">
                           {[
                             { id: 'head', label: t('department_head_label') },
                             { id: 'teacher', label: t('faculty_teacher') }
                           ].map((role) => (
-                            <button key={role.id} type="button" onClick={() => setDeptRoleSelection(role.id)} className={`p-4 rounded-2xl border-2 transition-all text-left ${deptRoleSelection === role.id ? 'border-slate-900 bg-slate-900 text-white shadow-md' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
-                              <p className="text-xs font-black uppercase tracking-widest">{role.label}</p>
-                              <p className={`text-[10px] mt-1 ${deptRoleSelection === role.id ? 'text-slate-400' : 'text-slate-400'}`}>{role.id === 'head' ? 'Managerial access' : 'Request-only access'}</p>
+                            <button key={role.id} type="button" onClick={() => setDeptRoleSelection(role.id)} className={`flex-1 py-2 px-4 rounded-lg text-sm transition-colors border text-left ${deptRoleSelection === role.id ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                              {role.label}
                             </button>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                  {/* Procurement Options */}
-                  {mainRole === 'procurement_management' && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-3 gap-3">
+                {mainRole === 'procurement_management' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Procurement Role</label>
+                      <div className="flex flex-wrap gap-2">
                         {['team_leader', 'stock_clerk', 'store_keeper'].map((role) => (
-                          <button key={role} type="button" onClick={() => setProcurementSelection(role)} className={`py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${procurementSelection === role ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-500'}`}>
+                          <button key={role} type="button" onClick={() => setProcurementSelection(role)} className={`flex-1 min-w-[120px] py-2 px-4 rounded-lg text-sm capitalize transition-colors border ${procurementSelection === role ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                             {role.replace('_', ' ')}
                           </button>
                         ))}
                       </div>
-                      {(procurementSelection === 'stock_clerk' || procurementSelection === 'store_keeper') && (
-                        <div className="flex bg-white p-1 rounded-xl border border-slate-200 gap-1 shadow-sm">
+                    </div>
+                    {(procurementSelection === 'stock_clerk' || procurementSelection === 'store_keeper') && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Store Type</label>
+                        <div className="flex gap-2">
                           {['fixed_assets', 'consumable_items'].map((type) => (
-                            <button key={type} type="button" onClick={() => setStockStoreType(type)} className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${stockStoreType === type ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>
+                            <button key={type} type="button" onClick={() => setStockStoreType(type)} className={`flex-1 py-2 rounded-lg text-sm capitalize transition-colors border ${stockStoreType === type ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                               {type.replace('_', ' ')}
                             </button>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                  {/* Admin Options - Refactored to Dropdown */}
-                  {mainRole === 'admin_staff' && (
-                    <div className="space-y-8">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('admin_unit')}</label>
+                {mainRole === 'admin_staff' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('admin_unit')}</label>
                         <select
                           value={adminSelection}
                           onChange={(e) => setAdminSelection(e.target.value)}
-                          className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-900 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlPSIjOTQ0QjU1IiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:1.25rem] bg-[right_1.25rem_center] bg-no-repeat"
+                          className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow appearance-none"
                         >
                           <option value="" disabled>Select Unit...</option>
                           {availableAdminDepts.map((dept) => (
@@ -638,141 +589,133 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
                       </div>
 
                       {adminSelection === 'other' && (
-                        <div className="space-y-3">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block ml-1">{t('new_admin_team')}</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('new_admin_team')}</label>
                           <input
                             type="text"
                             value={customAdminDept}
                             onChange={(e) => setCustomAdminDept(e.target.value)}
                             required
                             placeholder="e.g. Quality Assurance"
-                            className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-900"
+                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
                           />
                         </div>
                       )}
+                    </div>
 
+                    {adminSelection === 'student_service' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button type="button" onClick={() => { setStudentServiceSelection('overall'); setAdminRoleSelection('leader'); }} className={`py-2 px-4 rounded-lg text-sm transition-colors border ${studentServiceSelection === 'overall' ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          {t('overall_leader')}
+                        </button>
+                        <select
+                          value={studentServiceSelection === 'overall' ? '' : studentServiceSelection}
+                          onChange={(e) => setStudentServiceSelection(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow appearance-none"
+                        >
+                          <option value="">{t('select_subunit_placeholder')}</option>
+                          <option value="dormitory">{t('dormitory_label')}</option>
+                          <option value="cafeteria">{t('cafeteria_label')}</option>
+                          <option value="sport">{t('sport_label')}</option>
+                        </select>
+                      </div>
+                    )}
 
-                      {adminSelection === 'student_service' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <button type="button" onClick={() => { setStudentServiceSelection('overall'); setAdminRoleSelection('leader'); }} className={`p-4 rounded-xl border-2 transition-all text-center ${studentServiceSelection === 'overall' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-500'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-widest">{t('overall_leader')}</p>
-                          </button>
-                          <select
-                            value={studentServiceSelection === 'overall' ? '' : studentServiceSelection}
-                            onChange={(e) => setStudentServiceSelection(e.target.value)}
-                            className={`px-4 py-4 rounded-xl border-2 transition-all font-black text-[10px] uppercase tracking-widest bg-white text-slate-900 ${studentServiceSelection !== 'overall' && studentServiceSelection ? 'border-blue-600' : 'border-slate-200'}`}
-                          >
-                            <option value="">{t('select_subunit_placeholder')}</option>
-                            <option value="dormitory">{t('dormitory_label')}</option>
-                            <option value="cafeteria">{t('cafeteria_label')}</option>
-                            <option value="sport">{t('sport_label')}</option>
-                          </select>
-                        </div>
-                      )}
-
-                      {((adminSelection && adminSelection !== 'student_service') || (adminSelection === 'student_service' && studentServiceSelection && studentServiceSelection !== 'overall')) && (
-                        <div className="flex bg-white p-1 rounded-xl border border-slate-200 gap-1 shadow-sm">
+                    {((adminSelection && adminSelection !== 'student_service') || (adminSelection === 'student_service' && studentServiceSelection && studentServiceSelection !== 'overall')) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Authority Level</label>
+                        <div className="flex gap-2">
                           {['leader', 'employee'].map((role) => (
-                            <button key={role} type="button" onClick={() => setAdminRoleSelection(role)} className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${adminRoleSelection === role ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}>
+                            <button key={role} type="button" onClick={() => setAdminRoleSelection(role)} className={`flex-1 py-2 px-4 rounded-lg text-sm transition-colors border ${adminRoleSelection === role ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                               {role === 'leader' ? t('leader_account') : t('employee_account')}
                             </button>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Selection Signature */}
-            <div className={`mt-8 p-6 rounded-2xl border transition-all duration-500 flex items-center justify-between ${currentRoleData ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-300'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${currentRoleData ? 'bg-white/10 text-white' : 'bg-slate-200'}`}>
-                  <FiShield />
-                </div>
+            {currentRoleData && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] uppercase font-bold tracking-widest mb-1 opacity-60">Generated Logic Key</p>
-                  <p className="font-mono text-xs font-bold tracking-tight">
-                    {currentRoleData ? currentRoleData.userRole.toUpperCase() : 'AWAITING SELECTION...'}
+                  <p className="text-xs text-gray-500 mb-0.5">Assigned System Role</p>
+                  <p className="font-medium text-sm text-gray-900">
+                    {currentRoleData.userRole.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                   </p>
                 </div>
+                <FiCheckCircle className="text-green-500" />
               </div>
-              {currentRoleData && <FiCheckCircle className="text-emerald-400 text-xl" />}
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Step 3: Security */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-              <FiLock />
-            </div>
-            <h3 className="font-bold text-slate-800 uppercase tracking-widest text-xs">{t('access_security_header')}</h3>
-          </div>
+        <div className="space-y-4 pt-4 border-t border-gray-100">
+          <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
+            <FiLock className="text-gray-400" />
+            {t('access_security_header')}
+          </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('password')}</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('password')}</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 font-bold text-slate-900"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('confirm_password_label')}</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('confirm_password_label')}</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300 font-bold text-slate-900"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
               />
             </div>
           </div>
         </div>
 
-        {/* Messages */}
-        <AnimatePresence>
-          {error && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-center gap-4 text-xs font-bold uppercase tracking-tight">
-              <FiAlertCircle className="text-lg flex-shrink-0" />
-              {error}
-            </motion.div>
-          )}
-          {success && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-2xl flex items-center gap-4 text-xs font-bold uppercase tracking-tight">
-              <FiCheckCircle className="text-lg flex-shrink-0" />
-              {success}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {error && (
+          <div className="p-3 bg-red-50 text-red-600 rounded-lg flex items-center gap-2 text-sm border border-red-100">
+            <FiAlertCircle className="shrink-0" />
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="p-3 bg-green-50 text-green-700 rounded-lg flex items-center gap-2 text-sm border border-green-100">
+            <FiCheckCircle className="shrink-0" />
+            {success}
+          </div>
+        )}
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-1 active:scale-95 disabled:bg-slate-400 disabled:shadow-none disabled:translate-y-0"
-        >
-          {loading ? (
-            <div className="flex items-center justify-center gap-3">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Initializing...</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-3">
-              <span>{t('complete_registration_btn')}</span>
-              <FiChevronRight className="text-xl" />
-            </div>
-          )}
-        </button>
-      </form >
-    </div >
+        <div className="pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:bg-blue-400 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Registering...
+              </>
+            ) : (
+              <>
+                {t('complete_registration_btn')}
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

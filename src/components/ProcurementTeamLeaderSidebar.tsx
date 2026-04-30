@@ -15,6 +15,7 @@ import {
     FileBarChart,
     Store,
     FileText,
+    ClipboardCheck,
     MessageSquare,
     Package,
     FilePlus,
@@ -28,7 +29,6 @@ import {
     Truck,
     RotateCcw,
     BarChart2,
-    Repeat,
     Layers,
     Bell,
     ChevronDown,
@@ -87,8 +87,8 @@ export default function ProcurementTeamLeaderSidebar() {
             badge: requestCount,
             subItems: [
                 { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
-                { label: t('store_report'), href: `${basePath}/store-report`, icon: Store },
                 { label: t('view_material_transfer_request'), href: `${basePath}/view-material-transfer-request`, icon: History },
+                { label: t('stock_handover') || 'Stock Handover Requests', href: `${basePath}/stock-handover-requests`, icon: ClipboardCheck },
             ],
             hasDivider: true
         },
@@ -98,10 +98,11 @@ export default function ProcurementTeamLeaderSidebar() {
             icon: BarChart2,
             subItems: [
                 { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
-                { label: 'Full Inventory', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
                 { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileBarChart },
                 { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
                 { label: 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
+                { label: t('gate_pass'), href: `${basePath}/gate-pass`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
@@ -144,7 +145,6 @@ export default function ProcurementTeamLeaderSidebar() {
             subItems: [
                 { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Truck },
                 { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
-                { label: t('exchange_report'), href: `${basePath}/exchange-report`, icon: Repeat },
             ],
             hasDivider: true
         },

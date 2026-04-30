@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FiX, FiLock, FiEye, FiEyeOff, FiCheck, FiAlertCircle } from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
@@ -45,7 +44,6 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
         setError('');
         setSuccess(false);
 
-        // Validation
         if (!currentPassword || !newPassword || !confirmPassword) {
             setError('All fields are required.');
             return;
@@ -58,25 +56,18 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
             setError('New passwords do not match.');
             return;
         }
-        if (currentPassword === newPassword) {
-            setError('New password must be different from current password.');
-            return;
-        }
 
         setLoading(true);
         try {
             const user = auth?.currentUser;
             if (!user || !user.email) {
-                setError('No authenticated user found. Please log in again.');
+                setError('No authenticated user found.');
                 setLoading(false);
                 return;
             }
 
-            // Re-authenticate the user
             const credential = EmailAuthProvider.credential(user.email, currentPassword);
             await reauthenticateWithCredential(user, credential);
-
-            // Update password
             await updatePassword(user, newPassword);
 
             setSuccess(true);
@@ -86,189 +77,125 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
         } catch (err: any) {
             if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
                 setError('Current password is incorrect.');
-            } else if (err.code === 'auth/too-many-requests') {
-                setError('Too many attempts. Please try again later.');
-            } else if (err.code === 'auth/weak-password') {
-                setError('Password is too weak. Please choose a stronger password.');
             } else {
-                setError(err.message || 'Failed to update password. Please try again.');
+                setError(err.message || 'Failed to update password.');
             }
         } finally {
             setLoading(false);
         }
     };
 
-    return (
-        <AnimatePresence>
-            {isOpen && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[300] flex items-center justify-center p-4"
-                >
-                    {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+    if (!isOpen) return null;
 
-                    {/* Modal */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-                    >
-                        {/* Header */}
-                        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                    <FiLock className="text-blue-600 text-lg" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">{t('update_password_header')}</h3>
-                                    <p className="text-xs text-slate-400">{t('secure_account')}</p>
-                                </div>
-                            </div>
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={handleClose} />
+            <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <FiLock className="text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900">{t('update_password_header')}</h3>
+                    </div>
+                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                        <FiX size={20} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {success && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm font-medium">
+                            <FiCheck /> {t('password_updated_success')}
+                        </div>
+                    )}
+                    {error && (
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm font-medium">
+                            <FiAlertCircle /> {error}
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('current_password_label')}</label>
+                        <div className="relative">
+                            <input
+                                type={showCurrent ? 'text' : 'password'}
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                placeholder={t('enter_current_password')}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm pr-10"
+                                disabled={loading || success}
+                            />
                             <button
-                                onClick={handleClose}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+                                type="button"
+                                onClick={() => setShowCurrent(!showCurrent)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                             >
-                                <FiX size={18} />
+                                {showCurrent ? <FiEyeOff size={16} /> : <FiEye size={16} />}
                             </button>
                         </div>
+                    </div>
 
-                        {/* Body */}
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            {/* Success Message */}
-                            <AnimatePresence>
-                                {success && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200"
-                                    >
-                                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                                            <FiCheck className="text-emerald-600" />
-                                        </div>
-                                        <p className="text-sm font-medium text-emerald-700">{t('password_updated_success')}</p>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            {/* Error Message */}
-                            <AnimatePresence>
-                                {error && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        className="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200"
-                                    >
-                                        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                                            <FiAlertCircle className="text-red-600" />
-                                        </div>
-                                        <p className="text-sm font-medium text-red-700">{error}</p>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            {/* Current Password */}
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('current_password_label')}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showCurrent ? 'text' : 'password'}
-                                        value={currentPassword}
-                                        onChange={(e) => setCurrentPassword(e.target.value)}
-                                        placeholder={t('enter_current_password')}
-                                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-900 placeholder-slate-400"
-                                        disabled={loading || success}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCurrent(!showCurrent)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showCurrent ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* New Password */}
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('new_password_label')}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showNew ? 'text' : 'password'}
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder={t('enter_new_password_hint')}
-                                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-900 placeholder-slate-400"
-                                        disabled={loading || success}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowNew(!showNew)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showNew ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Confirm Password */}
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('confirm_new_password_label')}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showConfirm ? 'text' : 'password'}
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        placeholder={t('confirm_new_password_placeholder')}
-                                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm text-slate-900 placeholder-slate-400"
-                                        disabled={loading || success}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirm(!showConfirm)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showConfirm ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Submit Button */}
-                            <button
-                                type="submit"
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('new_password_label')}</label>
+                        <div className="relative">
+                            <input
+                                type={showNew ? 'text' : 'password'}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder={t('enter_new_password_hint')}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm pr-10"
                                 disabled={loading || success}
-                                className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${loading || success
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98] shadow-lg shadow-blue-600/20'
-                                    }`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNew(!showNew)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                             >
-                                {loading ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        {t('updating_btn')}
-                                    </>
-                                ) : success ? (
-                                    <>
-                                        <FiCheck size={16} />
-                                        {t('updated_btn')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <FiLock size={16} />
-                                        {t('update_password_header')}
-                                    </>
-                                )}
+                                {showNew ? <FiEyeOff size={16} /> : <FiEye size={16} />}
                             </button>
-                        </form>
-                    </motion.div>
-                </motion.div>
-            )}
-        </AnimatePresence>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('confirm_new_password_label')}</label>
+                        <div className="relative">
+                            <input
+                                type={showConfirm ? 'text' : 'password'}
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder={t('confirm_new_password_placeholder')}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm pr-10"
+                                disabled={loading || success}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirm(!showConfirm)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                {showConfirm ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-2 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            className="flex-1 py-2 px-4 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading || success}
+                            className="flex-1 py-2 px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {loading ? t('updating_btn') : t('update_password_header')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     );
 }

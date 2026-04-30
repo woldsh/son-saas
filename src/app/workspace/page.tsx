@@ -119,7 +119,7 @@ export default function WorkspacePage() {
 
     const quickActions = [
         { label: 'View Requests', desc: 'Process material requests', href: '/workspace/approve-requests', icon: ClipboardList },
-        { label: 'Full Inventory', desc: 'Browse all items', href: '/workspace/full-inventory', icon: Box },
+        { label: 'Material List', desc: 'Browse all items', href: '/workspace/full-inventory', icon: Box },
         { label: 'Low Stock', desc: 'Items needing restock', href: '/workspace/low-stock', icon: AlertCircle },
         { label: 'Analytics', desc: 'Charts & reports', href: '/workspace/analytics', icon: BarChart3 },
         { label: 'Search Material', desc: 'Find specific items', href: '/workspace/search-material', icon: Search },

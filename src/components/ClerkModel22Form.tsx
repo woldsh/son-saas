@@ -32,6 +32,7 @@ interface TableRow {
     serialNo: string;
     description: string;
     model: string;
+    serial: string;
     serialFrom: string;
     serialTo: string;
     quantity: string;
@@ -81,7 +82,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
     useEffect(() => {
         const fetchDefaultsFromMaterialsCollection = async () => {
             if (!request.items || request.items.length === 0 || !db) return;
-            
+
             // 1. We will fetch row prices AND header defaults at the same time
             let newHeaderData: any = null;
 
@@ -89,6 +90,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                 let unitPriceBirr = '';
                 let unitPriceCents = '';
                 let model = item.model || '';
+                let serie = '';
 
                 // Try to find this material in the DB
                 try {
@@ -99,7 +101,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                         docId = parts[0];
                         itemIdx = parseInt(parts[1], 10);
                     }
-                    
+
                     let matData: any = null;
                     if (docId && !docId.startsWith('new_') && !docId.startsWith('FORM20_')) {
                         const docRef = doc(db!, 'materials', docId);
@@ -108,8 +110,8 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                             matData = docSnap.data();
                             console.log("Found material by exact ID:", matData);
                         }
-                    } 
-                    
+                    }
+
                     if (!matData) {
                         console.log("ID missing or fake. Running robust fallback search for:", item.materialName);
                         // Robust Fallback: Search all materials if we have a fake ID
@@ -123,7 +125,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                             }
                             // Check inside items array (Model 19)
                             if (data.items && Array.isArray(data.items)) {
-                                const matchedIdx = data.items.findIndex((i:any) => i.description?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
+                                const matchedIdx = data.items.findIndex((i: any) => i.description?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
                                 if (matchedIdx !== -1) {
                                     matData = data;
                                     itemIdx = matchedIdx; // We found the exact sub-item!
@@ -154,11 +156,13 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                             unitPriceBirr = subItem.unitPriceBirr || '';
                             unitPriceCents = subItem.unitPriceCents || '';
                             model = subItem.model || model;
+                            serie = subItem.serie || matData.serie || serie;
                         } else {
                             // Standard item
                             unitPriceBirr = matData.unitPriceBirr || '';
                             unitPriceCents = matData.unitPriceCents || '';
                             model = matData.model || model;
+                            serie = matData.serie || serie;
                         }
                     } else {
                         console.log("Could not find material in database for:", item.materialName);
@@ -184,6 +188,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                     serialNo: (idx + 1).toString(),
                     description: item.materialName || '',
                     model: model,
+                    serial: serie,
                     serialFrom: '',
                     serialTo: '',
                     quantity: qty.toString(),
@@ -219,7 +224,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
     }, [request.items]);
 
     const createEmptyRow = (): TableRow => ({
-        serialNo: '', description: '', model: '', serialFrom: '', serialTo: '', quantity: '', unitPriceBirr: '', unitPriceCents: '', totalPriceBirr: '', totalPriceCents: '', remarks: ''
+        serialNo: '', description: '', model: '', serial: '', serialFrom: '', serialTo: '', quantity: '', unitPriceBirr: '', unitPriceCents: '', totalPriceBirr: '', totalPriceCents: '', remarks: ''
     });
 
     const handleHeaderChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -311,22 +316,22 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
     return createPortal(
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
+            background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
             display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto',
             padding: '40px 16px'
-        }} onClick={onClose} className="font-serif">
+        }} onClick={onClose} className="font-serif print-reset-bg">
 
             <div style={{
                 background: '#FDFCF8', // Paper color matching Model 19
                 width: '100%', maxWidth: '210mm',
-                minHeight: '297mm',
+                minHeight: 'auto',
                 height: 'max-content',
                 margin: '0 auto',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 padding: '40px',
                 color: '#000',
                 position: 'relative',
-                borderRadius: 4
+                borderRadius: '16px'
             }} onClick={e => e.stopPropagation()} id="printable-receipt" className="print:p-0 print:border-none print:shadow-none">
 
                 <form onSubmit={handleSubmit} className={`w-full ${readOnly ? 'pointer-events-none [&_input]:bg-transparent [&_textarea]:bg-transparent' : ''}`}>
@@ -354,7 +359,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                             <div className="absolute top-[35%] left-1/2 -translate-x-1/2 -rotate-[25deg] pointer-events-none z-[5] opacity-[0.05] select-none whitespace-nowrap print:hidden">
                                 <p className="text-[140px] font-black text-slate-900 border-[24px] border-slate-900 px-24 py-6 rounded-[60px] uppercase tracking-[0.2em]">Digital Receipt</p>
                             </div>
-                            
+
                             {/* Modern Status Badge */}
                             <div className="absolute top-12 left-1/2 -translate-x-1/2 print:hidden z-50 pointer-events-auto">
                                 <div className="px-5 py-2 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/30 flex items-center gap-3 animate-bounce-subtle">
@@ -526,6 +531,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                                 <th rowSpan={2} className={`${thClasses} w-[40px]`}>ተ.ቁ<br /><span className="text-[9px] font-normal italic">Serial<br />No.</span></th>
                                 <th rowSpan={2} className={`${thClasses} w-[300px]`}>የዕቃው ወይም የንብረት<br />ዓይነት ዝርዝር<br /><span className="text-[9px] font-normal italic">Detailed Description of Articles<br />or property</span></th>
                                 <th rowSpan={2} className={`${thClasses} w-[60px]`}>ሞዴል<br /><span className="text-[9px] font-normal italic">Model</span></th>
+                                <th rowSpan={2} className={`${thClasses} w-[50px]`}>ሴሪ<br /><span className="text-[9px] font-normal italic">Serial</span></th>
                                 <th colSpan={2} className={`${thClasses}`}>ተከታታይ ቁጥር<br /><span className="text-[9px] font-normal italic">Serial</span></th>
                                 <th rowSpan={2} className={`${thClasses} w-[60px]`}>ብዛት<br /><span className="text-[9px] font-normal italic">Quantity</span></th>
                                 <th colSpan={2} className={`${thClasses}`}>ያንዱ ዋጋ<br /><span className="text-[9px] font-normal italic">Unit Price</span></th>
@@ -561,6 +567,15 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                                             type="text"
                                             value={row.model}
                                             onChange={(e) => handleRowChange(idx, 'model', e.target.value)}
+                                            className="w-full bg-transparent outline-none text-center font-[Kalam] text-[#0033aa] text-[15px]"
+                                        />
+                                    </td>
+                                    {/* Serial Col */}
+                                    <td className={tdClasses}>
+                                        <input
+                                            type="text"
+                                            value={row.serial}
+                                            onChange={(e) => handleRowChange(idx, 'serial', e.target.value)}
                                             className="w-full bg-transparent outline-none text-center font-[Kalam] text-[#0033aa] text-[15px]"
                                         />
                                     </td>
@@ -636,7 +651,7 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
 
                             {/* Total Row */}
                             <tr>
-                                <td colSpan={8} className="border-[1px] border-black p-1 text-center font-bold text-[14px]">
+                                <td colSpan={9} className="border-[1px] border-black p-1 text-center font-bold text-[14px]">
                                     ድምር <br /> <span className="text-[10px] font-normal italic">Total</span>
                                 </td>
                                 <td className={`${tdClasses} bg-gray-50`}><span className="font-[Kalam] text-[#e11d48] text-[15px] font-bold">{gBirr || ''}</span></td>
@@ -694,6 +709,12 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                     }
                     .animate-bounce-subtle {
                         animation: bounce-subtle 2s ease-in-out infinite;
+                    }
+                    @media print {
+                        .print-reset-bg {
+                            background: transparent !important;
+                            padding: 0 !important;
+                        }
                     }
                 `}</style>
             </div>

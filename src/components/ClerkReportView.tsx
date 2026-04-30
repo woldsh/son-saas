@@ -98,20 +98,12 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
             return;
         }
 
-        const isClerkOrStore =
-            userData?.userRole?.includes('stock_clerk') ||
-            userData?.userRole?.includes('store_keeper') ||
-            userData?.userRole === 'procurement_team_leader';
-
-        let q;
-        if (isClerkOrStore) {
-            q = query(collection(db!, 'Send_to_Users'));
-        } else {
-            q = query(
-                collection(db!, 'Send_to_Users'),
-                where('requester_user_id', '==', user.uid)
-            );
-        }
+        // Everyone (including Store Keepers and Stock Clerks) only sees their own codes
+        // on this page, because this is their Personal Account verification codes page.
+        const q = query(
+            collection(db!, 'Send_to_Users'),
+            where('requester_user_id', '==', user.uid)
+        );
 
         const timeoutId = setTimeout(() => {
             setLoading(false);

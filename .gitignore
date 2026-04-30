@@ -43,3 +43,7 @@ next-env.d.ts
 
 # firebase credentials
 serviceAccountKey.json
+
+# scratch pads and logs
+scratch/
+tsc_errors*.txt

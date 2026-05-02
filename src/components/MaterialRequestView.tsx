@@ -215,14 +215,20 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             'store_keeper': 'Store Keeper',
             'team_leader': 'Team Leader',
             'procurement_team_leader': 'Procurement Team Leader',
-            'student_service_leader': 'Student Service Leader',
-            'dormitory_leader': 'Dormitory Leader',
-            'cafeteria_leader': 'Cafeteria Leader',
-            'sports_leader': 'Sports Leader',
-            'hrm_leader': 'HRM Leader',
-            'finance_leader': 'Finance Leader'
+            'student_service_leader': 'Student Service Team Leader',
+            'dormitory_leader': 'Dormitory Team Leader',
+            'cafeteria_leader': 'Cafeteria Team Leader',
+            'sports_leader': 'Sports Team Leader',
+            'hrm_leader': 'HRM Team Leader',
+            'finance_leader': 'Finance Team Leader'
         };
-        return roles[role] || role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        if (roles[role]) return roles[role];
+        
+        let baseName = role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        if (role.endsWith('_leader') && baseName.endsWith(' Leader')) {
+            baseName = baseName.replace(' Leader', ' Team Leader');
+        }
+        return baseName;
     };
 
     useEffect(() => {

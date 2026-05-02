@@ -16,7 +16,10 @@ import {
   FiChevronRight,
   FiShield,
   FiTarget,
-  FiCommand
+  FiCommand,
+  FiEye,
+  FiEyeOff,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 
@@ -43,7 +46,9 @@ const DEFAULT_ACADEMIC_DEPTS = [
 export default function RegisterUser({ onSuccess }: RegisterUserProps) {
   const { t } = useLanguage();
   const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [mainRole, setMainRole] = useState('');
 
@@ -75,6 +80,8 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -301,11 +308,43 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
 
   const currentRoleData = getRoleData();
 
+  const generateStrongPassword = () => {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const specials = '@$!%*?&';
+    const all = uppercase + lowercase + numbers + specials;
+
+    let pass = '';
+    pass += uppercase[Math.floor(Math.random() * uppercase.length)];
+    pass += lowercase[Math.floor(Math.random() * lowercase.length)];
+    pass += numbers[Math.floor(Math.random() * numbers.length)];
+    pass += specials[Math.floor(Math.random() * specials.length)];
+
+    for (let i = 0; i < 8; i++) {
+      pass += all[Math.floor(Math.random() * all.length)];
+    }
+
+    pass = pass.split('').sort(() => 0.5 - Math.random()).join('');
+
+    setPassword(pass);
+    setConfirmPassword(pass);
+    setShowPassword(true);
+    setShowConfirmPassword(true);
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError('Password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, a number, and a special character.');
+      setLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -327,10 +366,12 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         },
         body: JSON.stringify({
           firstName,
+          middleName,
           lastName,
-          email,
+          username: username.toLowerCase().replace(/\s+/g, ''),
+          email: email.trim(),
           password,
-          displayName: `${firstName} ${lastName}`,
+          displayName: `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim(),
           ...currentRoleData,
         }),
       });
@@ -338,7 +379,10 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to register user.');
+        const errorMsg = result.error === 'Email is already registered.' 
+          ? 'Email is already registered to another user.' 
+          : (result.error || 'Failed to register user.');
+        throw new Error(errorMsg);
       }
 
       if (mainRole === 'admin_staff' && adminSelection === 'other' && customAdminDept && db) {
@@ -369,10 +413,12 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         }
       }
 
-      setSuccess(`User ${email} created successfully!`);
+      setSuccess(`User ${username} created successfully!`);
 
       setFirstName('');
+      setMiddleName('');
       setLastName('');
+      setUsername('');
       setEmail('');
       setPassword('');
       setConfirmPassword('');
@@ -412,7 +458,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
             {t('core_identity_header')}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('first_name_label')}</label>
               <input
@@ -425,18 +471,62 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('middle_name_label')}</label>
+              <input
+                type="text"
+                value={middleName}
+                onChange={(e) => setMiddleName(e.target.value)}
+                required
+                placeholder="Kebede"
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('last_name_label')}</label>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 required
-                placeholder="Kebede"
+                placeholder="Tessema"
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('email_address_label')}</label>
+            <div className="md:col-span-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-gray-700">{t('email_address_label')}</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (firstName) {
+                      let base = `${firstName.toLowerCase()}`;
+                      if (middleName) base += `_${middleName.toLowerCase()}`;
+                      base += Math.floor(10 + Math.random() * 90);
+                      setUsername(base.replace(/\s+/g, ''));
+                    } else {
+                      setError("Please enter at least a first name to generate a username");
+                    }
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+                >
+                  <FiRefreshCw className="w-3.5 h-3.5" />
+                  Auto Generate
+                </button>
+              </div>
+              <div className="relative">
+                <FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                  required
+                  placeholder="abebe_kebede"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
+                />
+              </div>
+            </div>
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Account Email (For Password Resets)</label>
               <div className="relative">
                 <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -653,33 +743,67 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         </div>
 
         <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
-            <FiLock className="text-gray-400" />
-            {t('access_security_header')}
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
+              <FiLock className="text-gray-400" />
+              {t('access_security_header')}
+            </h3>
+            <button
+              type="button"
+              onClick={generateStrongPassword}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <FiRefreshCw className="w-4 h-4" />
+              Auto Generate
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('password')}</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('confirm_password_label')}</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showConfirmPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-xs text-gray-500 flex items-start gap-1 mt-1">
+                <FiShield className="shrink-0 mt-0.5 text-blue-500" />
+                <span>Password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, a number, and a special character.</span>
+              </p>
             </div>
           </div>
         </div>

@@ -128,7 +128,7 @@ export default function AnalyticsDashboardContent() {
                 allRequests.forEach((req: any) => {
                     const ts = req.createdAt || req.issued_date;
                     if (ts) {
-                        let dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
+                        const dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
                         if (dObj && !isNaN(dObj.getTime())) {
                             const date = dObj.toISOString().split('T')[0];
                             const match = trendData.find(d => d.date === date);

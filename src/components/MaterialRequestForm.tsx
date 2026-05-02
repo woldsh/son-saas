@@ -381,7 +381,7 @@ export default function MaterialRequestForm() {
                 historyNote = `Request initiated by ${userData.userRole?.includes('stock_clerk') ? 'Stock Clerk' : 'Store Keeper'}`;
             }
             // Top-Level Leaders go directly to Managing Director
-            else if (isStudentServiceLeader || isHRMLeader || isFinanceLeader) {
+            else if (userData.userRole?.endsWith('_leader') && !isDormLeader && !isCafeteriaLeader && !isSportLeader && userData.userRole !== 'procurement_team_leader' && userData.userRole !== 'managing_director_leader') {
                 const mdQuery = query(collection(db!, 'users'), where('userRole', '==', 'managing_director'));
                 const mdSnapshot = await getDocs(mdQuery);
 
@@ -390,8 +390,8 @@ export default function MaterialRequestForm() {
                 approverRole = 'managing_director';
                 status = 'pending_managing_director';
 
-                const leaderType = isStudentServiceLeader ? 'Student Service Leader' :
-                    isHRMLeader ? 'HRM Leader' : 'Finance Leader';
+                const rawBase = userData.userRole.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                const leaderType = rawBase.replace(' Leader', ' Team Leader');
                 historyNote = `Request initiated by ${leaderType}`;
             }
             // Special handling for Dormitory/Sport/Cafeteria Leaders - they go to Student Service Leader first
@@ -400,10 +400,10 @@ export default function MaterialRequestForm() {
                 const sslSnapshot = await getDocs(sslQuery);
 
                 approverId = sslSnapshot.empty ? 'PENDING_STUDENT_SERVICE_LEADER_ASSIGNMENT' : sslSnapshot.docs[0].id;
-                approverName = sslSnapshot.empty ? 'Student Service Leader' : sslSnapshot.docs[0].data().displayName;
+                approverName = sslSnapshot.empty ? 'Student Service Team Leader' : sslSnapshot.docs[0].data().displayName;
                 approverRole = 'student_service_leader';
                 status = 'pending_student_service_leader';
-                historyNote = `Request initiated by ${isDormLeader ? 'Dormitory' : isCafeteriaLeader ? 'Cafeteria' : 'Sport'} Leader`;
+                historyNote = `Request initiated by ${isDormLeader ? 'Dormitory' : isCafeteriaLeader ? 'Cafeteria' : 'Sport'} Team Leader`;
             } else if (isDormEmployee || isCafeteriaEmployee || isSportEmployee) {
                 const leaderRole = isDormEmployee ? 'student_service_dormitory_leader' :
                     isCafeteriaEmployee ? 'student_service_cafeteria_leader' :
@@ -416,16 +416,7 @@ export default function MaterialRequestForm() {
                 approverName = leaderSnapshot.empty ? leaderRole.replace(/_/g, ' ') : leaderSnapshot.docs[0].data().displayName;
                 approverRole = leaderRole;
                 status = 'pending_department_leader';
-            } else if (isHRMEmployee || isFinanceEmployee) {
-                const leaderRole = isHRMEmployee ? 'hrm_leader' : 'finance_leader';
 
-                const leaderQuery = query(collection(db!, 'users'), where('userRole', '==', leaderRole));
-                const leaderSnapshot = await getDocs(leaderQuery);
-
-                approverId = leaderSnapshot.empty ? `PENDING_${leaderRole.toUpperCase()}_ASSIGNMENT` : leaderSnapshot.docs[0].id;
-                approverName = leaderSnapshot.empty ? leaderRole.replace(/_/g, ' ') : leaderSnapshot.docs[0].data().displayName;
-                approverRole = leaderRole;
-                status = 'pending_department_leader';
             } else if (isMD) {
                 const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
                 const ptlSnapshot = await getDocs(ptlQuery);
@@ -491,7 +482,7 @@ export default function MaterialRequestForm() {
             }
 
             const ruledItems = cart.filter(item => item.materialType === 'fixed_asset');
-            let acRules: Record<string, any> = {};
+            const acRules: Record<string, any> = {};
 
             if (ruledItems.length > 0) {
                 const rulesSnapshot = await getDocs(collection(db!, 'AC_rules'));

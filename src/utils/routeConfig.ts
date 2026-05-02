@@ -53,48 +53,48 @@ export const ROUTE_MAPPINGS: RouteMapping[] = [
     { userRole: 'consumable_item_store_keeper', cleanUrl: '/workspace', displayName: 'Workspace' },
 
     // Admin Staff
-    { userRole: 'hrm_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'HRM Leader' },
-    { userRole: 'finance_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Finance Leader' },
+    { userRole: 'hrm_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'HRM Team Leader' },
+    { userRole: 'finance_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Finance Team Leader' },
     { userRole: 'hrm_employee', cleanUrl: '/admin-panel', displayName: 'HRM Employee' },
     { userRole: 'finance_employee', cleanUrl: '/admin-panel', displayName: 'Finance Employee' },
 
     // Procurement Administration
-    { userRole: 'procurement_admin_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Procurement Admin Leader' },
+    { userRole: 'procurement_admin_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Procurement Admin Team Leader' },
     { userRole: 'procurement_admin_employee', cleanUrl: '/admin-panel', displayName: 'Procurement Admin Employee' },
 
     // Resource Development & Revenue
-    { userRole: 'resource_development_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Resource Development Leader' },
+    { userRole: 'resource_development_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Resource Development Team Leader' },
     { userRole: 'resource_development_employee', cleanUrl: '/admin-panel', displayName: 'Resource Development Employee' },
 
     // Building Renovation
-    { userRole: 'building_renovation_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Building Renovation Leader' },
+    { userRole: 'building_renovation_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Building Renovation Team Leader' },
     { userRole: 'building_renovation_employee', cleanUrl: '/admin-panel', displayName: 'Building Renovation Employee' },
 
 
     // Library Service
-    { userRole: 'library_service_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Library Service Leader' },
+    { userRole: 'library_service_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Library Service Team Leader' },
     { userRole: 'library_service_employee', cleanUrl: '/admin-panel', displayName: 'Library Service Employee' },
 
     // Security
-    { userRole: 'security_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Security Leader' },
+    { userRole: 'security_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Security Team Leader' },
     { userRole: 'security_employee', cleanUrl: '/admin-panel', displayName: 'Security Employee' },
 
     // Registrar
-    { userRole: 'registrar_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Registrar Leader' },
+    { userRole: 'registrar_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Registrar Team Leader' },
     { userRole: 'registrar_employee', cleanUrl: '/admin-panel', displayName: 'Registrar Employee' },
 
-    { userRole: 'student_service_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Student Service Leader' },
+    { userRole: 'student_service_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Student Service Team Leader' },
 
     // Student Service - Dormitory
-    { userRole: 'student_service_dormitory_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Dormitory Leader' },
+    { userRole: 'student_service_dormitory_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Dormitory Team Leader' },
     { userRole: 'student_service_dormitory_employee', cleanUrl: '/admin-panel', displayName: 'Dormitory Employee' },
 
     // Student Service - Cafeteria
-    { userRole: 'student_service_cafeteria_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Cafeteria Leader' },
+    { userRole: 'student_service_cafeteria_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Cafeteria Team Leader' },
     { userRole: 'student_service_cafeteria_employee', cleanUrl: '/admin-panel', displayName: 'Cafeteria Employee' },
 
     // Student Service - Sport
-    { userRole: 'student_service_sport_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Sport Leader' },
+    { userRole: 'student_service_sport_leader', cleanUrl: '/admin-staff/team-leader', displayName: 'Sport Team Leader' },
     { userRole: 'student_service_sport_employee', cleanUrl: '/admin-panel', displayName: 'Sport Employee' },
 
     // Generic Student Service
@@ -159,7 +159,7 @@ export function getDisplayNameForRole(userRole: string): string {
         return 'Dashboard';
     }
     if (userRole.endsWith('_leader')) {
-        return formatRoleName(userRole.replace('_leader', '')) + ' Leader';
+        return formatRoleName(userRole.replace('_leader', '')) + ' Team Leader';
     }
     if (userRole.endsWith('_employee')) {
         return formatRoleName(userRole.replace('_employee', '')) + ' Employee';

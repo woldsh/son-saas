@@ -4,13 +4,17 @@ import { db } from '@/lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
-import { FiUsers, FiSearch, FiTrash2, FiAlertTriangle, FiCheckCircle, FiChevronRight, FiFilter, FiUser, FiCheck, FiX, FiActivity, FiEdit2, FiBookOpen, FiUserCheck } from 'react-icons/fi';
+import { FiUsers, FiSearch, FiTrash2, FiAlertTriangle, FiCheckCircle, FiChevronRight, FiFilter, FiUser, FiCheck, FiX, FiActivity, FiEdit2, FiBookOpen, FiUserCheck, FiDownload } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface UserData {
     uid: string;
     displayName: string;
     email: string;
+    username?: string;
+    password?: string;
     userRole: string;
     mainRole: string;
     department?: string;
@@ -174,6 +178,91 @@ export default function UserManagement() {
         return 'global';
     };
 
+    const exportToCSV = () => {
+        if (filteredUsers.length === 0) {
+            setNotification({ type: 'error', message: 'No records to export.' });
+            return;
+        }
+
+        const headers = ['Full Name', 'Username', 'Email', 'Role', 'Department', 'Status', 'Password'];
+        const csvRows = [headers.join(',')];
+
+        filteredUsers.forEach(user => {
+            const row = [
+                `"${user.displayName || ''}"`,
+                `"${user.username || ''}"`,
+                `"${user.email || ''}"`,
+                `"${(user.userRole || '').replace(/_/g, ' ')}"`,
+                `"${getComputedDepartment(user).replace(/_/g, ' ')}"`,
+                `"${user.status || 'active'}"`,
+                `"${user.password || 'N/A'}"` // Includes password if available
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `DMU_Directory_Export_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setNotification({ type: 'success', message: 'CSV export downloaded successfully.' });
+        setTimeout(() => setNotification(null), 3000);
+    };
+
+    const exportToPDF = () => {
+        if (filteredUsers.length === 0) {
+            setNotification({ type: 'error', message: 'No records to export.' });
+            return;
+        }
+
+        const doc = new jsPDF();
+        
+        // Header
+        doc.setFontSize(18);
+        doc.setTextColor(30, 27, 75); // Dark Indigo
+        doc.text('DMU Burie Campus - Personnel Directory', 14, 22);
+        
+        // Subheader
+        doc.setFontSize(11);
+        doc.setTextColor(100);
+        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Total Records: ${filteredUsers.length}`, 14, 36);
+
+        const tableColumn = ['Name', 'Username', 'Email', 'Role', 'Department', 'Password'];
+        const tableRows: any[] = [];
+
+        filteredUsers.forEach(user => {
+            const rowData = [
+                user.displayName || '-',
+                user.username || '-',
+                user.email || '-',
+                (user.userRole || '-').replace(/_/g, ' '),
+                getComputedDepartment(user).replace(/_/g, ' '),
+                user.password || 'N/A' // Include password
+            ];
+            tableRows.push(rowData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 42,
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
+        });
+
+        doc.save(`DMU_Directory_Export_${new Date().toISOString().split('T')[0]}.pdf`);
+        
+        setNotification({ type: 'success', message: 'PDF export downloaded successfully.' });
+        setTimeout(() => setNotification(null), 3000);
+    };
+
     const uniqueDepartments = Array.from(new Set(users.map(u => getComputedDepartment(u)).filter(d => d !== 'global'))) as string[];
 
     const filteredUsers = users.filter(user => {
@@ -203,6 +292,26 @@ export default function UserManagement() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    {/* Export Buttons */}
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={exportToCSV}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
+                            title="Export to CSV"
+                        >
+                            <FiDownload className="w-4 h-4" />
+                            CSV
+                        </button>
+                        <button
+                            onClick={exportToPDF}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
+                            title="Export to PDF"
+                        >
+                            <FiDownload className="w-4 h-4" />
+                            PDF
+                        </button>
+                    </div>
+
                     {/* Department Filter */}
                     <div className="relative">
                         <select

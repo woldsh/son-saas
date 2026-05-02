@@ -29,15 +29,20 @@ import { useLanguage } from '../contexts/LanguageContext';
 
 export default function LoginPage() {
   const { language, setLanguage, t } = useLanguage();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [isConfirmingReset, setIsConfirmingReset] = useState(false);
-  const { login, resetPassword } = useAuth();
+  const [resetStep, setResetStep] = useState<'username' | 'verify' | 'done'>('username');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const { login } = useAuth();
   const router = useRouter();
 
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -97,7 +102,24 @@ export default function LoginPage() {
     try {
       if (!db) throw new Error("Firebase not initialized");
       // Login user
-      await login(email, password);
+      let loginIdentifier = username.toLowerCase().trim();
+      
+      if (!loginIdentifier.includes('@')) {
+        const res = await fetch('/api/auth/lookup-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: loginIdentifier })
+        });
+        const data = await res.json();
+        
+        if (data.success && data.email) {
+          loginIdentifier = data.email;
+        } else {
+          throw new Error('Username not found or no associated email.');
+        }
+      }
+
+      await login(loginIdentifier, password);
       // Redirection is handled by the parent component (src/app/login/page.tsx)
       // once AuthContext confirms the user is verified and active.
       localStorage.removeItem('loginFailedAttempts');
@@ -123,17 +145,11 @@ export default function LoginPage() {
     }
   };
 
-  const handleResetPassword = async (e: FormEvent<HTMLFormElement>) => {
+  // Step 1: Request OTP code
+  const handleRequestOTP = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email) {
-      setError('Please enter your email address first.');
-      return;
-    }
-
-    if (!isConfirmingReset) {
-      setError('');
-      setMessage('');
-      setIsConfirmingReset(true);
+    if (!username) {
+      setError('Please enter your username first.');
       return;
     }
 
@@ -141,16 +157,78 @@ export default function LoginPage() {
     setMessage('');
     setLoading(true);
     try {
-      await resetPassword(email);
-      setMessage('Password reset link sent! Check your inbox.');
-      setIsConfirmingReset(false);
+      const res = await fetch('/api/auth/request-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.toLowerCase().trim() })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMaskedEmail(data.maskedEmail || '');
+        setMessage(`Verification code sent to ${data.maskedEmail}`);
+        setResetStep('verify');
+      } else {
+        throw new Error(data.error || 'Failed to send verification code.');
+      }
     } catch (err: any) {
-      console.error('Password reset error:', err);
-      setError(err.message || 'Failed to send reset email.');
-      setIsConfirmingReset(false);
+      setError(err.message || 'Failed to send verification code.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Step 2: Verify OTP and set new password
+  const handleVerifyOTP = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!otpCode || !newPassword) {
+      setError('Please enter the verification code and your new password.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.toLowerCase().trim(),
+          otp: otpCode.trim(),
+          newPassword
+        })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage('Password reset successfully! You can now login.');
+        setResetStep('done');
+      } else {
+        throw new Error(data.error || 'Failed to reset password.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForgotPasswordState = () => {
+    setShowForgotPassword(false);
+    setResetStep('username');
+    setOtpCode('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setShowNewPassword(false);
+    setMaskedEmail('');
+    setError('');
+    setMessage('');
   };
 
   return (
@@ -233,7 +311,7 @@ export default function LoginPage() {
             </div>
 
             {showForgotPassword ? (
-              <form onSubmit={handleResetPassword} className="space-y-5">
+              <div className="space-y-5">
                 <AnimatePresence mode="wait">
                   {error && (
                     <motion.div
@@ -246,7 +324,7 @@ export default function LoginPage() {
                         <ShieldAlert className="w-4 h-4 text-red-500" />
                       </div>
                       <div>
-                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-red-500 mb-0.5">{t('loginErrorTitle')}</h4>
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-red-500 mb-0.5">Error</h4>
                         <p className="text-xs font-medium text-red-700">{error}</p>
                       </div>
                     </motion.div>
@@ -269,82 +347,172 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                <div className="space-y-6">
-                  <div className="relative mt-2">
-                    <input
-                      id="reset-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      placeholder=" "
-                      className="peer w-full bg-transparent border border-slate-300 rounded-full px-7 py-5 text-base tracking-wider text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-                    />
-                    <label
-                      htmlFor="reset-email"
-                      className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-blue-500 ${email ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'
-                        }`}
+                {/* STEP 1: Enter Username */}
+                {resetStep === 'username' && (
+                  <form onSubmit={handleRequestOTP} className="space-y-5">
+                    <div className="text-center mb-2">
+                      <LockKeyhole size={32} className="text-indigo-500 mx-auto mb-2" />
+                      <h4 className="text-base font-bold text-slate-800">Reset Your Password</h4>
+                      <p className="text-xs text-slate-400 mt-1">Enter your username and we'll send a verification code to your registered email.</p>
+                    </div>
+                    <div className="relative mt-2">
+                      <input
+                        id="reset-username"
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        required
+                        placeholder=" "
+                        className="peer w-full bg-transparent border border-slate-300 rounded-full px-7 py-5 text-base tracking-wider text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                      />
+                      <label
+                        htmlFor="reset-username"
+                        className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-blue-500 ${username ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'}`}
+                      >
+                        Username
+                      </label>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-600/25 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2.5"
                     >
-                      Account Email
-                    </label>
-                  </div>
-                </div>
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Send Verification Code <Mail size={16} /></>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetForgotPasswordState}
+                      className="w-full h-12 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-sm transition-all hover:bg-slate-50 active:scale-[0.98] flex items-center justify-center gap-2.5"
+                    >
+                      <ArrowLeft size={16} /> Back to Login
+                    </button>
+                  </form>
+                )}
 
-                <div className="pt-2 space-y-3">
-                  <AnimatePresence mode="wait">
-                    {isConfirmingReset ? (
-                      <motion.div
-                        key="confirm-box"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl space-y-3"
-                      >
-                        <p className="text-xs font-semibold text-indigo-800 text-center">
-                          Are you sure you want to send a password reset link to this email?
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            disabled={loading}
-                            onClick={() => setIsConfirmingReset(false)}
-                            className="flex-1 h-10 rounded-lg border border-indigo-200 bg-white text-indigo-600 font-semibold text-[11px] uppercase tracking-wider hover:bg-indigo-50 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-1 h-10 rounded-lg bg-indigo-600 text-white font-semibold text-[11px] uppercase tracking-wider hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-                          >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, Send It'}
-                          </button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.button
-                        key="send-btn"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        type="submit"
-                        disabled={loading}
-                        className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-600/25 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2.5"
-                      >
-                        <>Send Reset Link <Mail size={16} /></>
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
+                {/* STEP 2: Enter OTP + New Password */}
+                {resetStep === 'verify' && (
+                  <form onSubmit={handleVerifyOTP} className="space-y-5">
+                    <div className="text-center mb-2">
+                      <ShieldCheck size={32} className="text-indigo-500 mx-auto mb-2" />
+                      <h4 className="text-base font-bold text-slate-800">Enter Verification Code</h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        We sent a 6-digit code to <strong className="text-slate-600">{maskedEmail}</strong>
+                      </p>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => { setShowForgotPassword(false); setError(''); setMessage(''); setIsConfirmingReset(false); }}
-                    className="w-full h-12 rounded-xl border border-slate-200 bg-white text-slate-600 font-semibold text-sm transition-all hover:bg-slate-50 active:scale-[0.98] flex items-center justify-center gap-2.5"
+                    {/* OTP Input */}
+                    <div className="relative">
+                      <input
+                        id="otp-code"
+                        type="text"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        required
+                        maxLength={6}
+                        placeholder=" "
+                        className="peer w-full bg-transparent border border-slate-300 rounded-full px-7 py-5 text-center text-2xl tracking-[12px] font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                      />
+                      <label
+                        htmlFor="otp-code"
+                        className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-indigo-500 ${otpCode ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'}`}
+                      >
+                        6-Digit Code
+                      </label>
+                    </div>
+
+                    {/* New Password */}
+                    <div className="relative">
+                      <input
+                        id="new-password"
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        placeholder=" "
+                        className="peer w-full bg-transparent border border-slate-300 rounded-full pl-7 pr-12 py-5 text-base tracking-wider text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                      />
+                      <label
+                        htmlFor="new-password"
+                        className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-indigo-500 ${newPassword ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'}`}
+                      >
+                        New Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors p-1"
+                      >
+                        {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+
+                    {/* Confirm New Password */}
+                    <div className="relative">
+                      <input
+                        id="confirm-new-password"
+                        type={showNewPassword ? "text" : "password"}
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        required
+                        placeholder=" "
+                        className={`peer w-full bg-transparent border rounded-full pl-7 pr-12 py-5 text-base tracking-wider text-slate-900 focus:outline-none focus:ring-1 transition-colors ${confirmNewPassword && confirmNewPassword !== newPassword ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500'}`}
+                      />
+                      <label
+                        htmlFor="confirm-new-password"
+                        className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-indigo-500 ${confirmNewPassword ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'}`}
+                      >
+                        Confirm Password
+                      </label>
+                      {confirmNewPassword && confirmNewPassword !== newPassword && (
+                        <p className="absolute -bottom-4 left-7 text-[10px] text-red-500 font-medium">Passwords do not match</p>
+                      )}
+                    </div>
+
+                    {/* Password hint */}
+                    <p className="text-[11px] text-slate-400 px-2 pt-1">Min 8 chars: uppercase, lowercase, number, and special character (@$!%*?&)</p>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-600/25 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2.5"
+                    >
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Reset Password <Lock size={16} /></>}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setResetStep('username'); setError(''); setMessage(''); setOtpCode(''); setNewPassword(''); setConfirmNewPassword(''); }}
+                      className="w-full h-10 rounded-xl text-slate-500 font-medium text-xs transition-all hover:text-indigo-600 flex items-center justify-center gap-1.5"
+                    >
+                      <ArrowLeft size={14} /> Didn't get the code? Go back
+                    </button>
+                  </form>
+                )}
+
+                {/* STEP 3: Success */}
+                {resetStep === 'done' && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center space-y-5 py-4"
                   >
-                    <ArrowLeft size={16} /> Back to Login
-                  </button>
-                </div>
-              </form>
+                    <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                      <ShieldCheck size={32} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-800">Password Reset Complete!</h4>
+                      <p className="text-sm text-slate-500 mt-1">You can now login with your new password.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetForgotPasswordState}
+                      className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-600/25 active:scale-[0.98] flex items-center justify-center gap-2.5"
+                    >
+                      <LogIn size={16} /> Go to Login
+                    </button>
+                  </motion.div>
+                )}
+              </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
                 <AnimatePresence mode="wait">
@@ -369,20 +537,20 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <div className="relative mt-2">
                     <input
-                      id="login-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      id="login-username"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
                       required
                       placeholder=" "
                       className="peer w-full bg-transparent border border-slate-300 rounded-full px-7 py-5 text-base tracking-wider text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                     />
                     <label
-                      htmlFor="login-email"
-                      className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-blue-500 ${email ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'
+                      htmlFor="login-username"
+                      className={`absolute left-7 px-1 bg-white transition-all duration-200 pointer-events-none peer-focus:-top-2.5 peer-focus:text-[12px] peer-focus:text-blue-500 ${username ? '-top-2.5 text-[12px] text-slate-500' : 'top-5 text-base text-slate-400'
                         }`}
                     >
-                      Email address
+                      Username
                     </label>
                   </div>
 

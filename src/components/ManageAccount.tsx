@@ -7,6 +7,7 @@ import { FiUser, FiShield, FiMail, FiLock, FiCheckCircle, FiEdit3, FiArrowRight 
 import ChangePasswordModal from './ChangePasswordModal';
 import EditProfileModal from './EditProfileModal';
 import UpdateEmailModal from './UpdateEmailModal';
+import UpdateUsernameModal from './UpdateUsernameModal';
 
 export default function ManageAccount() {
     const { t } = useLanguage();
@@ -14,6 +15,7 @@ export default function ManageAccount() {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showEmailModal, setShowEmailModal] = useState(false);
+    const [showUsernameModal, setShowUsernameModal] = useState(false);
 
     return (
         <div className="w-full">
@@ -87,6 +89,25 @@ export default function ManageAccount() {
                                 </button>
                             </div>
 
+                            {/* Username Row */}
+                            <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-400">
+                                        <FiUser size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-medium text-gray-900">{t('email_address_label')}</h4>
+                                        <p className="text-sm text-gray-500 mt-1">Your login identifier</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowUsernameModal(true)}
+                                    className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors whitespace-nowrap"
+                                >
+                                    Change Username
+                                </button>
+                            </div>
+
                             {/* Account Email Row */}
                             <div className="p-4 rounded-xl bg-gray-50 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="flex items-start gap-3">
@@ -137,6 +158,7 @@ export default function ManageAccount() {
             <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
             <EditProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
             <UpdateEmailModal isOpen={showEmailModal} onClose={() => setShowEmailModal(false)} />
+            <UpdateUsernameModal isOpen={showUsernameModal} onClose={() => setShowUsernameModal(false)} />
         </div>
     );
 }

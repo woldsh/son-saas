@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { FiX, FiLock, FiEye, FiEyeOff, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { FiX, FiLock, FiEye, FiEyeOff, FiCheck, FiAlertCircle, FiShield } from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
@@ -48,8 +48,9 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
             setError('All fields are required.');
             return;
         }
-        if (newPassword.length < 6) {
-            setError('New password must be at least 6 characters.');
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            setError('Password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, a number, and a special character.');
             return;
         }
         if (newPassword !== confirmPassword) {
@@ -176,6 +177,10 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
                                 {showConfirm ? <FiEyeOff size={16} /> : <FiEye size={16} />}
                             </button>
                         </div>
+                        <p className="text-xs text-gray-500 flex items-start gap-1 mt-2">
+                            <FiShield className="shrink-0 mt-0.5 text-blue-500" />
+                            <span>Password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, a number, and a special character.</span>
+                        </p>
                     </div>
 
                     <div className="pt-2 flex gap-3">

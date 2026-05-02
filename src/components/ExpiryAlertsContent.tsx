@@ -45,7 +45,7 @@ export default function ExpiryAlertsContent() {
 
                     const exp = new Date(expDate);
                     let status: 'expired' | 'expiring' | 'good' = 'good';
-                    let daysRem = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                    const daysRem = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
                     if (exp < now) status = 'expired';
                     else if (exp <= thirtyDaysFromNow) status = 'expiring';

@@ -235,16 +235,7 @@ export default function RequestJourneyView() {
                                         <div className="grid grid-cols-1 lg:grid-cols-8 gap-8 relative z-10">
                                             {JOURNEY_STEPS.filter(step => {
                                                 const userRole = userData?.userRole;
-                                                const TEAM_LEADER_ROLES = [
-                                                    'student_service_leader',
-                                                    'student_service_dormitory_leader',
-                                                    'student_service_sport_leader',
-                                                    'student_service_cafeteria_leader',
-                                                    'hrm_leader',
-                                                    'finance_leader',
-                                                    'admin_lead'
-                                                ];
-                                                const isSpecializedTeamLeader = TEAM_LEADER_ROLES.includes(userRole);
+                                                const isSpecializedTeamLeader = userRole?.endsWith('_leader') && userRole !== 'procurement_team_leader' && userRole !== 'managing_director_leader';
 
                                                 if (isSpecializedTeamLeader) {
                                                     // Specialized Journey: MD -> Procurement TL -> Store Clerk -> Store
@@ -259,10 +250,8 @@ export default function RequestJourneyView() {
                                                     return ['submission', 'md', 'clerk', 'store'].includes(step.id);
                                                 }
 
-                                                // For Top-Level Leaders (SSL, HRM, Finance), skip to MD directly (no SSL step)
-                                                const isTopLeader = userRole === 'student_service_leader' ||
-                                                    userRole === 'hrm_leader' ||
-                                                    userRole === 'finance_leader';
+                                                // For Top-Level Leaders, skip to MD directly (no SSL step)
+                                                const isTopLeader = userRole?.endsWith('_leader') && !['student_service_dormitory_leader', 'student_service_sport_leader', 'student_service_cafeteria_leader', 'procurement_team_leader', 'managing_director_leader'].includes(userRole);
 
                                                 // Existing logic for other role types...
                                                 if (isTopLeader && (step.id === 'submission' || step.id === 'student_service_leader' || step.id === 'dept_head' || step.id === 'coordinator')) return false;
@@ -272,11 +261,10 @@ export default function RequestJourneyView() {
                                                     userRole === 'student_service_sport_leader' ||
                                                     userRole === 'student_service_cafeteria_leader';
 
-                                                // For HRM and Finance Employees/Leaders (admin staff only, not academic departments)
-                                                const isHRMFlow = userRole?.includes('hrm');
-                                                const isFinanceFlow = userRole === 'finance_leader' || userRole === 'finance_employee';
+                                                // For Admin Employees/Leaders (admin staff only, not academic departments)
+                                                const isAdminFlow = (userRole?.endsWith('_employee') || userRole?.endsWith('_leader')) && !userRole?.includes('student_service_') && !userRole?.includes('procurement_') && !userRole?.includes('managing_director_');
 
-                                                if (isHRMFlow || isFinanceFlow) {
+                                                if (isAdminFlow) {
                                                     if (step.id === 'student_service_leader' || step.id === 'coordinator') return false;
                                                 }
 
@@ -329,16 +317,7 @@ export default function RequestJourneyView() {
                                                 let description = step.description;
 
                                                 const userRole = userData?.userRole;
-                                                const TEAM_LEADER_ROLES = [
-                                                    'student_service_leader',
-                                                    'student_service_dormitory_leader',
-                                                    'student_service_sport_leader',
-                                                    'student_service_cafeteria_leader',
-                                                    'hrm_leader',
-                                                    'finance_leader',
-                                                    'admin_lead'
-                                                ];
-                                                const isSpecializedTeamLeader = TEAM_LEADER_ROLES.includes(userRole);
+                                                const isSpecializedTeamLeader = userRole?.endsWith('_leader') && userRole !== 'procurement_team_leader' && userRole !== 'managing_director_leader';
 
                                                 if (isSpecializedTeamLeader && step.id === 'md') {
                                                     label = 'Submission (MD)';
@@ -363,10 +342,10 @@ export default function RequestJourneyView() {
                                                 const isHRMOrFinance = userRole?.includes('hrm') || userRole === 'finance_leader' || userRole === 'finance_employee';
                                                 if (isHRMOrFinance && !isSpecializedTeamLeader) {
                                                     if (step.id === 'submission') {
-                                                        description = userRole?.includes('hrm') ? 'Request submitted to HRM Leader' : 'Request submitted to Finance Leader';
+                                                        description = userRole?.includes('hrm') ? 'Request submitted to HRM Team Leader' : 'Request submitted to Finance Team Leader';
                                                     } else if (step.id === 'dept_head') {
                                                         label = isHRMOrFinance && userRole?.includes('leader') ? 'Submission' : 'Leader Approval';
-                                                        description = userRole?.includes('hrm') ? 'HRM Leader Review' : 'Finance Leader Review';
+                                                        description = userRole?.includes('hrm') ? 'HRM Team Leader Review' : 'Finance Team Leader Review';
                                                     }
                                                 }
 

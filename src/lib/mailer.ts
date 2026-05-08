@@ -124,7 +124,7 @@ export async function sendWelcomeEmail({ to, fullName, username, password, role 
                 filename: 'logo.png',
                 path: logoPath,
                 cid: 'dmulogo',
-                contentDisposition: 'inline',
+                contentDisposition: 'inline' as const,
                 contentType: 'image/png'
             }
         ]

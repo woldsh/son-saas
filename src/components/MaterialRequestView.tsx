@@ -223,7 +223,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             'finance_leader': 'Finance Team Leader'
         };
         if (roles[role]) return roles[role];
-        
+
         let baseName = role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         if (role.endsWith('_leader') && baseName.endsWith(' Leader')) {
             baseName = baseName.replace(' Leader', ' Team Leader');

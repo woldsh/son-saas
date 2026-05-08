@@ -32,6 +32,9 @@ interface AnalyticsData {
     deptData: any[];
     typeData: any[];
     topRequested: any[];
+    predictiveData: any[];
+    predictiveAlerts: any[];
+    predictiveLabels: Record<string, string>;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
@@ -183,6 +186,112 @@ export default function AnalyticsDashboardContent() {
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 5);
 
+                // --- PREDICTIVE ANALYTICS LOGIC ---
+                // Mock Academic Calendar Events
+                const nowTime = now.getTime();
+                const ACADEMIC_CALENDAR = [
+                    { name: 'Midterm Exams', start: new Date(nowTime + 15 * 24 * 60 * 60 * 1000), end: new Date(nowTime + 25 * 24 * 60 * 60 * 1000), multiplier: 2.5 },
+                    { name: 'Final Exams', start: new Date(nowTime + 60 * 24 * 60 * 60 * 1000), end: new Date(nowTime + 75 * 24 * 60 * 60 * 1000), multiplier: 3.0 },
+                    { name: 'Registration Week', start: new Date(nowTime + 120 * 24 * 60 * 60 * 1000), end: new Date(nowTime + 127 * 24 * 60 * 60 * 1000), multiplier: 1.5 }
+                ];
+
+                // Calculate base daily velocity for consumables (from last 30 days of requests)
+                const thirtyDaysAgo = new Date(nowTime - 30 * 24 * 60 * 60 * 1000);
+                const consumableItemMap: Record<string, { totalRequested: number, currentStock: number }> = {};
+                
+                // Initialize map with current stock of consumables
+                allMaterials.forEach(m => {
+                    if (m.materialType === 'consumable' && m.materialName) {
+                        consumableItemMap[m.materialName] = { totalRequested: 0, currentStock: m.quantity };
+                    }
+                });
+
+                // Add up requests in the last 30 days
+                allRequests.forEach((req: any) => {
+                    const ts = req.createdAt || req.issued_date;
+                    if (ts) {
+                        const dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
+                        if (dObj && dObj >= thirtyDaysAgo && dObj <= now) {
+                            if (req.items && Array.isArray(req.items)) {
+                                req.items.forEach((item: any) => {
+                                    const name = (item.materialName || item.description || '').trim();
+                                    if (name && consumableItemMap[name]) {
+                                        consumableItemMap[name].totalRequested += (Number(item.quantity) || 1);
+                                    }
+                                });
+                            } else if (req.materialName) {
+                                const name = req.materialName.trim();
+                                if (consumableItemMap[name]) {
+                                    consumableItemMap[name].totalRequested += (Number(req.quantity) || 1);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const predictiveAlerts: any[] = [];
+                const predictiveChartDataMap: Record<string, any> = {};
+                const predictiveLabels: Record<string, string> = {};
+                
+                // Generate next 90 days for chart
+                for(let i=0; i<=90; i++) {
+                    const d = new Date(nowTime + i * 24 * 60 * 60 * 1000);
+                    const dateStr = d.toISOString().split('T')[0];
+                    predictiveChartDataMap[dateStr] = { date: dateStr, name: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
+                }
+
+                // Calculate run-out trajectory for top 3 consumed items
+                const topConsumables = Object.entries(consumableItemMap)
+                    .filter(([_, data]) => data.totalRequested > 0 && data.currentStock > 0)
+                    .sort((a, b) => b[1].totalRequested - a[1].totalRequested)
+                    .slice(0, 3);
+
+                topConsumables.forEach(([name, data], idx) => {
+                    const baseVelocity = data.totalRequested / 30; // requests per day
+                    let currentSimulatedStock = data.currentStock;
+                    let runOutDate: Date | null = null;
+                    let intersectingEvent: string | null = null;
+
+                    predictiveLabels[`item${idx}`] = name;
+
+                    for(let i=0; i<=90; i++) {
+                        const d = new Date(nowTime + i * 24 * 60 * 60 * 1000);
+                        const dateStr = d.toISOString().split('T')[0];
+                        
+                        let dailyConsumption = baseVelocity;
+                        const activeEvent = ACADEMIC_CALENDAR.find(ev => d >= ev.start && d <= ev.end);
+                        if (activeEvent) {
+                            dailyConsumption *= activeEvent.multiplier;
+                            if (!intersectingEvent && currentSimulatedStock > 0 && currentSimulatedStock - dailyConsumption <= 0) {
+                                intersectingEvent = activeEvent.name;
+                            }
+                        }
+
+                        currentSimulatedStock -= dailyConsumption;
+                        if (currentSimulatedStock < 0) currentSimulatedStock = 0;
+                        
+                        predictiveChartDataMap[dateStr][`item${idx}`] = Math.round(currentSimulatedStock);
+                        
+                        if (currentSimulatedStock === 0 && !runOutDate) {
+                            runOutDate = d;
+                        }
+                    }
+
+                    if (runOutDate) {
+                        const daysRemaining = Math.floor((runOutDate.getTime() - nowTime) / (1000 * 60 * 60 * 24));
+                        predictiveAlerts.push({
+                            itemName: name,
+                            currentStock: data.currentStock,
+                            velocity: parseFloat(baseVelocity.toFixed(1)),
+                            runOutDate,
+                            intersectsEvent: intersectingEvent,
+                            daysRemaining
+                        });
+                    }
+                });
+
+                const predictiveData = Object.values(predictiveChartDataMap).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
                 setData({
                     totalRequests: allRequests.length,
                     pendingRequests: pending,
@@ -193,6 +302,7 @@ export default function AnalyticsDashboardContent() {
                     expired, expiringSoon, totalValue,
                     fixedAssets, consumables,
                     trendData, statusData, deptData, typeData, topRequested,
+                    predictiveData, predictiveAlerts, predictiveLabels,
                 });
                 setLoading(false);
             } catch (err) {
@@ -468,6 +578,82 @@ export default function AnalyticsDashboardContent() {
                             </div>
                         ) : (
                             <p className="text-xs text-gray-400 text-center py-8">No issuance data yet</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Row 5: Predictive Analytics */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-5">
+                    {/* Predictive Chart */}
+                    <div className="lg:col-span-2 bg-white rounded-xl border border-blue-200 shadow-sm p-5 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                    <FiActivity className="text-blue-500" /> Predictive Stock Depletion
+                                </h3>
+                                <p className="text-xs text-gray-400">Forecasted run-out dates based on Academic Calendar spikes</p>
+                            </div>
+                        </div>
+                        <div className="h-[250px]">
+                            {data.predictiveData && data.predictiveData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={data.predictiveData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="predGrad0" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
+                                        <linearGradient id="predGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
+                                        <linearGradient id="predGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} minTickGap={30} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    {data.predictiveLabels['item0'] && <Area type="monotone" dataKey="item0" name={data.predictiveLabels['item0']} stroke="#3b82f6" strokeWidth={2.5} fill="url(#predGrad0)" />}
+                                    {data.predictiveLabels['item1'] && <Area type="monotone" dataKey="item1" name={data.predictiveLabels['item1']} stroke="#ef4444" strokeWidth={2.5} fill="url(#predGrad1)" />}
+                                    {data.predictiveLabels['item2'] && <Area type="monotone" dataKey="item2" name={data.predictiveLabels['item2']} stroke="#f59e0b" strokeWidth={2.5} fill="url(#predGrad2)" />}
+                                </AreaChart>
+                            </ResponsiveContainer>
+                            ) : (
+                                <p className="text-xs text-gray-400 text-center py-10">Not enough consumption data to generate predictions.</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Predictive Alerts */}
+                    <div className="bg-white rounded-xl border border-red-200 shadow-sm p-5 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+                        <div className="mb-4">
+                            <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                <FiAlertTriangle className="text-red-500" /> Critical Forecast Alerts
+                            </h3>
+                            <p className="text-xs text-gray-400">Items projected to run out soon</p>
+                        </div>
+                        {data.predictiveAlerts && data.predictiveAlerts.length > 0 ? (
+                            <div className="space-y-4 overflow-y-auto max-h-[250px] pr-2">
+                                {data.predictiveAlerts.sort((a: any, b: any) => a.daysRemaining - b.daysRemaining).map((alert: any, i: number) => (
+                                    <div key={i} className="bg-red-50 border border-red-100 rounded-lg p-3">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-bold text-red-800 text-sm truncate max-w-[140px]">{alert.itemName}</span>
+                                            <span className="text-xs font-bold px-2 py-0.5 bg-red-200 text-red-800 rounded-full">
+                                                {alert.daysRemaining} days left
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-red-600 mb-2">Runs out on {new Date(alert.runOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                        <div className="text-[10px] text-red-500 space-y-0.5">
+                                            <p>• Daily velocity: <b>{alert.velocity} items/day</b></p>
+                                            {alert.intersectsEvent && (
+                                                <p>• ⚠️ Depletes during <b>{alert.intersectsEvent}</b> spike</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-[200px] text-center">
+                                <FiCheckCircle className="text-4xl text-green-400 mb-2" />
+                                <p className="text-sm font-bold text-gray-700">Stock Levels Healthy</p>
+                                <p className="text-xs text-gray-400 mt-1">No items forecasted to run out in the next 90 days.</p>
+                            </div>
                         )}
                     </div>
                 </div>

@@ -65,7 +65,7 @@ export default function LandingPage() {
               </div>
               <div className="flex flex-col">
                 <span className="text-[15px] font-black tracking-tight leading-none text-slate-900">
-                  Burie Campus <span className="text-indigo-600 font-medium">Property System</span>
+                  DMU Burie Campus <span className="text-indigo-600 font-medium">Property Management System</span>
                 </span>
               </div>
             </Link>
@@ -164,32 +164,12 @@ export default function LandingPage() {
                 custom={1}
                 className="text-5xl sm:text-6xl lg:text-[4.5rem] font-extrabold tracking-tight leading-[1.05] text-slate-900"
               >
-                {t('heroStreamline')}{' '}
                 <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent bg-[length:200%_100%] animate-[gradientShift_4s_ease_infinite]">
                   {t('heroProperty')}
                 </span>
-                <br />
-                <span className="text-[0.8em] font-medium opacity-80">{t('heroCampus')}</span>
               </motion.h1>
 
-              <motion.p
-                variants={fadeUp}
-                custom={2}
-                className="text-lg leading-relaxed max-w-2xl text-slate-500"
-              >
-                {t('heroSub')}
-              </motion.p>
 
-              <motion.div variants={fadeUp} custom={3} className="flex flex-wrap gap-4 pt-2">
-                <Link
-                  href="/login"
-                  className="group px-8 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold rounded-xl flex items-center gap-3 shadow-xl shadow-indigo-600/25 hover:shadow-indigo-600/40 hover:scale-[1.02] active:scale-[0.97] transition-all duration-300"
-                >
-                  {t('getStarted')}
-                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
-
-              </motion.div>
 
 
             </motion.div>

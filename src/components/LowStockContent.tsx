@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs } from 'firebase/firestore';
 import { FiAlertCircle, FiBox, FiRefreshCw } from 'react-icons/fi';
 import Image from 'next/image';
 
@@ -29,24 +29,42 @@ export default function LowStockContent() {
 
         try {
             const materialsRef = collection(db, 'materials');
-            const q = query(materialsRef, orderBy('quantity', 'asc'));
+            const q = query(materialsRef);
             const snapshot = await getDocs(q);
 
-            const items: any[] = [];
+            // Step 1: Aggregate quantities by material name across all documents
+            const materialMap = new Map<string, {
+                totalQty: number;
+                materialName: string;
+                materialCode: string;
+                category: string;
+                storeLocation: string;
+                unit: string;
+                image?: string;
+            }>();
+
             snapshot.docs.forEach(doc => {
                 const data = doc.data();
                 
-                const processItem = (qty: number, matName: string, matCode: string, cat: string, loc: string, unit: string, img?: string) => {
-                    if (qty > 0 && qty <= 10) {
-                        items.push({
-                            id: `${doc.id}-${matName}`,
-                            materialName: matName,
+                const addToMap = (qty: number, matName: string, matCode: string, cat: string, loc: string, unit: string, img?: string) => {
+                    const key = matName.trim().toLowerCase();
+                    if (!key) return;
+                    const existing = materialMap.get(key);
+                    if (existing) {
+                        existing.totalQty += qty;
+                        // Keep the most descriptive metadata
+                        if (!existing.materialCode || existing.materialCode === 'N/A') existing.materialCode = matCode;
+                        if (!existing.category && cat) existing.category = cat;
+                        if (!existing.storeLocation && loc) existing.storeLocation = loc;
+                        if (!existing.image && img) existing.image = img;
+                    } else {
+                        materialMap.set(key, {
+                            totalQty: qty,
+                            materialName: matName.trim(),
                             materialCode: matCode,
                             category: cat,
-                            quantity: qty,
-                            unit: unit,
                             storeLocation: loc,
-                            status: 'low',
+                            unit: unit,
                             image: img
                         });
                     }
@@ -55,8 +73,8 @@ export default function LowStockContent() {
                 if (data.items && Array.isArray(data.items) && (data.formType === 'receipt_for_articles' || (data.items.length > 0 && !data.materialName))) {
                     // Model 19 structure
                     data.items.forEach((item: any) => {
-                        if (item.description) {
-                            processItem(
+                        if (item.description && typeof item.description === 'string' && item.description.trim()) {
+                            addToMap(
                                 Number(item.quantity) || 0,
                                 item.description,
                                 item.code || data.model19Number || 'N/A',
@@ -69,7 +87,7 @@ export default function LowStockContent() {
                     });
                 } else if (data.materialName) {
                     // Standard structure
-                    processItem(
+                    addToMap(
                         Number(data.quantity) || 0,
                         data.materialName,
                         data.materialCode || 'N/A',
@@ -81,6 +99,26 @@ export default function LowStockContent() {
                 }
             });
 
+            // Step 2: Filter aggregated totals for low stock (qty > 0 && qty <= 10)
+            const items: any[] = [];
+            materialMap.forEach((info, key) => {
+                if (info.totalQty > 0 && info.totalQty <= 10) {
+                    items.push({
+                        id: key,
+                        materialName: info.materialName,
+                        materialCode: info.materialCode,
+                        category: info.category,
+                        quantity: info.totalQty,
+                        unit: info.unit,
+                        storeLocation: info.storeLocation,
+                        status: 'low',
+                        image: info.image
+                    });
+                }
+            });
+
+            // Sort client-side by quantity ascending
+            items.sort((a, b) => a.quantity - b.quantity);
             setMaterials(items);
         } catch (error) {
             console.error("Error fetching low stock data:", error);

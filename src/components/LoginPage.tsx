@@ -103,7 +103,7 @@ export default function LoginPage() {
       if (!db) throw new Error("Firebase not initialized");
       // Login user
       let loginIdentifier = username.toLowerCase().trim();
-      
+
       if (!loginIdentifier.includes('@')) {
         const res = await fetch('/api/auth/lookup-username', {
           method: 'POST',
@@ -111,7 +111,7 @@ export default function LoginPage() {
           body: JSON.stringify({ username: loginIdentifier })
         });
         const data = await res.json();
-        
+
         if (data.success && data.email) {
           loginIdentifier = data.email;
         } else {
@@ -268,7 +268,7 @@ export default function LoginPage() {
             </motion.div>
             <div className="text-center">
               <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-tight mb-2">
-                <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Burie Campus</span>
+                <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">DMU Burie Campus</span>
               </h1>
               <h2 className="text-sm font-bold text-slate-700 uppercase tracking-widest mb-3">
                 Property Management System

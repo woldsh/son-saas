@@ -79,7 +79,7 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
             if (unseenRecords.length === 0) return;
 
             try {
-                const promises = unseenRecords.map(r => 
+                const promises = unseenRecords.map(r =>
                     updateDoc(doc(db!, 'Send_to_Users', r.id), { isSeen: true })
                 );
                 await Promise.all(promises);

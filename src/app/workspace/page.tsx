@@ -7,21 +7,33 @@ import { db } from '@/lib/firebase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 import {
-    LayoutDashboard,
     ClipboardList,
     Box,
     AlertCircle,
     CheckCircle2,
-    ArrowRight,
-    Search,
     Package,
-    Truck,
-    BarChart3,
     Clock,
     Database,
-    Zap
+    Zap,
+    TrendingUp,
+    XCircle,
+    FileText,
+    Activity,
+    ArrowRight,
+    CheckSquare,
+    FilePlus,
+    Bell
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+interface RecentRequest {
+    id: string;
+    requester: string;
+    department: string;
+    material: string;
+    status: string;
+    date: string;
+}
 
 export default function WorkspacePage() {
     const { user } = useAuth();
@@ -33,7 +45,16 @@ export default function WorkspacePage() {
         totalInventory: 0,
         lowStock: 0,
         processedToday: 0,
+        approvedRequests: 0,
+        rejectedRequests: 0,
+        totalRequests: 0,
+        outOfStock: 0,
+        totalValue: 0,
+        totalQuantity: 0,
+        fixedAssets: 0,
+        consumables: 0,
     });
+    const [recentRequests, setRecentRequests] = useState<RecentRequest[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
 
     useEffect(() => {
@@ -53,28 +74,57 @@ export default function WorkspacePage() {
                     setUserName(d.displayName || 'User');
                 }
 
-                const requestsRef = collection(db!, 'Request_materials');
-                const pendingSnap = await getDocs(
-                    query(requestsRef, where('status', 'in', [
-                        'forwarded_to_team_leader',
-                        'approved_by_procurement_team_leader',
-                        'approved_by_clerk'
-                    ]))
-                );
+                // Fetch all requests
+                const allRequestsSnap = await getDocs(collection(db!, 'Request_materials'));
+                const sendToUsersSnap = await getDocs(collection(db!, 'Send_to_Users'));
+                let pending = 0, approved = 0, rejected = 0;
+                const recentList: RecentRequest[] = [];
 
+                allRequestsSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const s = (data.status || '').toLowerCase();
+                    if (s.includes('forwarded_to_team_leader') || s === 'pending_procurement') pending++;
+                    else if (s.includes('approved')) approved++;
+                    else if (s.includes('rejected')) rejected++;
+                    const ts = data.createdAt || data.issued_date;
+                    let dateStr = '';
+                    if (ts) {
+                        const dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
+                        if (dObj && !isNaN(dObj.getTime())) dateStr = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    }
+                    recentList.push({ id: d.id, requester: data.requester_name || data.displayName || 'Unknown', department: data.department || data.requester_department || '-', material: data.materialName || data.items?.[0]?.materialName || 'Multiple Items', status: data.status || 'pending', date: dateStr || '-' });
+                });
+                recentList.sort((a, b) => (a.date === '-' ? 1 : b.date === '-' ? -1 : new Date(b.date).getTime() - new Date(a.date).getTime()));
+                setRecentRequests(recentList.slice(0, 5));
+
+                // Materials analysis
                 const materialsSnap = await getDocs(collection(db!, 'materials'));
-                let lowCount = 0;
-                materialsSnap.docs.forEach(doc => {
-                    const qty = Number(doc.data().quantity) || 0;
-                    if (qty <= 10) lowCount++;
+                let lowCount = 0, outOfStock = 0, totalValue = 0, totalQuantity = 0, fixedAssets = 0, consumables = 0;
+                materialsSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const qty = Number(data.quantity) || 0;
+                    const price = Number(data.unitPrice) || 0;
+                    totalValue += qty * price;
+                    totalQuantity += qty;
+                    if (qty === 0) outOfStock++;
+                    else if (qty <= 10) lowCount++;
+                    if (data.materialType === 'fixed_asset') fixedAssets++;
+                    else consumables++;
                 });
 
-                setStats({
-                    pendingRequests: pendingSnap.size,
-                    totalInventory: materialsSnap.size,
-                    lowStock: lowCount,
-                    processedToday: 0,
+                // Today's completed
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                let todayCount = 0;
+                sendToUsersSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const ts = data.handout_date || data.createdAt;
+                    if (ts) {
+                        const dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
+                        if (dObj && dObj >= today) todayCount++;
+                    }
                 });
+
+                setStats({ pendingRequests: pending, totalInventory: materialsSnap.size, lowStock: lowCount, processedToday: todayCount, approvedRequests: approved, rejectedRequests: rejected, totalRequests: allRequestsSnap.size + sendToUsersSnap.size, outOfStock, totalValue, totalQuantity, fixedAssets, consumables });
             } catch (error) {
                 console.error('Error fetching data:', error);
             } finally {
@@ -117,14 +167,7 @@ export default function WorkspacePage() {
         visible: { opacity: 1, y: 0 }
     };
 
-    const quickActions = [
-        { label: 'View Requests', desc: 'Process material requests', href: '/workspace/approve-requests', icon: ClipboardList },
-        { label: 'Material List', desc: 'Browse all items', href: '/workspace/full-inventory', icon: Box },
-        { label: 'Low Stock', desc: 'Items needing restock', href: '/workspace/low-stock', icon: AlertCircle },
-        { label: 'Analytics', desc: 'Charts & reports', href: '/workspace/analytics', icon: BarChart3 },
-        { label: 'Search Material', desc: 'Find specific items', href: '/workspace/search-material', icon: Search },
-        { label: 'Receive Goods', desc: 'Log incoming shipments', href: '/workspace/receive-goods', icon: Truck },
-    ];
+
 
     return (
         <ProtectedRoute>
@@ -168,7 +211,7 @@ export default function WorkspacePage() {
                     </div>
 
                     {/* Operational Stats */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         <StatCard
                             icon={Zap}
                             label="Pending Action"
@@ -176,14 +219,6 @@ export default function WorkspacePage() {
                             subText="Needs Review"
                             accent="blue"
                             pulse={stats.pendingRequests > 0}
-                            variants={itemVariants}
-                        />
-                        <StatCard
-                            icon={Database}
-                            label="Catalogued"
-                            value={stats.totalInventory}
-                            subText="Total Materials"
-                            accent="slate"
                             variants={itemVariants}
                         />
                         <StatCard
@@ -204,108 +239,196 @@ export default function WorkspacePage() {
                         />
                     </div>
 
-                    {/* Main Content Area */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Quick Actions Grid */}
-                        {!userRole?.includes('store_keeper') && (
+                    {/* Team Leader Specific View (Detailed Insights) */}
+                    {userRole === 'procurement_team_leader' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Left: Recent Requests + Secondary Stats */}
                             <div className="lg:col-span-2 space-y-6">
-                                <motion.div variants={itemVariants} className="flex items-center justify-between">
-                                    <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                        <LayoutDashboard className="w-5 h-5 text-blue-600" />
-                                        Operational Shortcuts
-                                    </h2>
-                                </motion.div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {quickActions.map((action, idx) => (
-                                        <motion.div key={action.href} variants={itemVariants}>
-                                            <Link
-                                                href={action.href}
-                                                className="group flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300"
-                                            >
-                                                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-600 transition-colors duration-300">
-                                                    <action.icon className="w-6 h-6 text-blue-600 group-hover:text-white transition-colors duration-300" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-bold text-slate-800 text-[15px]">{action.label}</h3>
-                                                    <p className="text-xs text-slate-400 mt-0.5">{action.desc}</p>
-                                                </div>
-                                                <div className="w-8 h-8 rounded-full border border-slate-100 flex items-center justify-center text-slate-300 group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
-                                                    <ArrowRight className="w-4 h-4" />
-                                                </div>
-                                            </Link>
-                                        </motion.div>
-                                    ))}
+                                {/* Secondary Stats Row */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center"><Activity className="w-5 h-5 text-indigo-600" /></div>
+                                        <div><p className="text-xl font-black text-slate-900">{stats.totalRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Requests</p></div>
+                                    </motion.div>
+                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
+                                        <div><p className="text-xl font-black text-slate-900">{stats.approvedRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approved</p></div>
+                                    </motion.div>
+                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><XCircle className="w-5 h-5 text-red-500" /></div>
+                                        <div><p className="text-xl font-black text-slate-900">{stats.rejectedRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rejected</p></div>
+                                    </motion.div>
+                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-violet-600" /></div>
+                                        <div><p className="text-xl font-black text-slate-900">{stats.totalValue.toLocaleString()}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Value (ETB)</p></div>
+                                    </motion.div>
                                 </div>
+
+                                {/* Recent Requests Table */}
+                                <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                                        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2"><FileText className="w-4 h-4 text-blue-600" /> Recent Requests</h3>
+                                        <Link href="/workspace/approve-requests" className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">View All <ArrowRight className="w-3 h-3" /></Link>
+                                    </div>
+                                    <table className="w-full text-sm">
+                                        <thead><tr className="bg-slate-50/50">
+                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Requester</th>
+                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Material</th>
+                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
+                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                                        </tr></thead>
+                                        <tbody>
+                                            {recentRequests.length > 0 ? recentRequests.map(req => (
+                                                <tr key={req.id} className="border-t border-slate-50 hover:bg-blue-50/30 transition-colors">
+                                                    <td className="px-5 py-3"><p className="font-semibold text-slate-800 text-[13px]">{req.requester}</p><p className="text-[11px] text-slate-400">{req.department}</p></td>
+                                                    <td className="px-5 py-3 text-slate-600 text-[13px] max-w-[140px] truncate">{req.material}</td>
+                                                    <td className="px-5 py-3 text-slate-400 text-[12px]">{req.date}</td>
+                                                    <td className="px-5 py-3"><StatusBadge status={req.status} /></td>
+                                                </tr>
+                                            )) : (<tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400 text-sm">No recent requests</td></tr>)}
+                                        </tbody>
+                                    </table>
+                                </motion.div>
                             </div>
-                        )}
 
-                        {/* Recent Alerts / Info Side Block (Hidden for Keeper) */}
-                        {!userRole?.includes('store_keeper') && (
+                            {/* Right: Stock Health */}
                             <motion.div variants={itemVariants} className="space-y-6">
-                                <h2 className="text-xl font-black text-slate-900">System Notification</h2>
-                                <div className="bg-blue-600 rounded-[2rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-200">
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-12 -mb-12 blur-xl"></div>
-
-                                    <div className="relative z-10">
-                                        <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
-                                            <Zap className="w-6 h-6 text-white" />
-                                        </div>
-                                        <h3 className="text-xl font-bold mb-2">Inventory Sync Active</h3>
-                                        <p className="text-blue-100 text-sm leading-relaxed mb-6">
-                                            All stock levels are currently being synchronized with the central repository. Zero latency detected.
-                                        </p>
-                                        <button className="w-full py-3 bg-white text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-50 transition-colors">
-                                            Refresh Data
-                                        </button>
+                                <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+                                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2"><Package className="w-4 h-4 text-blue-600" /> Stock Health</h3>
+                                    <div className="space-y-3">
+                                        <StockBar label="In Stock" value={stats.totalInventory - stats.lowStock - stats.outOfStock} total={stats.totalInventory} color="bg-emerald-500" />
+                                        <StockBar label="Low Stock" value={stats.lowStock} total={stats.totalInventory} color="bg-amber-500" />
+                                        <StockBar label="Out of Stock" value={stats.outOfStock} total={stats.totalInventory} color="bg-red-500" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                                        <div className="text-center p-3 bg-indigo-50 rounded-xl"><p className="text-lg font-black text-indigo-700">{stats.fixedAssets}</p><p className="text-[10px] text-indigo-500 font-bold">Fixed Assets</p></div>
+                                        <div className="text-center p-3 bg-emerald-50 rounded-xl"><p className="text-lg font-black text-emerald-700">{stats.consumables}</p><p className="text-[10px] text-emerald-500 font-bold">Consumables</p></div>
                                     </div>
                                 </div>
+                                <Link href="/workspace/analytics" className="block bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-blue-200 transition-all">
+                                    <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><TrendingUp className="w-5 h-5" /></div><h3 className="font-bold">View Analytics</h3></div>
+                                    <p className="text-blue-100 text-sm">Charts, trends & detailed reports</p>
+                                </Link>
                             </motion.div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* Store Keeper Specific View */}
-                        {userRole?.includes('store_keeper') && (
-                            <div className="lg:col-span-3 space-y-6">
-                                <motion.div variants={itemVariants} className="flex items-center justify-between">
-                                    <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                        <Package className="w-5 h-5 text-blue-600" />
-                                        Keeper Daily Tasks
-                                    </h2>
+                    {/* Stock Clerk Specific View */}
+                    {userRole?.includes('stock_clerk') && (
+                        <div className="space-y-6">
+                            {/* Clerk Quick Stats */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                                            <Database className="w-6 h-6 text-indigo-600" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-1">Materials Registered</p>
+                                        <h3 className="text-3xl font-black text-slate-900">{stats.totalInventory}</h3>
+                                    </div>
                                 </motion.div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Link href="/workspace/requests" className="bg-white border-2 border-transparent hover:border-blue-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all group">
-                                        <div className="flex items-start gap-6">
-                                            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                                                <ClipboardList className="w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-blue-600 transition-colors">Verify Handouts</h3>
-                                                <p className="text-slate-500 text-sm leading-relaxed">
-                                                    Process material requests that have been approved by the clerk. Finalize the issuance and generate the official Model 22.
-                                                </p>
-                                            </div>
+                                <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                                            <Package className="w-6 h-6 text-emerald-600" />
                                         </div>
-                                    </Link>
-
-                                    <Link href="/workspace/materials-list" className="bg-white border-2 border-transparent hover:border-emerald-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all group">
-                                        <div className="flex items-start gap-6">
-                                            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                                                <Box className="w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">Store Inventory</h3>
-                                                <p className="text-slate-500 text-sm leading-relaxed">
-                                                    View the full list of materials currently in your store. Check quantities, bin locations, and monitor low stock levels.
-                                                </p>
-                                            </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-1">Registered Quantity</p>
+                                        <h3 className="text-3xl font-black text-slate-900">{stats.totalQuantity.toLocaleString()}</h3>
+                                    </div>
+                                </motion.div>
+                                <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-300">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
+                                            <TrendingUp className="w-6 h-6 text-blue-600" />
                                         </div>
-                                    </Link>
-                                </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-1">Total Value (ETB)</p>
+                                        <h3 className="text-3xl font-black text-slate-900">{stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+                                    </div>
+                                </motion.div>
                             </div>
-                        )}
-                    </div>
+                            
+                            {/* Clerk Quick Actions */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <Link href="/workspace/approve-requests" className="bg-white border-2 border-transparent hover:border-indigo-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-indigo-500/10 transition-all group">
+                                    <div className="flex flex-col items-center text-center gap-4">
+                                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                                            <CheckSquare className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-xl text-slate-900 tracking-tight mb-2 group-hover:text-indigo-600 transition-colors">Approve Requests</h3>
+                                            <p className="text-slate-500 text-sm leading-relaxed">
+                                                Review and approve material requisitions from departments.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <Link href="/workspace/register-material" className="bg-white border-2 border-transparent hover:border-emerald-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all group">
+                                    <div className="flex flex-col items-center text-center gap-4">
+                                        <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                                            <FilePlus className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-xl text-slate-900 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">Register Material</h3>
+                                            <p className="text-slate-500 text-sm leading-relaxed">
+                                                Add new materials or batches to the system inventory.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <Link href="/workspace/low-stock" className="bg-white border-2 border-transparent hover:border-amber-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-amber-500/10 transition-all group">
+                                    <div className="flex flex-col items-center text-center gap-4">
+                                        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                                            <Bell className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-xl text-slate-900 tracking-tight mb-2 group-hover:text-amber-600 transition-colors">Stock Alerts</h3>
+                                            <p className="text-slate-500 text-sm leading-relaxed">
+                                                Monitor low stock, out of stock, and expiry notifications.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Store Keeper Specific View */}
+                    {userRole?.includes('store_keeper') && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Link href="/workspace/requests" className="bg-white border-2 border-transparent hover:border-blue-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all group">
+                                <div className="flex items-start gap-6">
+                                    <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                                        <ClipboardList className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-blue-600 transition-colors">Verify Handouts</h3>
+                                        <p className="text-slate-500 text-sm leading-relaxed">
+                                            Process material requests that have been approved by the clerk. Finalize the issuance and generate the official Model 22.
+                                        </p>
+                                    </div>
+                                </div>
+                            </Link>
+                            <Link href="/workspace/materials-list" className="bg-white border-2 border-transparent hover:border-emerald-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all group">
+                                <div className="flex items-start gap-6">
+                                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                                        <Box className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">Store Inventory</h3>
+                                        <p className="text-slate-500 text-sm leading-relaxed">
+                                            View the full list of materials currently in your store. Check quantities, bin locations, and monitor low stock levels.
+                                        </p>
+                                    </div>
+                                </div>
+                            </Link>
+                        </div>
+                    )}
 
                 </motion.div>
             </div>
@@ -348,5 +471,31 @@ function StatCard({ icon: Icon, label, value, subText, accent, pulse, variants }
                 </div>
             </div>
         </motion.div>
+    );
+}
+
+function StatusBadge({ status }: { status: string }) {
+    const s = status.toLowerCase();
+    let label = status.replace(/_/g, ' ');
+    let cls = 'bg-slate-100 text-slate-600';
+    if (s.includes('forwarded') || s.includes('pending')) { cls = 'bg-amber-50 text-amber-700'; label = 'Pending'; }
+    else if (s.includes('approved')) { cls = 'bg-emerald-50 text-emerald-700'; label = 'Approved'; }
+    else if (s.includes('rejected')) { cls = 'bg-red-50 text-red-600'; label = 'Rejected'; }
+    else if (s.includes('completed') || s.includes('handout') || s.includes('delivered')) { cls = 'bg-blue-50 text-blue-700'; label = 'Completed'; }
+    return <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${cls}`}>{label}</span>;
+}
+
+function StockBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+    const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+    return (
+        <div>
+            <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-600 font-medium">{label}</span>
+                <span className="font-bold text-slate-800">{value} <span className="text-slate-400">({pct}%)</span></span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className={`h-2 rounded-full transition-all duration-1000 ${color}`} style={{ width: `${pct}%` }}></div>
+            </div>
+        </div>
     );
 }

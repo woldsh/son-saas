@@ -543,14 +543,9 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
         </div>
 
         <div className="space-y-4 pt-4 border-t border-gray-100">
-          <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
-            <FiCommand className="text-gray-400" />
-            {t('role_selection_header')}
-          </h3>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('functional_domain_label')}</label>
               <select
                 value={mainRole}
                 onChange={(e) => setMainRole(e.target.value)}
@@ -560,7 +555,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
                 <option value="" disabled>Select Domain...</option>
                 <option value="academic_staff">{t('edu_academic_research')}</option>
                 <option value="managing_director">{t('exec_directorate_office')}</option>
-                <option value="chief">{t('inst_high_command')}</option>
+
                 <option value="procurement_management">{t('supply_chain_logistics')}</option>
                 <option value="admin_staff">{t('inst_administration')}</option>
               </select>

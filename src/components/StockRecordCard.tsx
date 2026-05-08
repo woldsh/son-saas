@@ -323,7 +323,7 @@ export default function StockRecordCard() {
             </div>
 
             {/* Printable Area */}
-            <div className="bg-white border border-gray-300 p-8 shadow-sm print:shadow-none print:p-0 print:border-none print:w-full space-y-12 text-[#1a1a1a]">
+            <div id="printable-receipt" className="bg-white border border-gray-300 p-8 shadow-sm print:shadow-none print:p-0 print:border-none print:w-full space-y-12 text-[#1a1a1a]">
 
                 {/* --- STOCK RECORD CARD --- */}
                 <div>
@@ -339,20 +339,23 @@ export default function StockRecordCard() {
                         <div className="flex items-end">
                             <span className="font-bold whitespace-nowrap mr-2">የዕቃው ዝርዝር:-</span>
                             <div className="w-[300px] border-b-[1.5px] border-black border-dashed relative h-[20px]">
-                                <input type="text" name="itemDescription" value={headerData.itemDescription} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center" />
+                                <input type="text" name="itemDescription" value={headerData.itemDescription} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center print:hidden" />
+                                <span className="hidden print:block absolute inset-0 text-[13px] font-bold px-2 text-center">{headerData.itemDescription}</span>
                             </div>
                         </div>
                         <div className="flex gap-12">
                             <div className="flex items-end">
                                 <span className="font-bold whitespace-nowrap mr-2">ኮድ:</span>
                                 <div className="w-[150px] border-b-[1.5px] border-black border-dashed relative h-[20px]">
-                                    <input type="text" name="codeNo" value={headerData.codeNo} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center" />
+                                    <input type="text" name="codeNo" value={headerData.codeNo} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center print:hidden" />
+                                    <span className="hidden print:block absolute inset-0 text-[13px] font-bold px-2 text-center">{headerData.codeNo}</span>
                                 </div>
                             </div>
                             <div className="flex items-end">
                                 <span className="font-bold whitespace-nowrap mr-2">Shelf No.</span>
                                 <div className="w-[150px] border-b-[1.5px] border-black border-dashed relative h-[20px]">
-                                    <input type="text" name="shelfNo" value={headerData.shelfNo} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center" />
+                                    <input type="text" name="shelfNo" value={headerData.shelfNo} onChange={handleHeaderChange} className="absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-2 text-center print:hidden" />
+                                    <span className="hidden print:block absolute inset-0 text-[13px] font-bold px-2 text-center">{headerData.shelfNo}</span>
                                 </div>
                             </div>
                         </div>
@@ -426,21 +429,21 @@ export default function StockRecordCard() {
                         </thead>
                         <tbody>
                             {stockRows.map((row, i) => (
-                                <tr key={row.id} className="h-[28px] hover:bg-slate-50 transition-colors">
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.date} onChange={e => handleStockRowChange(i, 'date', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.reference} onChange={e => handleStockRowChange(i, 'reference', e.target.value)} className={blankInput} /></td>
+                                <tr key={row.id} className="h-[28px] hover:bg-slate-50 transition-colors print:h-auto">
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.date} onChange={e => handleStockRowChange(i, 'date', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.date}</span></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.reference} onChange={e => handleStockRowChange(i, 'reference', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px] whitespace-nowrap">{row.reference}</span></td>
 
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.receiptQty} onChange={e => handleStockRowChange(i, 'receiptQty', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.receiptUnitPrice} onChange={e => handleStockRowChange(i, 'receiptUnitPrice', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.receiptTotal} onChange={e => handleStockRowChange(i, 'receiptTotal', e.target.value)} className={blankInput} /></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.receiptQty} onChange={e => handleStockRowChange(i, 'receiptQty', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.receiptQty}</span></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.receiptUnitPrice} onChange={e => handleStockRowChange(i, 'receiptUnitPrice', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.receiptUnitPrice}</span></td>
+                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.receiptTotal} onChange={e => handleStockRowChange(i, 'receiptTotal', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.receiptTotal}</span></td>
 
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.issueQty} onChange={e => handleStockRowChange(i, 'issueQty', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.issueUnitPrice} onChange={e => handleStockRowChange(i, 'issueUnitPrice', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.issueTotal} onChange={e => handleStockRowChange(i, 'issueTotal', e.target.value)} className={blankInput} /></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.issueQty} onChange={e => handleStockRowChange(i, 'issueQty', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.issueQty}</span></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.issueUnitPrice} onChange={e => handleStockRowChange(i, 'issueUnitPrice', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.issueUnitPrice}</span></td>
+                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.issueTotal} onChange={e => handleStockRowChange(i, 'issueTotal', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.issueTotal}</span></td>
 
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.balanceQty} onChange={e => handleStockRowChange(i, 'balanceQty', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative"><input type="text" value={row.balanceUnitPrice} onChange={e => handleStockRowChange(i, 'balanceUnitPrice', e.target.value)} className={blankInput} /></td>
-                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.balanceTotal} onChange={e => handleStockRowChange(i, 'balanceTotal', e.target.value)} className={blankInput} /></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.balanceQty} onChange={e => handleStockRowChange(i, 'balanceQty', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.balanceQty}</span></td>
+                                    <td className="border border-black p-0 relative"><input type="text" value={row.balanceUnitPrice} onChange={e => handleStockRowChange(i, 'balanceUnitPrice', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.balanceUnitPrice}</span></td>
+                                    <td className="border border-black p-0 relative bg-gray-50/50"><input type="text" value={row.balanceTotal} onChange={e => handleStockRowChange(i, 'balanceTotal', e.target.value)} className={`${blankInput} print:hidden`} /><span className="hidden print:block text-[11px] text-center font-bold px-1 py-[2px]">{row.balanceTotal}</span></td>
                                 </tr>
                             ))}
                         </tbody>

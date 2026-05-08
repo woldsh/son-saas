@@ -560,8 +560,8 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${item.status.includes('accepted') ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                        item.status.includes('approved') ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                                                            'bg-amber-50 text-amber-600 border border-amber-100'
+                                                    item.status.includes('approved') ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                                                        'bg-amber-50 text-amber-600 border border-amber-100'
                                                     }`}>
                                                     {item.status.replace(/_/g, ' ')}
                                                 </span>

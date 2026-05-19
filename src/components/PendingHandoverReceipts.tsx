@@ -35,6 +35,9 @@ interface TransferOrder {
     completedAt?: any;
     receiverSignatureData?: string;
     delivererSignatureData?: string;
+    overseerAcknowledged?: boolean;
+    overseerAcknowledgedAt?: any;
+    overseerSignatureData?: string;
 }
 
 export default function PendingHandoverReceipts() {

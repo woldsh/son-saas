@@ -179,7 +179,7 @@ export default function MaterialTransferOrderPage() {
                 // Look up price and model from the materials collection
                 if (data.materialId) {
                     try {
-                        const matDoc = await getDoc(doc(db, 'materials', data.materialId));
+                        const matDoc = await getDoc(doc(db!, 'materials', data.materialId));
                         if (matDoc.exists()) {
                             const matData = matDoc.data();
                             const birr = parseFloat(matData.unitPriceBirr) || 0;

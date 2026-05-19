@@ -16,7 +16,8 @@ import HandoverReceiptForm from './HandoverReceiptForm';
 
 export default function TransferApprovalsView() {
     const { user, userRole, department: authDepartment } = useAuth();
-    const { t } = useLanguage();
+    const langCtx = useLanguage();
+    const t: any = langCtx.t;
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [userData, setUserData] = useState<any>(null);
@@ -88,7 +89,7 @@ export default function TransferApprovalsView() {
         }
 
         const unsub = onSnapshot(q, (snap) => {
-            let fetchedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            let fetchedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
             console.log("DEBUG - effectiveRole:", effectiveRole);
             console.log("DEBUG - raw fetchedOrders:", fetchedOrders);

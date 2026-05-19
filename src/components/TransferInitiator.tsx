@@ -45,7 +45,8 @@ interface TransferRecord {
 
 export default function TransferInitiator() {
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const langCtx = useLanguage();
+    const t: any = langCtx.t;
     const [materials, setMaterials] = useState<UserReportItem[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [receiverName, setReceiverName] = useState('');

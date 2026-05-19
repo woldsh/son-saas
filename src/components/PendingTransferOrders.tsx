@@ -45,7 +45,8 @@ interface TransferOrder {
 
 export default function PendingTransferOrders() {
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const langCtx = useLanguage();
+    const t: any = langCtx.t;
     const [orders, setOrders] = useState<TransferOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);

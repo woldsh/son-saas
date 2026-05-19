@@ -29,7 +29,7 @@ export default function HandoverReceiptPage() {
 
     useEffect(() => {
         const fetchOrder = async () => {
-            if (!params?.id) return;
+            if (!params?.id || !db) return;
             try {
                 const docRef = doc(db, 'Transfer_Orders', params.id as string);
                 const docSnap = await getDoc(docRef);

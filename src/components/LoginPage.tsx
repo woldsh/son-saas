@@ -112,7 +112,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!data.success || !data.email) {
-        throw new Error('Username not found. Please check your username and try again.');
+        throw new Error(data.error || 'Username not found. Please check your username and try again.');
       }
 
       await login(data.email, password);

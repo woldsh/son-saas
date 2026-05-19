@@ -24,6 +24,9 @@ interface ReadOnlyPaperForm20Props {
         headSignature?: string; // Department Head signature
         managingDirectorSignature?: string;
         ptlSignature?: string;
+        acSignature?: string;
+        acApproverName?: string;
+        mdApproverName?: string;
         createdAt?: any;
         status?: string;
         history?: { status: string; note: string; timestamp: string; user: string }[];
@@ -38,10 +41,11 @@ interface ReadOnlyPaperForm20Props {
     isProcurementTeamLeader?: boolean;
     isStockClerk?: boolean;
     onProcessModel22?: () => void;
+    currentUserDisplayName?: string;
 }
 
-export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead, isAcademicCoordinator, isManagingDirector, isProcurementTeamLeader, isStockClerk, onProcessModel22 }: ReadOnlyPaperForm20Props) {
-    const { receiptNo, requesterName, department, items, signature, headSignature, managingDirectorSignature, ptlSignature, createdAt, status, history } = request;
+export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onReject, isProcessing, isDepartmentHead, isAcademicCoordinator, isManagingDirector, isProcurementTeamLeader, isStockClerk, onProcessModel22, currentUserDisplayName }: ReadOnlyPaperForm20Props) {
+    const { receiptNo, requesterName, department, items, signature, headSignature, managingDirectorSignature, ptlSignature, acSignature, acApproverName, mdApproverName, createdAt, status, history } = request;
 
     const rejectionNote = history?.filter(h => h.status === 'rejected').pop()?.note;
     const canAdjust = isAcademicCoordinator || isManagingDirector;
@@ -143,7 +147,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
     };
 
     const handleApproveWithSignature = () => {
-        if ((isDepartmentHead || isManagingDirector || isProcurementTeamLeader) && !signatureData && !headSignature && !managingDirectorSignature && !ptlSignature) {
+        if ((isAcademicCoordinator || isManagingDirector) && !signatureData && !headSignature && !managingDirectorSignature && !ptlSignature) {
             alert("Please sign the form before approving.");
             return;
         }
@@ -387,7 +391,9 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                     <div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 8 }}>
                             <span style={{ fontWeight: 700 }}>የባለስልጣኑ ስም</span>
-                            <span style={{ flex: 1, borderBottom: '1px solid #000' }}>&nbsp;</span>
+                            <span style={{ flex: 1, borderBottom: '1px solid #000', ...textStyle, textAlign: 'center' }}>
+                                {acApproverName || mdApproverName || ((isAcademicCoordinator || isManagingDirector) ? currentUserDisplayName : '')}
+                            </span>
                         </div>
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -401,11 +407,11 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                             </div>
 
                             <div style={{ height: 90, borderBottom: '2px solid #000', marginTop: 4, position: 'relative' }}>
-                                {headSignature || managingDirectorSignature || ptlSignature ? (
+                                {acSignature || managingDirectorSignature || ptlSignature || headSignature ? (
                                     // Already signed via database (view mode)
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                        src={managingDirectorSignature || ptlSignature || headSignature}
+                                        src={acSignature || managingDirectorSignature || ptlSignature || headSignature}
                                         alt="Approver Signature"
                                         style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }}
                                     />
@@ -413,7 +419,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                                     // Just signed in current session
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={signatureData} alt="New Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
-                                ) : (isDepartmentHead || isManagingDirector || isProcurementTeamLeader) ? (
+                                ) : (isAcademicCoordinator || isManagingDirector) ? (
                                     // Action Area
                                     isSigningMode ? (
                                         <div style={{ position: 'absolute', inset: 0, background: '#fafafa', cursor: 'crosshair' }}>

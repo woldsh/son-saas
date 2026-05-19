@@ -25,6 +25,9 @@ interface MaterialRequest {
     requesterName: string;
     department: string;
     items: RequestItem[];
+    recipientSignature?: string;
+    keeperSignature?: string;
+    keeperName?: string;
     // ...other fields if needed
 }
 
@@ -664,14 +667,34 @@ export default function ClerkModel22Form({ request, onClose, onApprove, readOnly
                     {/* Signatures Section */}
                     <div className="flex justify-between mt-12 px-10">
                         <div className="flex flex-col items-center">
+                            {request.keeperSignature ? (
+                                <div style={{ width: 180, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={request.keeperSignature} alt="Keeper Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+                                </div>
+                            ) : (
+                                <div style={{ width: 180, height: 60 }}></div>
+                            )}
+                            {request.keeperName && (
+                                <span className="text-[14px] font-[Kalam] text-[#0033aa] mt-0.5 leading-none mb-1">{request.keeperName}</span>
+                            )}
                             <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                             <span className="font-bold text-[13px] mt-1">የግምጃ ቤቱ ፊርማ</span>
-                            <span className="italic text-[11px]">Store Keeper's Signature</span>
+                            <span className="italic text-[11px]">Store Keeper&apos;s Signature</span>
                         </div>
                         <div className="flex flex-col items-center">
+                            {request.recipientSignature ? (
+                                <div style={{ width: 180, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={request.recipientSignature} alt="Recipient Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+                                </div>
+                            ) : (
+                                <div style={{ width: 180, height: 60 }}></div>
+                            )}
+                            <span className="text-[14px] font-[Kalam] text-[#0033aa] mt-0.5 leading-none mb-1">{request.requesterName || ''}</span>
                             <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                             <span className="font-bold text-[13px] mt-1">የተቀባይ ፊርማ</span>
-                            <span className="italic text-[11px]">Recipient's Signature</span>
+                            <span className="italic text-[11px]">Recipient&apos;s Signature</span>
                         </div>
                     </div>
 

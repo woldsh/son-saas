@@ -198,7 +198,7 @@ export default function AnalyticsDashboardContent() {
                 // Calculate base daily velocity for consumables (from last 30 days of requests)
                 const thirtyDaysAgo = new Date(nowTime - 30 * 24 * 60 * 60 * 1000);
                 const consumableItemMap: Record<string, { totalRequested: number, currentStock: number }> = {};
-                
+
                 // Initialize map with current stock of consumables
                 allMaterials.forEach(m => {
                     if (m.materialType === 'consumable' && m.materialName) {
@@ -232,9 +232,9 @@ export default function AnalyticsDashboardContent() {
                 const predictiveAlerts: any[] = [];
                 const predictiveChartDataMap: Record<string, any> = {};
                 const predictiveLabels: Record<string, string> = {};
-                
+
                 // Generate next 90 days for chart
-                for(let i=0; i<=90; i++) {
+                for (let i = 0; i <= 90; i++) {
                     const d = new Date(nowTime + i * 24 * 60 * 60 * 1000);
                     const dateStr = d.toISOString().split('T')[0];
                     predictiveChartDataMap[dateStr] = { date: dateStr, name: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
@@ -254,10 +254,10 @@ export default function AnalyticsDashboardContent() {
 
                     predictiveLabels[`item${idx}`] = name;
 
-                    for(let i=0; i<=90; i++) {
+                    for (let i = 0; i <= 90; i++) {
                         const d = new Date(nowTime + i * 24 * 60 * 60 * 1000);
                         const dateStr = d.toISOString().split('T')[0];
-                        
+
                         let dailyConsumption = baseVelocity;
                         const activeEvent = ACADEMIC_CALENDAR.find(ev => d >= ev.start && d <= ev.end);
                         if (activeEvent) {
@@ -269,9 +269,9 @@ export default function AnalyticsDashboardContent() {
 
                         currentSimulatedStock -= dailyConsumption;
                         if (currentSimulatedStock < 0) currentSimulatedStock = 0;
-                        
+
                         predictiveChartDataMap[dateStr][`item${idx}`] = Math.round(currentSimulatedStock);
-                        
+
                         if (currentSimulatedStock === 0 && !runOutDate) {
                             runOutDate = d;
                         }
@@ -315,12 +315,12 @@ export default function AnalyticsDashboardContent() {
 
     const handleExportCSV = () => {
         if (!data) return;
-        
+
         const csvRows = [];
         csvRows.push(['Analytics Report']);
         csvRows.push(['Generated At', new Date().toLocaleString()]);
         csvRows.push([]);
-        
+
         csvRows.push(['--- KPIs ---']);
         csvRows.push(['Metric', 'Value']);
         csvRows.push(['Total SKU Items', data.totalSKU]);
@@ -329,28 +329,28 @@ export default function AnalyticsDashboardContent() {
         csvRows.push(['Completed Handouts', data.completedHandouts]);
         csvRows.push(['Total Value (ETB)', data.totalValue]);
         csvRows.push([]);
-        
+
         csvRows.push(['--- Stock Health ---']);
         csvRows.push(['Status', 'Count']);
         csvRows.push(['In Stock', data.inStock]);
         csvRows.push(['Low Stock', data.lowStock]);
-        csvRows.push(['Out of Stock', data.outOfStock]);
+        csvRows.push(['Empty Stock', data.outOfStock]);
         csvRows.push(['Expired', data.expired]);
         csvRows.push(['Expiring Soon (30d)', data.expiringSoon]);
         csvRows.push([]);
-        
+
         csvRows.push(['--- Asset Types ---']);
         csvRows.push(['Type', 'Count']);
         csvRows.push(['Fixed Assets', data.fixedAssets]);
         csvRows.push(['Consumables', data.consumables]);
         csvRows.push([]);
-        
+
         csvRows.push(['--- Top Issued Items ---']);
         csvRows.push(['Item Name', 'Count']);
         data.topRequested.forEach(item => {
             csvRows.push([`"${item.name}"`, item.count]);
         });
-        
+
         const csvContent = csvRows.map(e => e.join(",")).join("\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -389,14 +389,14 @@ export default function AnalyticsDashboardContent() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3 print:hidden">
-                        <button 
+                        <button
                             onClick={handleExportCSV}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
                         >
                             <FiDownload />
                             Export CSV
                         </button>
-                        <button 
+                        <button
                             onClick={handlePrintPDF}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
                         >
@@ -420,7 +420,7 @@ export default function AnalyticsDashboardContent() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StockCard label="In Stock" value={data.inStock} total={data.totalSKU} color="green" icon="✅" />
                     <StockCard label="Low Stock" value={data.lowStock} total={data.totalSKU} color="amber" icon="⚠️" />
-                    <StockCard label="Out of Stock" value={data.outOfStock} total={data.totalSKU} color="red" icon="🚫" />
+                    <StockCard label="Empty Stock" value={data.outOfStock} total={data.totalSKU} color="red" icon="🚫" />
                     <StockCard label="Expired / Expiring" value={data.expired + data.expiringSoon} total={data.totalSKU} color="rose" icon="📅" sub={data.expired > 0 ? `${data.expired} expired, ${data.expiringSoon} soon` : `${data.expiringSoon} expiring soon`} />
                 </div>
 
@@ -597,22 +597,22 @@ export default function AnalyticsDashboardContent() {
                         </div>
                         <div className="h-[250px]">
                             {data.predictiveData && data.predictiveData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={data.predictiveData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="predGrad0" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
-                                        <linearGradient id="predGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.15}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
-                                        <linearGradient id="predGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} minTickGap={30} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    {data.predictiveLabels['item0'] && <Area type="monotone" dataKey="item0" name={data.predictiveLabels['item0']} stroke="#3b82f6" strokeWidth={2.5} fill="url(#predGrad0)" />}
-                                    {data.predictiveLabels['item1'] && <Area type="monotone" dataKey="item1" name={data.predictiveLabels['item1']} stroke="#ef4444" strokeWidth={2.5} fill="url(#predGrad1)" />}
-                                    {data.predictiveLabels['item2'] && <Area type="monotone" dataKey="item2" name={data.predictiveLabels['item2']} stroke="#f59e0b" strokeWidth={2.5} fill="url(#predGrad2)" />}
-                                </AreaChart>
-                            </ResponsiveContainer>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={data.predictiveData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="predGrad0" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} /><stop offset="95%" stopColor="#3b82f6" stopOpacity={0} /></linearGradient>
+                                            <linearGradient id="predGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} /></linearGradient>
+                                            <linearGradient id="predGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} /><stop offset="95%" stopColor="#f59e0b" stopOpacity={0} /></linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} minTickGap={30} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} />
+                                        <Tooltip content={<CustomTooltip />} />
+                                        {data.predictiveLabels['item0'] && <Area type="monotone" dataKey="item0" name={data.predictiveLabels['item0']} stroke="#3b82f6" strokeWidth={2.5} fill="url(#predGrad0)" />}
+                                        {data.predictiveLabels['item1'] && <Area type="monotone" dataKey="item1" name={data.predictiveLabels['item1']} stroke="#ef4444" strokeWidth={2.5} fill="url(#predGrad1)" />}
+                                        {data.predictiveLabels['item2'] && <Area type="monotone" dataKey="item2" name={data.predictiveLabels['item2']} stroke="#f59e0b" strokeWidth={2.5} fill="url(#predGrad2)" />}
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             ) : (
                                 <p className="text-xs text-gray-400 text-center py-10">Not enough consumption data to generate predictions.</p>
                             )}

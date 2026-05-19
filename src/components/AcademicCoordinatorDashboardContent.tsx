@@ -1,322 +1,342 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import {
-    FiPackage,
-    FiTrendingDown,
     FiClipboard,
-    FiUsers,
-    FiCalendar,
-    FiActivity,
-    FiArrowRight,
+    FiClock,
     FiCheckCircle,
-    FiAlertCircle,
+    FiXCircle,
+    FiActivity,
+    FiUsers,
+    FiPackage,
     FiFileText,
-    FiZap
+    FiBox,
+    FiTrendingDown,
 } from 'react-icons/fi';
-
-interface DashboardStats {
-    totalOnStore: number;
-    totalOutOfStore: number;
-    totalRequests: number;
-    totalUserPersonnel: number;
-}
+import RequestDashboardCharts from '@/components/RequestDashboardCharts';
+import {
+    buildLastNMonthsStackedData,
+    countDashboardBuckets,
+    dashboardBucketsToPieData,
+} from '@/lib/requestChartUtils';
 
 export default function AcademicCoordinatorDashboardContent({ userName }: { userName: string }) {
-    const { t, language } = useLanguage();
-    const [stats, setStats] = useState<DashboardStats>({
-        totalOnStore: 0,
-        totalOutOfStore: 0,
+    const { user } = useAuth();
+    const { t } = useLanguage();
+    const [stats, setStats] = useState({
         totalRequests: 0,
-        totalUserPersonnel: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        totalPersonnel: 0,
+        materialsInStore: 0,
+        materialsOutFromStore: 0,
     });
+    const [recentRequests, setRecentRequests] = useState<any[]>([]);
+    const [allRequests, setAllRequests] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentTime, setCurrentTime] = useState(new Date());
+
+    const bucketCounts = useMemo(
+        () => countDashboardBuckets(allRequests as { status?: unknown }[], 'academic_coordinator'),
+        [allRequests]
+    );
+    const pieData = useMemo(() => [
+        { name: 'Pending Requests', value: bucketCounts.pending, fill: '#f59e0b' },
+        { name: 'Approved', value: bucketCounts.approved, fill: '#10b981' },
+        { name: 'Rejected', value: bucketCounts.rejected, fill: '#f43f5e' },
+        { name: 'Total Requests', value: bucketCounts.total, fill: '#3b82f6' },
+    ].filter(d => d.value > 0), [bucketCounts]);
+
+    const stackedBarData = useMemo(
+        () => buildLastNMonthsStackedData(allRequests, 'academic_coordinator', 6),
+        [allRequests]
+    );
 
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    useEffect(() => {
-        const fetchStats = async () => {
+        const fetchData = async () => {
             if (!db) return;
             try {
-                const materialsSnap = await getDocs(collection(db, 'materials'));
-                let onStore = 0;
-                let outOfStore = 0;
-                materialsSnap.forEach((doc) => {
-                    const data = doc.data();
-                    const qty = Number(data.quantity) || 0;
-                    if (qty > 0) {
-                        onStore++;
-                    } else {
-                        outOfStore++;
-                    }
-                });
+                // Fetch all requests for AC to approve
+                const requestsRef = collection(db, 'Request_materials');
+                const q = query(requestsRef, orderBy('createdAt', 'desc'));
+                const snapshot = await getDocs(q);
+                const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const b = countDashboardBuckets(docs as { status?: unknown }[], 'academic_coordinator');
 
-                const requestsSnap = await getDocs(collection(db, 'Request_materials'));
-                const usersSnap = await getDocs(collection(db, 'users'));
+                // Fetch materials in store
+                const materialsSnap = await getDocs(collection(db, 'materials'));
+                let inStore = 0;
+                materialsSnap.forEach(doc => {
+                    const qty = Number(doc.data().quantity) || 0;
+                    if (qty > 0) inStore++;
+                });
 
                 setStats({
-                    totalOnStore: onStore,
-                    totalOutOfStore: outOfStore,
-                    totalRequests: requestsSnap.size,
-                    totalUserPersonnel: usersSnap.size,
+                    totalRequests: b.total,
+                    pending: b.pending,
+                    approved: b.approved,
+                    rejected: b.rejected,
+                    totalPersonnel: 0,  // unused
+                    materialsInStore: inStore,
+                    materialsOutFromStore: 0,
                 });
+
+                // Count unique users + total materials out from store (accepted or issued in User-Report)
+                const userReportSnap = await getDocs(collection(db, 'User-Report'));
+                const outDocs = userReportSnap.docs.filter(d => {
+                    const s = d.data().status;
+                    return s !== 'pending';
+                });
+                const uniqueHolders = new Set(outDocs.map(d => d.data().requesterId).filter(Boolean));
+                const totalOut = outDocs.reduce((sum, d) => sum + (Number(d.data().quantity) || 1), 0);
+                setStats(prev => ({ ...prev, totalPersonnel: uniqueHolders.size, materialsOutFromStore: totalOut }));
+                setRecentRequests(docs.slice(0, 5));
+                setAllRequests(docs);
             } catch (error) {
-                console.error('Error fetching dashboard stats:', error);
+                console.error('Error fetching AC dashboard data:', error);
             } finally {
                 setLoading(false);
             }
         };
-
-        fetchStats();
-    }, []);
-
-    const greeting = () => {
-        const hour = currentTime.getHours();
-        if (hour < 12) return t('good_morning');
-        if (hour < 17) return t('good_afternoon');
-        return t('good_evening');
-    };
+        fetchData();
+    }, [user]);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-12 min-h-[60vh]">
-                <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+            <div className="p-8">
+                <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="h-24 bg-slate-200 rounded" />
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }
 
-    const statCards = [
-        {
-            label: 'Total Material on Store',
-            value: stats.totalOnStore,
-            icon: FiPackage,
-            color: 'bg-blue-600',
-            shadowColor: 'shadow-blue-500/30',
-            badge: 'In Stock',
-            badgeBg: 'bg-blue-100',
-            badgeText: 'text-blue-700',
-        },
-        {
-            label: 'Total Material Out of Store',
-            value: stats.totalOutOfStore,
-            icon: FiTrendingDown,
-            color: 'bg-slate-600',
-            shadowColor: 'shadow-slate-500/30',
-            badge: 'Out of Stock',
-            badgeBg: 'bg-slate-100',
-            badgeText: 'text-slate-700',
-        },
-        {
-            label: 'Total Requests',
-            value: stats.totalRequests,
-            icon: FiClipboard,
-            color: 'bg-blue-500',
-            shadowColor: 'shadow-blue-400/30',
-            badge: 'All Time',
-            badgeBg: 'bg-blue-100',
-            badgeText: 'text-blue-700',
-        },
-        {
-            label: 'Total Material User Personnel',
-            value: stats.totalUserPersonnel,
-            icon: FiUsers,
-            color: 'bg-slate-700',
-            shadowColor: 'shadow-slate-500/30',
-            badge: 'Personnel',
-            badgeBg: 'bg-slate-100',
-            badgeText: 'text-slate-700',
-        },
-    ];
-
     return (
-        <div className="min-h-screen bg-white">
-            <main className="px-8 py-8">
-                {/* Welcome Section */}
-                <div className="relative mb-10">
-                    <div className="relative bg-white border border-slate-100 rounded-3xl p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 overflow-hidden shadow-sm">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rotate-45 translate-x-32 -translate-y-32" />
+        <div className="p-6 max-w-7xl mx-auto space-y-8">
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">
+                    Welcome back, {userName.split(' ')[0]}
+                </h1>
+                <p className="text-slate-500 text-sm mt-1">
+                    Academic Coordinator Dashboard
+                </p>
+            </div>
 
-                        <div className="space-y-3 relative z-10">
-                            <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 rounded-full bg-blue-600" />
-                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.4em]">Academic Coordinator Dashboard</span>
-                            </div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                                {greeting()}, <span className="text-blue-600 italic">{userName?.split(' ')[0] || 'Coordinator'}</span>
-                            </h1>
-                            <p className="text-slate-500 font-medium text-lg">
-                                Overview of material management and store operations.
-                            </p>
-                        </div>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <StatCard
+                    label="Pending Approvals"
+                    value={stats.pending}
+                    icon={FiClock}
+                    color="text-amber-600"
+                    bg="bg-amber-50"
+                />
+                <StatCard
+                    label="Approved"
+                    value={stats.approved}
+                    icon={FiCheckCircle}
+                    color="text-emerald-600"
+                    bg="bg-emerald-50"
+                />
+                <StatCard
+                    label="Rejected"
+                    value={stats.rejected}
+                    icon={FiXCircle}
+                    color="text-red-600"
+                    bg="bg-red-50"
+                />
+                <StatCard
+                    label="Total Requests"
+                    value={stats.totalRequests}
+                    icon={FiActivity}
+                    color="text-blue-600"
+                    bg="bg-blue-50"
+                />
 
-                        <div className="flex items-center gap-4 relative z-10">
-                            <div className="bg-white border border-slate-100 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-                                <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center">
-                                    <FiCalendar size={24} className="text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Today</p>
-                                    <p className="text-xl font-black text-slate-900">
-                                        {currentTime.toLocaleDateString(language === 'am' ? 'am-ET' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </p>
-                                    <p className="text-sm font-black text-blue-600">
-                                        {currentTime.toLocaleTimeString(language === 'am' ? 'am-ET' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <StatCard
+                    label="Users With Materials"
+                    value={stats.totalPersonnel}
+                    icon={FiUsers}
+                    color="text-sky-600"
+                    bg="bg-sky-50"
+                    hint="Unique users holding accepted items"
+                />
+                <StatCard
+                    label="Materials Out from Store"
+                    value={stats.materialsOutFromStore}
+                    icon={FiTrendingDown}
+                    color="text-rose-600"
+                    bg="bg-rose-50"
+                    hint="Total quantity issued & out of store"
+                />
+            </div>
+
+            <RequestDashboardCharts
+                variant="light"
+                pieData={pieData}
+                stackedBarData={stackedBarData}
+                totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
+                pieTitle="Request Overview"
+                barTitle="Last 6 months"
+            />
+
+            {/* Quick Actions */}
+            <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-slate-800">Quick Actions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <ActionCard
+                        href="/dashboard/approve-requests"
+                        title="Review Requests"
+                        description="Approve or reject pending material requests."
+                        icon={FiClipboard}
+                        color="text-blue-600"
+                    />
+                    <ActionCard
+                        href="/dashboard/full-inventory"
+                        title="Material List"
+                        description="View all store materials."
+                        icon={FiBox}
+                        color="text-indigo-600"
+                    />
+                    <ActionCard
+                        href="/dashboard/analytics"
+                        title="Analytics"
+                        description="View performance & usage data."
+                        icon={FiActivity}
+                        color="text-blue-600"
+                    />
+                    <ActionCard
+                        href="/dashboard/reports"
+                        title="AC Report"
+                        description="Access coordinator reports."
+                        icon={FiFileText}
+                        color="text-emerald-600"
+                    />
+                </div>
+            </div>
+
+            {/* Recent Requests */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-slate-800">Recent Requests</h2>
+                    <Link href="/dashboard/approve-requests" className="text-sm text-blue-600 hover:underline">
+                        View All
+                    </Link>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                    {statCards.map((stat, idx) => (
-                        <div
-                            key={idx}
-                            className="group relative bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-500 hover:-translate-y-1 overflow-hidden"
-                        >
-                            <div className="relative">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className={`w-14 h-14 rounded-2xl ${stat.color} flex items-center justify-center shadow-lg ${stat.shadowColor} group-hover:scale-110 transition-transform duration-300`}>
-                                        <stat.icon className="text-2xl text-white" />
+                <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+                    {recentRequests.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500">
+                            No requests found.
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {recentRequests.map((req) => (
+                                <div key={req.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-2 rounded-full ${getStatusColor(req.status)}`}>
+                                            <FiActivity />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-slate-800">
+                                                Request #{req.id.slice(-6).toUpperCase()}
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                                {req.requesterName || 'Unknown'} • {req.createdAt?.seconds ? new Date(req.createdAt.seconds * 1000).toLocaleDateString() : 'Just now'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <span className={`px-3 py-1 ${stat.badgeBg} ${stat.badgeText} text-xs font-black rounded-full uppercase tracking-wider`}>
-                                        {stat.badge}
+                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getStatusBadge(req.status)}`}>
+                                        {String(req.status || '').replace(/_/g, ' ')}
                                     </span>
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="text-4xl font-black text-slate-900">{stat.value}</p>
-                                    <p className="text-sm font-bold text-slate-500">{stat.label}</p>
-                                </div>
-                            </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
                 </div>
-
-                {/* Quick Actions + Summary */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-10">
-                    <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h2 className="text-2xl font-black text-slate-900">Quick Actions</h2>
-                                <p className="text-slate-500 font-medium">Frequently used operations</p>
-                            </div>
-                            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
-                                <FiZap className="text-xl text-blue-600" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <a href="/dashboard/approve-requests" className="group flex items-center gap-4 p-5 bg-blue-50/50 rounded-2xl border-2 border-blue-100 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
-                                    <FiClipboard className="text-xl text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">View Requests</h3>
-                                    <p className="text-sm text-slate-500">Review pending approvals</p>
-                                </div>
-                                <FiArrowRight className="text-xl text-blue-500 group-hover:translate-x-2 transition-transform" />
-                            </a>
-
-                            <a href="/dashboard/full-inventory" className="group flex items-center gap-4 p-5 bg-slate-50/50 rounded-2xl border-2 border-slate-100 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-500/10 transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-slate-700 flex items-center justify-center shadow-lg shadow-slate-500/30 group-hover:scale-110 transition-transform">
-                                    <FiPackage className="text-xl text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-slate-900 group-hover:text-slate-700 transition-colors">Material List</h3>
-                                    <p className="text-sm text-slate-500">View all store materials</p>
-                                </div>
-                                <FiArrowRight className="text-xl text-slate-500 group-hover:translate-x-2 transition-transform" />
-                            </a>
-
-                            <a href="/dashboard/ac-report" className="group flex items-center gap-4 p-5 bg-blue-50/50 rounded-2xl border-2 border-blue-100 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-400/30 group-hover:scale-110 transition-transform">
-                                    <FiFileText className="text-xl text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">View AC Report</h3>
-                                    <p className="text-sm text-slate-500">Access coordinator reports</p>
-                                </div>
-                                <FiArrowRight className="text-xl text-blue-500 group-hover:translate-x-2 transition-transform" />
-                            </a>
-
-                            <a href="/dashboard/analytics" className="group flex items-center gap-4 p-5 bg-slate-50/50 rounded-2xl border-2 border-slate-100 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-500/10 transition-all duration-300">
-                                <div className="w-12 h-12 rounded-xl bg-slate-600 flex items-center justify-center shadow-lg shadow-slate-400/30 group-hover:scale-110 transition-transform">
-                                    <FiActivity className="text-xl text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-slate-900 group-hover:text-slate-700 transition-colors">Analytics</h3>
-                                    <p className="text-sm text-slate-500">View performance data</p>
-                                </div>
-                                <FiArrowRight className="text-xl text-slate-500 group-hover:translate-x-2 transition-transform" />
-                            </a>
-                        </div>
-                    </div>
-
-                    {/* Summary Panel */}
-                    <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-900">Summary</h2>
-                                <p className="text-slate-500 font-medium text-sm">Current status</p>
-                            </div>
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <FiActivity className="text-lg text-blue-600" />
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="flex items-start gap-4 p-4 bg-blue-50/50 rounded-xl">
-                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                    <FiPackage className="text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Materials Available</p>
-                                    <p className="text-xs text-slate-500">{stats.totalOnStore} items currently in store</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl">
-                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                                    <FiAlertCircle className="text-slate-600" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Out of Stock</p>
-                                    <p className="text-xs text-slate-500">{stats.totalOutOfStore} items need restocking</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-4 p-4 bg-blue-50/50 rounded-xl">
-                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                    <FiCheckCircle className="text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">Total Requests</p>
-                                    <p className="text-xs text-slate-500">{stats.totalRequests} requests processed</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl">
-                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                                    <FiUsers className="text-slate-600" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">User Personnel</p>
-                                    <p className="text-xs text-slate-500">{stats.totalUserPersonnel} active users in system</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
+            </div>
         </div>
     );
+}
+
+// Helper Components
+function StatCard({
+    label,
+    value,
+    icon: Icon,
+    color,
+    bg,
+    href,
+    hint,
+}: {
+    label: string;
+    value: number;
+    icon: ComponentType<{ size?: number }>;
+    color: string;
+    bg: string;
+    href?: string;
+    hint?: string;
+}) {
+    const inner = (
+        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between h-full group-hover:border-slate-200 transition-colors">
+            <div className="min-w-0 pr-2">
+                <p className="text-sm font-medium text-slate-500">{label}</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+                {hint ? <p className="text-xs text-slate-400 mt-1 line-clamp-2">{hint}</p> : null}
+            </div>
+            <div className={`p-3 rounded-lg shrink-0 ${bg} ${color}`}>
+                <Icon size={24} />
+            </div>
+        </div>
+    );
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className="block rounded-xl group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+                {inner}
+            </Link>
+        );
+    }
+    return inner;
+}
+
+function ActionCard({ href, title, description, icon: Icon, color }: any) {
+    return (
+        <Link href={href} className="flex flex-col p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow group">
+            <div className={`mb-4 ${color}`}>
+                <Icon size={28} />
+            </div>
+            <h3 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                {title}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+                {description}
+            </p>
+        </Link>
+    );
+}
+
+function getStatusColor(status: string) {
+    if (['approved', 'completed', 'received', 'issued'].includes(status)) return 'bg-emerald-100 text-emerald-600';
+    if (['rejected'].includes(status)) return 'bg-red-100 text-red-600';
+    return 'bg-amber-100 text-amber-600';
+}
+
+function getStatusBadge(status: string) {
+    if (['approved', 'completed', 'received', 'issued'].includes(status)) return 'bg-emerald-100 text-emerald-700';
+    if (['rejected'].includes(status)) return 'bg-red-100 text-red-700';
+    return 'bg-amber-100 text-amber-700';
 }

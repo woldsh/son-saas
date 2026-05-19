@@ -4,6 +4,7 @@
 import DepartmentHeadSidebar from '@/components/DepartmentHeadSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import MaterialRequestView from '@/components/MaterialRequestView';
+import TransferApprovalsView from '@/components/TransferApprovalsView';
 
 export default function ViewRequestsPage() {
     return (
@@ -23,7 +24,11 @@ export default function ViewRequestsPage() {
                     
 
                     <main className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
+                        <div className="px-6 pt-4">
+                            <TransferApprovalsView />
+                        </div>
                         <MaterialRequestView />
+                        <div className="pb-12" />
                     </main>
                 </div>
             </div>

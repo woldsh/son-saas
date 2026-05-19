@@ -98,7 +98,7 @@ export default function OutOfStockContent() {
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                         <FiSlash className="text-red-600" />
-                        Out of Stock Alerts
+                        Empty Stock Alerts
                     </h1>
                     <p className="text-sm font-medium text-slate-400 mt-1 uppercase tracking-widest pl-11">
                         Items with Zero Inventory
@@ -160,7 +160,7 @@ export default function OutOfStockContent() {
                                     <td className="px-8 py-5">
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700">
                                             <FiAlertCircle />
-                                            Critical: Out of Stock
+                                            Critical: Empty Stock
                                         </span>
                                     </td>
                                 </tr>

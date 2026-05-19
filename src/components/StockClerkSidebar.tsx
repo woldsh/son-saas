@@ -100,18 +100,15 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                 { label: 'Register Material', href: `${basePath}/register-material`, icon: FilePlus },
                 { label: t('materials_list') || 'Materials List', href: `${basePath}/materials-list`, icon: Layers },
                 { label: 'Stock Record Card', href: `${basePath}/stock-record-card`, icon: ClipboardList },
-                { label: t('clerk_report') || "Clerk Report", href: `${basePath}/store-clerk-report`, icon: FileText },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
-                    badge: stockAlerts.total,
+                    badge: stockAlerts.lowStock + stockAlerts.outOfStock,
                     subItems: [
                         { label: t('low_stock'), href: `${basePath}/low-stock`, icon: TrendingDown, badge: stockAlerts.lowStock },
                         { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: PackageX, badge: stockAlerts.outOfStock },
-                        { label: t('expiry_alerts'), href: `${basePath}/expiry-alerts`, icon: Clock, badge: stockAlerts.expireStock },
-                        { label: t('maintenance_alerts'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
                     ]
                 },
             ],
@@ -135,16 +132,14 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-                { label: t('report_issue'), href: `${basePath}/report-issue`, icon: AlertCircle },
-                { label: t('maintenance_history'), href: `${basePath}/maintenance-history`, icon: Wrench },
+
             ]
         },
         {
             label: t('material_transfer'),
             icon: RefreshCw,
             subItems: [
-                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
-                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft, badge: transferCount },
+                { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
             ],
             hasDivider: true
         },
@@ -288,20 +283,20 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                                                                                         className="overflow-hidden pl-4 space-y-0.5 mt-0.5 border-l border-slate-100 ml-3"
                                                                                     >
                                                                                         {subItem.subItems.map((nestedItem: any, nIdx: number) => (
-                                                                                             <Link
-                                                                                                 key={nIdx}
-                                                                                                 href={nestedItem.href}
-                                                                                                 onClick={handleLinkClick}
-                                                                                                 className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all ${pathname === nestedItem.href ? 'text-blue-600 bg-blue-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
-                                                                                             >
-                                                                                                 {nestedItem.icon && <nestedItem.icon size={14} className={pathname === nestedItem.href ? 'text-blue-600' : 'text-slate-400'} />}
-                                                                                                 <span className="flex-1">{nestedItem.label}</span>
-                                                                                                 {nestedItem.badge > 0 && (
-                                                                                                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-700`}>
-                                                                                                         {nestedItem.badge}
-                                                                                                     </span>
-                                                                                                 )}
-                                                                                             </Link>
+                                                                                            <Link
+                                                                                                key={nIdx}
+                                                                                                href={nestedItem.href}
+                                                                                                onClick={handleLinkClick}
+                                                                                                className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all ${pathname === nestedItem.href ? 'text-blue-600 bg-blue-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                                                                                            >
+                                                                                                {nestedItem.icon && <nestedItem.icon size={14} className={pathname === nestedItem.href ? 'text-blue-600' : 'text-slate-400'} />}
+                                                                                                <span className="flex-1">{nestedItem.label}</span>
+                                                                                                {nestedItem.badge > 0 && (
+                                                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-700`}>
+                                                                                                        {nestedItem.badge}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </Link>
                                                                                         ))}
                                                                                     </motion.div>
                                                                                 )}

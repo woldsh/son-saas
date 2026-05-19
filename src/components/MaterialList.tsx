@@ -393,7 +393,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                             </td>
                                             <td className="px-4 py-3">
                                                 {isOutOfStock ? (
-                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-600">Out of Stock</span>
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-600">Empty Stock</span>
                                                 ) : isLowStock ? (
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600">Low Stock</span>
                                                 ) : (

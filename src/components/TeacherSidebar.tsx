@@ -74,16 +74,14 @@ export default function TeacherSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-                { label: t('report_issue'), href: `${basePath}/report-issue`, icon: AlertCircle },
-                { label: t('maintenance_history'), href: `${basePath}/maintenance-history`, icon: Wrench },
+
             ]
         },
         {
             label: t('material_transfer'),
             icon: RefreshCw,
             subItems: [
-                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
-                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft, badge: transferCount },
+                { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
             ],
             hasDivider: true
         },

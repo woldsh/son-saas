@@ -1,228 +1,354 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import Link from 'next/link';
 import {
-    FiClipboard, FiUsers, FiCheckCircle,
-    FiArrowRight, FiClock, FiPackage, FiUser,
-    FiSettings, FiVideo, FiLayers, FiFileText
+    FiClipboard,
+    FiClock,
+    FiCheckCircle,
+    FiXCircle,
+    FiActivity,
+    FiUsers,
+    FiPackage,
+    FiFileText,
+    FiBox,
+    FiTrendingDown,
 } from 'react-icons/fi';
-import { Loader2 } from 'lucide-react';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { motion } from 'framer-motion';
-
-interface RecentRequest {
-    id: string;
-    requesterName: string;
-    materialName: string;
-    status: string;
-    createdAt: any;
-}
+import RequestDashboardCharts from '@/components/RequestDashboardCharts';
+import {
+    buildLastNMonthsStackedData,
+    countDashboardBuckets,
+    dashboardBucketsToPieData,
+} from '@/lib/requestChartUtils';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function PortalPage() {
     const { user } = useAuth();
-    const { language } = useLanguage();
     const [userName, setUserName] = useState('');
+    const [stats, setStats] = useState({
+        totalRequests: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        totalPersonnel: 0,
+        materialsInStore: 0,
+        materialsOutFromStore: 0,
+    });
+    const [recentRequests, setRecentRequests] = useState<any[]>([]);
+    const [allRequests, setAllRequests] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentTime, setCurrentTime] = useState(new Date());
 
-    const [pendingCount, setPendingCount] = useState(0);
-    const [approvedCount, setApprovedCount] = useState(0);
-    const [totalMaterials, setTotalMaterials] = useState(0);
-    const [totalUsers, setTotalUsers] = useState(0);
-    const [recentPending, setRecentPending] = useState<RecentRequest[]>([]);
-    const [recentApproved, setRecentApproved] = useState<RecentRequest[]>([]);
+    const bucketCounts = useMemo(
+        () => countDashboardBuckets(allRequests as { status?: unknown }[], 'md'),
+        [allRequests]
+    );
+    const pieData = useMemo(() => [
+        { name: 'Pending Requests', value: bucketCounts.pending, fill: '#f59e0b' },
+        { name: 'Approved', value: bucketCounts.approved, fill: '#10b981' },
+        { name: 'Rejected', value: bucketCounts.rejected, fill: '#f43f5e' },
+        { name: 'Total Requests', value: bucketCounts.total, fill: '#3b82f6' },
+    ].filter(d => d.value > 0), [bucketCounts]);
+
+    const stackedBarData = useMemo(
+        () => buildLastNMonthsStackedData(allRequests, 'md', 6),
+        [allRequests]
+    );
 
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-        return () => clearInterval(timer);
-    }, []);
-
-    useEffect(() => {
-        const fetchAll = async () => {
-            if (!user || !db) { setLoading(false); return; }
+        const fetchData = async () => {
+            if (!user || !db) return;
             try {
-                const userDoc = await getDoc(doc(db!, 'users', user.uid));
-                if (userDoc.exists()) setUserName(userDoc.data().displayName || 'Director');
+                // Fetch user doc for name
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists()) {
+                    setUserName(userDoc.data().displayName || 'Director');
+                }
 
-                const pendingSnap = await getDocs(query(collection(db!, 'Request_materials'), where('status', '==', 'approved_by_coordinator')));
-                setPendingCount(pendingSnap.size);
-                setRecentPending(pendingSnap.docs.slice(0, 5).map(d => {
-                    const data = d.data();
-                    return { id: d.id, requesterName: data.requesterName || data.displayName || 'Unknown', materialName: data.materialName || data.items?.[0]?.materialName || '', status: data.status, createdAt: data.createdAt };
-                }));
+                // Fetch all requests
+                const requestsRef = collection(db, 'Request_materials');
+                const q = query(requestsRef, orderBy('createdAt', 'desc'));
+                const snapshot = await getDocs(q);
+                const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                const b = countDashboardBuckets(docs as { status?: unknown }[], 'md');
 
-                const approvedSnap = await getDocs(query(collection(db!, 'Request_materials'), where('status', '==', 'approved_by_md')));
-                setApprovedCount(approvedSnap.size);
-                setRecentApproved(approvedSnap.docs.slice(0, 5).map(d => {
-                    const data = d.data();
-                    return { id: d.id, requesterName: data.requesterName || data.displayName || 'Unknown', materialName: data.materialName || data.items?.[0]?.materialName || '', status: data.status, createdAt: data.createdAt };
-                }));
+                // Fetch materials in store
+                const materialsSnap = await getDocs(collection(db, 'materials'));
+                let inStore = 0;
+                materialsSnap.forEach(doc => {
+                    const qty = Number(doc.data().quantity) || 0;
+                    if (qty > 0) inStore++;
+                });
 
-                const matSnap = await getDocs(collection(db!, 'materials'));
-                setTotalMaterials(matSnap.size);
+                // Count unique users + total materials out from store (accepted or issued in User-Report)
+                const userReportSnap = await getDocs(collection(db, 'User-Report'));
+                const outDocs = userReportSnap.docs.filter(d => {
+                    const s = d.data().status;
+                    return s !== 'pending';
+                });
+                const uniqueHolders = new Set(outDocs.map(d => d.data().requesterId).filter(Boolean));
+                const totalOut = outDocs.reduce((sum, d) => sum + (Number(d.data().quantity) || 1), 0);
 
-                const usersSnap = await getDocs(collection(db!, 'users'));
-                setTotalUsers(usersSnap.size);
+                setStats({
+                    totalRequests: b.total,
+                    pending: b.pending,
+                    approved: b.approved,
+                    rejected: b.rejected,
+                    totalPersonnel: uniqueHolders.size,
+                    materialsInStore: inStore,
+                    materialsOutFromStore: totalOut,
+                });
+
+                setRecentRequests(docs.slice(0, 5));
+                setAllRequests(docs);
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error fetching MD dashboard data:', error);
             } finally {
                 setLoading(false);
             }
         };
-        fetchAll();
+        fetchData();
     }, [user]);
-
-    const greeting = () => {
-        const hour = currentTime.getHours();
-        if (hour < 12) return language === 'am' ? 'እንደምን አደሩ' : 'Good Morning';
-        if (hour < 17) return language === 'am' ? 'እንደምን ዋሉ' : 'Good Afternoon';
-        return language === 'am' ? 'እንደምን አመሹ' : 'Good Evening';
-    };
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-            </div>
+            <ProtectedRoute>
+                <div className="p-8 min-h-[60vh]">
+                    <div className="max-w-7xl mx-auto animate-pulse space-y-8">
+                        <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className="h-24 bg-slate-200 rounded-xl" />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </ProtectedRoute>
         );
     }
 
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-white">
-                {/* Header */}
-                <div className="px-6 lg:px-8 py-8 border-b border-slate-100">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-2xl font-black text-slate-900">
-                                {greeting()}, <span className="text-blue-600">{userName.split(' ')[0]}</span>
-                            </h1>
-                            <p className="text-sm text-slate-400 mt-1">
-                                {currentTime.toLocaleDateString(language === 'am' ? 'am-ET' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                            </p>
-                        </div>
-                        {pendingCount > 0 && (
-                            <a href="/portal/approve-requests" className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors group">
-                                <FiClock className="text-amber-600" />
-                                <span className="font-bold text-amber-900 text-sm">{pendingCount} Pending</span>
-                                <FiArrowRight className="text-amber-500 group-hover:translate-x-1 transition-transform" />
-                            </a>
-                        )}
-                    </div>
-                </div>
-
-                <div className="px-6 lg:px-8 py-6 space-y-6">
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                            { label: 'Pending Approval', value: pendingCount, icon: FiClock, bg: 'bg-amber-50', text: 'text-amber-600' },
-                            { label: 'MD Approved', value: approvedCount, icon: FiCheckCircle, bg: 'bg-emerald-50', text: 'text-emerald-600' },
-                            { label: 'Total Materials', value: totalMaterials, icon: FiPackage, bg: 'bg-blue-50', text: 'text-blue-600' },
-                            { label: 'System Users', value: totalUsers, icon: FiUsers, bg: 'bg-violet-50', text: 'text-violet-600' },
-                        ].map((s, i) => (
-                            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                                className="bg-white rounded-xl border border-slate-100 p-5">
-                                <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center mb-3`}>
-                                    <s.icon className={`${s.text}`} />
-                                </div>
-                                <p className="text-2xl font-black text-slate-900">{s.value}</p>
-                                <p className="text-xs text-slate-400 font-bold mt-1">{s.label}</p>
-                            </motion.div>
-                        ))}
+            <div className="min-h-screen bg-slate-50/50">
+                <div className="p-6 max-w-7xl mx-auto space-y-8">
+                    {/* Header */}
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">
+                            Welcome back, {userName.split(' ')[0]}
+                        </h1>
+                        <p className="text-slate-500 text-sm mt-1">
+                            Managing Director Dashboard
+                        </p>
                     </div>
 
-                    {/* Quick Actions + Pending */}
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                        {/* Quick Actions */}
-                        <div className="lg:col-span-3 bg-white rounded-xl border border-slate-100 p-5">
-                            <h2 className="text-sm font-black text-slate-900 mb-4">Quick Actions</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {[
-                                    { label: 'Review Requests', href: '/portal/approve-requests', icon: FiClipboard, badge: pendingCount },
-                                    { label: 'View Reports', href: '/portal/reports', icon: FiFileText },
-                                    { label: 'Material List', href: '/portal/full-inventory', icon: FiLayers },
-                                    { label: 'Analytics', href: '/portal/analytics', icon: FiPackage },
-                                    { label: 'Start Meeting', href: '/portal/start-meeting', icon: FiVideo },
-                                    { label: 'Settings', href: '/portal/manage-account', icon: FiSettings },
-                                ].map((a, i) => (
-                                    <a key={i} href={a.href} className="group flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all">
-                                        <a.icon className="text-slate-500 group-hover:text-blue-600 transition-colors" />
-                                        <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{a.label}</span>
-                                        {a.badge && a.badge > 0 && (
-                                            <span className="ml-auto px-1.5 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-full">{a.badge}</span>
-                                        )}
-                                    </a>
-                                ))}
-                            </div>
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <StatCard
+                            label="Pending Approvals"
+                            value={stats.pending}
+                            icon={FiClock}
+                            color="text-amber-600"
+                            bg="bg-amber-50"
+                        />
+                        <StatCard
+                            label="MD Approved"
+                            value={stats.approved}
+                            icon={FiCheckCircle}
+                            color="text-emerald-600"
+                            bg="bg-emerald-50"
+                        />
+                        <StatCard
+                            label="Rejected"
+                            value={stats.rejected}
+                            icon={FiXCircle}
+                            color="text-red-600"
+                            bg="bg-red-50"
+                        />
+                        <StatCard
+                            label="Total Requests"
+                            value={stats.totalRequests}
+                            icon={FiActivity}
+                            color="text-blue-600"
+                            bg="bg-blue-50"
+                        />
+
+                        <StatCard
+                            label="Users With Materials"
+                            value={stats.totalPersonnel}
+                            icon={FiUsers}
+                            color="text-sky-600"
+                            bg="bg-sky-50"
+                            hint="Unique users holding accepted items"
+                        />
+                        <StatCard
+                            label="Materials Out from Store"
+                            value={stats.materialsOutFromStore}
+                            icon={FiTrendingDown}
+                            color="text-rose-600"
+                            bg="bg-rose-50"
+                            hint="Total quantity issued & out of store"
+                        />
+                    </div>
+
+                    <RequestDashboardCharts
+                        variant="light"
+                        pieData={pieData}
+                        stackedBarData={stackedBarData}
+                        totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
+                        pieTitle="Request Overview"
+                        barTitle="Last 6 months"
+                    />
+
+                    {/* Quick Actions */}
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold text-slate-800">Quick Actions</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <ActionCard
+                                href="/portal/approve-requests"
+                                title="Review Requests"
+                                description="Approve or reject pending material requests."
+                                icon={FiClipboard}
+                                color="text-blue-600"
+                            />
+                            <ActionCard
+                                href="/portal/full-inventory"
+                                title="Material List"
+                                description="View all store materials."
+                                icon={FiBox}
+                                color="text-indigo-600"
+                            />
+                            <ActionCard
+                                href="/portal/analytics"
+                                title="Analytics"
+                                description="View performance & usage data."
+                                icon={FiActivity}
+                                color="text-blue-600"
+                            />
+                            <ActionCard
+                                href="/portal/reports"
+                                title="View Reports"
+                                description="Access operational reports."
+                                icon={FiFileText}
+                                color="text-emerald-600"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Recent Requests */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-slate-800">Recent Requests</h2>
+                            <Link href="/portal/approve-requests" className="text-sm text-blue-600 hover:underline">
+                                View All
+                            </Link>
                         </div>
 
-                        {/* Pending Queue */}
-                        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-100 p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-sm font-black text-slate-900">Pending Queue</h2>
-                                <span className="text-xs text-slate-400">{pendingCount} items</span>
-                            </div>
-                            {recentPending.length > 0 ? (
-                                <div className="space-y-2">
-                                    {recentPending.map(req => (
-                                        <div key={req.id} className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-lg">
-                                            <div className="w-7 h-7 rounded-md bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                                <FiUser className="text-amber-600 text-xs" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-bold text-slate-800 truncate">{req.requesterName}</p>
-                                                <p className="text-[10px] text-slate-400 truncate">{req.materialName}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <a href="/portal/approve-requests" className="flex items-center justify-center gap-1 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                        Review All <FiArrowRight className="text-xs" />
-                                    </a>
+                        <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+                            {recentRequests.length === 0 ? (
+                                <div className="p-8 text-center text-slate-500">
+                                    No requests found.
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center py-8">
-                                    <FiCheckCircle className="text-emerald-400 text-2xl mb-2" />
-                                    <p className="text-sm font-bold text-slate-500">All clear</p>
-                                    <p className="text-[10px] text-slate-400">No pending requests</p>
+                                <div className="divide-y divide-slate-100">
+                                    {recentRequests.map((req) => (
+                                        <div key={req.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-2 rounded-full ${getStatusColor(req.status)}`}>
+                                                    <FiActivity />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium text-slate-800">
+                                                        Request #{req.id.slice(-6).toUpperCase()}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500">
+                                                        {req.requesterName || req.displayName || 'Unknown'} • {req.createdAt?.seconds ? new Date(req.createdAt.seconds * 1000).toLocaleDateString() : 'Just now'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getStatusBadge(req.status)}`}>
+                                                {String(req.status || '').replace(/_/g, ' ')}
+                                            </span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
-                    </div>
-
-                    {/* Recent Approvals */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-sm font-black text-slate-900">Recent Approvals</h2>
-                            <span className="text-xs text-slate-400">{approvedCount} total</span>
-                        </div>
-                        {recentApproved.length > 0 ? (
-                            <div className="divide-y divide-slate-50">
-                                {recentApproved.map(req => (
-                                    <div key={req.id} className="flex items-center gap-3 py-3">
-                                        <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                                            <FiCheckCircle className="text-emerald-600 text-xs" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-800 truncate">{req.requesterName}</p>
-                                            <p className="text-[10px] text-slate-400 truncate">{req.materialName}</p>
-                                        </div>
-                                        <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">Approved</span>
-                                        <span className="text-[10px] text-slate-400">{req.createdAt?.toDate?.()?.toLocaleDateString() || ''}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8">
-                                <p className="text-sm text-slate-400">No approvals yet</p>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
         </ProtectedRoute>
     );
+}
+
+// Helper Components
+function StatCard({
+    label,
+    value,
+    icon: Icon,
+    color,
+    bg,
+    href,
+    hint,
+}: {
+    label: string;
+    value: number;
+    icon: ComponentType<{ size?: number }>;
+    color: string;
+    bg: string;
+    href?: string;
+    hint?: string;
+}) {
+    const inner = (
+        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between h-full group-hover:border-slate-200 transition-colors">
+            <div className="min-w-0 pr-2">
+                <p className="text-sm font-medium text-slate-500">{label}</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
+                {hint ? <p className="text-xs text-slate-400 mt-1 line-clamp-2">{hint}</p> : null}
+            </div>
+            <div className={`p-3 rounded-lg shrink-0 ${bg} ${color}`}>
+                <Icon size={24} />
+            </div>
+        </div>
+    );
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className="block rounded-xl group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+                {inner}
+            </Link>
+        );
+    }
+    return inner;
+}
+
+function ActionCard({ href, title, description, icon: Icon, color }: any) {
+    return (
+        <Link href={href} className="flex flex-col p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow group">
+            <div className={`mb-4 ${color}`}>
+                <Icon size={28} />
+            </div>
+            <h3 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                {title}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+                {description}
+            </p>
+        </Link>
+    );
+}
+
+function getStatusColor(status: string) {
+    if (['approved', 'completed', 'received', 'issued', 'approved_by_md'].includes(status)) return 'bg-emerald-100 text-emerald-600';
+    if (['rejected'].includes(status)) return 'bg-red-100 text-red-600';
+    return 'bg-amber-100 text-amber-600';
+}
+
+function getStatusBadge(status: string) {
+    if (['approved', 'completed', 'received', 'issued', 'approved_by_md'].includes(status)) return 'bg-emerald-100 text-emerald-700';
+    if (['rejected'].includes(status)) return 'bg-red-100 text-red-700';
+    return 'bg-amber-100 text-amber-700';
 }

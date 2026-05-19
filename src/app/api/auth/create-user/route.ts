@@ -51,7 +51,6 @@ export async function POST(req: NextRequest) {
             username: username ? username.toLowerCase().trim() : '',
             userRole: resolvedRole,
             status: 'active',
-            password: password, // Storing plaintext password as explicitly requested for export functionality
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             ...otherData

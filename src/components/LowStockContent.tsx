@@ -210,7 +210,7 @@ export default function LowStockContent() {
                                             : 'bg-orange-100 text-orange-700'
                                             }`}>
                                             <FiAlertCircle />
-                                            {m.status === 'out' ? 'Out of Stock' : 'Low Stock (≤10)'}
+                                            {m.status === 'out' ? 'Empty Stock' : 'Low Stock (≤10)'}
                                         </span>
                                     </td>
                                 </tr>

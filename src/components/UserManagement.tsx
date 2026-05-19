@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, getDocs, deleteDoc, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
-import { FiUsers, FiSearch, FiTrash2, FiAlertTriangle, FiCheckCircle, FiChevronRight, FiFilter, FiUser, FiCheck, FiX, FiActivity, FiEdit2, FiBookOpen, FiUserCheck, FiDownload } from 'react-icons/fi';
+import { FiUsers, FiSearch, FiTrash2, FiAlertTriangle, FiCheckCircle, FiChevronRight, FiChevronLeft, FiFilter, FiUser, FiCheck, FiX, FiActivity, FiEdit2, FiBookOpen, FiUserCheck, FiDownload } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -40,6 +40,8 @@ export default function UserManagement() {
     const [isUpdating, setIsUpdating] = useState(false);
     const [filterType, setFilterType] = useState<'all' | 'academic' | 'admin' | 'procurement' | 'executive'>('all');
     const [departmentFilter, setDepartmentFilter] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ROWS_PER_PAGE = 8;
 
     useEffect(() => {
         fetchUsers();
@@ -184,7 +186,7 @@ export default function UserManagement() {
             return;
         }
 
-        const headers = ['Full Name', 'Username', 'Email', 'Role', 'Department', 'Status', 'Password'];
+        const headers = ['Full Name', 'Username', 'Email', 'Role', 'Department', 'Status'];
         const csvRows = [headers.join(',')];
 
         filteredUsers.forEach(user => {
@@ -194,8 +196,7 @@ export default function UserManagement() {
                 `"${user.email || ''}"`,
                 `"${(user.userRole || '').replace(/_/g, ' ')}"`,
                 `"${getComputedDepartment(user).replace(/_/g, ' ')}"`,
-                `"${user.status || 'active'}"`,
-                `"${user.password || 'N/A'}"` // Includes password if available
+                `"${user.status || 'active'}"`
             ];
             csvRows.push(row.join(','));
         });
@@ -234,7 +235,7 @@ export default function UserManagement() {
         doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
         doc.text(`Total Records: ${filteredUsers.length}`, 14, 36);
 
-        const tableColumn = ['Name', 'Username', 'Email', 'Role', 'Department', 'Password'];
+        const tableColumn = ['Name', 'Username', 'Email', 'Role', 'Department'];
         const tableRows: any[] = [];
 
         filteredUsers.forEach(user => {
@@ -243,8 +244,7 @@ export default function UserManagement() {
                 user.username || '-',
                 user.email || '-',
                 (user.userRole || '-').replace(/_/g, ' '),
-                getComputedDepartment(user).replace(/_/g, ' '),
-                user.password || 'N/A' // Include password
+                getComputedDepartment(user).replace(/_/g, ' ')
             ];
             tableRows.push(rowData);
         });
@@ -282,70 +282,71 @@ export default function UserManagement() {
         return true;
     });
 
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterType, departmentFilter]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ROWS_PER_PAGE));
+    const paginatedUsers = filteredUsers.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
+
     return (
-        <div className="w-full max-w-6xl mx-auto space-y-6">
-            {/* Header & Search */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 border border-gray-200 rounded-xl">
-                <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{t('employee_directory')}</h2>
-                    <p className="text-sm text-gray-500 mt-1">{t('manage_institutional_access')}</p>
+        <div className="w-full max-w-6xl mx-auto space-y-1.5">
+            {/* Header & Search - single compact row */}
+            <div className="flex flex-wrap items-center gap-2 bg-white px-3 py-2 border border-gray-200 rounded-lg">
+                <h2 className="text-sm font-semibold text-gray-900 mr-1">{t('employee_directory')}</h2>
+
+                {/* Export Buttons */}
+                <button
+                    onClick={exportToCSV}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-300 text-gray-600 rounded-md text-xs font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors"
+                    title="Export to CSV"
+                >
+                    <FiDownload className="w-3 h-3" />
+                    CSV
+                </button>
+                <button
+                    onClick={exportToPDF}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-300 text-gray-600 rounded-md text-xs font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors"
+                    title="Export to PDF"
+                >
+                    <FiDownload className="w-3 h-3" />
+                    PDF
+                </button>
+
+                {/* Department Filter */}
+                <div className="relative">
+                    <select
+                        value={departmentFilter}
+                        onChange={(e) => setDepartmentFilter(e.target.value)}
+                        className="pl-2 pr-6 py-1 appearance-none border border-gray-300 rounded-md text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 bg-white capitalize"
+                    >
+                        <option value="all">All Departments</option>
+                        {uniqueDepartments.map(dept => (
+                            <option key={dept} value={dept}>{dept.replace(/_/g, ' ')}</option>
+                        ))}
+                        <option value="global">Global / Other</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-gray-500">
+                        <FiFilter className="w-3 h-3" />
+                    </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    {/* Export Buttons */}
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                            onClick={exportToCSV}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
-                            title="Export to CSV"
-                        >
-                            <FiDownload className="w-4 h-4" />
-                            CSV
-                        </button>
-                        <button
-                            onClick={exportToPDF}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm"
-                            title="Export to PDF"
-                        >
-                            <FiDownload className="w-4 h-4" />
-                            PDF
-                        </button>
-                    </div>
-
-                    {/* Department Filter */}
-                    <div className="relative">
-                        <select
-                            value={departmentFilter}
-                            onChange={(e) => setDepartmentFilter(e.target.value)}
-                            className="w-full sm:w-48 pl-3 pr-8 py-2 appearance-none border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-colors capitalize"
-                        >
-                            <option value="all">All Departments</option>
-                            {uniqueDepartments.map(dept => (
-                                <option key={dept} value={dept}>{dept.replace(/_/g, ' ')}</option>
-                            ))}
-                            <option value="global">Global / Other</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                            <FiFilter className="w-4 h-4" />
-                        </div>
-                    </div>
-
-                    {/* Search */}
-                    <div className="relative w-full sm:w-80">
-                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder={t('search_personnel_placeholder')}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                        />
-                    </div>
+                {/* Search */}
+                <div className="relative flex-1 min-w-[160px] max-w-xs ml-auto">
+                    <FiSearch className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                    <input
+                        type="text"
+                        placeholder={t('search_personnel_placeholder')}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                    />
                 </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex gap-2 bg-white p-2 border border-gray-200 rounded-xl overflow-x-auto">
+            {/* Filter Tabs - compact single row */}
+            <div className="flex gap-1 bg-white px-2 py-1 border border-gray-200 rounded-lg overflow-x-auto">
                 {[
                     { id: 'all', label: t('all_personnel'), icon: FiUsers },
                     { id: 'executive', label: 'Executive', icon: FiActivity },
@@ -356,14 +357,14 @@ export default function UserManagement() {
                     <button
                         key={filter.id}
                         onClick={() => setFilterType(filter.id as any)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filterType === filter.id
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${filterType === filter.id
                             ? 'bg-blue-50 text-blue-700'
                             : 'text-gray-600 hover:bg-gray-50'
                             }`}
                     >
-                        <filter.icon className={filterType === filter.id ? 'text-blue-500' : 'text-gray-400'} />
+                        <filter.icon className={`w-3 h-3 ${filterType === filter.id ? 'text-blue-500' : 'text-gray-400'}`} />
                         {filter.label}
-                        <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs ${filterType === filter.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`ml-0.5 px-1.5 py-px rounded-full text-[10px] ${filterType === filter.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                             {filter.id === 'all' ? users.filter(u => departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter).length :
                                 filter.id === 'executive' ? users.filter(u => (u.mainRole === 'managing_director' || u.mainRole === 'chief') && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
                                 filter.id === 'procurement' ? users.filter(u => u.mainRole === 'procurement_management' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
@@ -389,6 +390,7 @@ export default function UserManagement() {
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-gray-50 border-b border-gray-200 text-gray-500">
                             <tr>
+                                <th className="px-3 py-4 font-medium text-center w-10">#</th>
                                 <th className="px-6 py-4 font-medium">{t('personnel_identity')}</th>
                                 <th className="px-6 py-4 font-medium">{t('institutional_role')}</th>
                                 <th className="px-6 py-4 font-medium">{t('account_status')}</th>
@@ -398,7 +400,7 @@ export default function UserManagement() {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         <div className="flex justify-center mb-2">
                                             <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                                         </div>
@@ -407,14 +409,17 @@ export default function UserManagement() {
                                 </tr>
                             ) : filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         <FiUsers className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                                         <p>No matching personnel records found.</p>
                                     </td>
                                 </tr>
                             ) : (
-                                filteredUsers.map((user) => (
+                                paginatedUsers.map((user, index) => (
                                     <tr key={user.uid} className="hover:bg-gray-50 transition-colors group">
+                                        <td className="px-3 py-4 text-center text-xs text-gray-400 font-medium">
+                                            {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
@@ -501,6 +506,44 @@ export default function UserManagement() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {filteredUsers.length > ROWS_PER_PAGE && (
+                    <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 bg-gray-50">
+                        <span className="text-xs text-gray-500">
+                            Showing {(currentPage - 1) * ROWS_PER_PAGE + 1}–{Math.min(currentPage * ROWS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <FiChevronLeft className="w-4 h-4" />
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                <button
+                                    key={page}
+                                    onClick={() => setCurrentPage(page)}
+                                    className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${
+                                        currentPage === page
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <FiChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Warning Message */}

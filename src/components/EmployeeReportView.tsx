@@ -129,13 +129,16 @@ export default function EmployeeReportView({
             // Apply onlyAccepted filter (Show only 'accepted' records, hide 'completed' and 'pending')
             const matchesAcceptedOnly = onlyAccepted ? report.status === 'accepted' : true;
 
+            // ALWAYS hide returned items from active custody views unless explicitly looking for them
+            const isNotReturned = report.status !== 'returned';
+
             const matchesType = filterType === 'all' ? true :
                 filterType === 'fixed' ? (report.materialType === 'fixed_asset' || report.materialType === 'fixed') :
                     filterType === 'consumable' ? (report.materialType === 'consumable_item' || report.materialType === 'consumable') : true;
 
             const matchesUser = userId ? report.requesterId === userId : true;
 
-            return matchesStatus && matchesAcceptedOnly && matchesType && matchesUser;
+            return matchesStatus && matchesAcceptedOnly && isNotReturned && matchesType && matchesUser;
         });
     }, [allReports, filterType, hidePending, onlyAccepted, userId]);
 
@@ -325,6 +328,51 @@ export default function EmployeeReportView({
     }, [reports, selectedEmployee]);
 
     const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string | null>(null);
+
+    // Fetch signatures from Send_to_Users for the selected employee
+    const [signatureData, setSignatureData] = useState<{ recipientSignature?: string; keeperSignature?: string; keeperName?: string }>({});
+
+    useEffect(() => {
+        if (!selectedEmployee || !db) {
+            setSignatureData({});
+            return;
+        }
+
+        const fetchSignatures = async () => {
+            try {
+                const q = query(
+                    collection(db!, 'Send_to_Users'),
+                    where('requester_user_id', '==', selectedEmployee.uid)
+                );
+                const snap = await getDocs(q);
+                // Get the most recent completed record with signatures
+                let bestRecord: any = null;
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    if (data.recipientSignature || data.keeperSignature) {
+                        if (!bestRecord || (data.created_at?.seconds || 0) > (bestRecord.created_at?.seconds || 0)) {
+                            bestRecord = data;
+                        }
+                    }
+                });
+
+                if (bestRecord) {
+                    setSignatureData({
+                        recipientSignature: bestRecord.recipientSignature || undefined,
+                        keeperSignature: bestRecord.keeperSignature || undefined,
+                        keeperName: bestRecord.keeperName || undefined
+                    });
+                } else {
+                    setSignatureData({});
+                }
+            } catch (err) {
+                console.error('Error fetching signatures:', err);
+                setSignatureData({});
+            }
+        };
+
+        fetchSignatures();
+    }, [selectedEmployee]);
 
     const uniqueMaterials = useMemo(() => {
         return Array.from(new Set(employeeReports.map(r => r.materialName || 'Unknown Material')));
@@ -685,6 +733,9 @@ export default function EmployeeReportView({
                                         department={selectedEmployee.department?.replace(/_/g, ' ') || 'General'}
                                         reports={filteredReportsForModel22}
                                         materialDetails={materialDetails}
+                                        recipientSignature={signatureData.recipientSignature}
+                                        keeperSignature={signatureData.keeperSignature}
+                                        keeperName={signatureData.keeperName}
                                     />
                                 </div>
                             </div>

@@ -25,6 +25,7 @@ import {
     Bell
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import ProcurementTeamLeaderDashboardContent from '@/components/ProcurementTeamLeaderDashboardContent';
 
 interface RecentRequest {
     id: string;
@@ -153,6 +154,14 @@ export default function WorkspacePage() {
         );
     }
 
+    if (userRole === 'procurement_team_leader') {
+        return (
+            <ProtectedRoute>
+                <ProcurementTeamLeaderDashboardContent />
+            </ProtectedRoute>
+        );
+    }
+
     const containerVariants = {
         hidden: { opacity: 0, y: 10 },
         visible: {
@@ -239,79 +248,7 @@ export default function WorkspacePage() {
                         />
                     </div>
 
-                    {/* Team Leader Specific View (Detailed Insights) */}
-                    {userRole === 'procurement_team_leader' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            {/* Left: Recent Requests + Secondary Stats */}
-                            <div className="lg:col-span-2 space-y-6">
-                                {/* Secondary Stats Row */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center"><Activity className="w-5 h-5 text-indigo-600" /></div>
-                                        <div><p className="text-xl font-black text-slate-900">{stats.totalRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Requests</p></div>
-                                    </motion.div>
-                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
-                                        <div><p className="text-xl font-black text-slate-900">{stats.approvedRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approved</p></div>
-                                    </motion.div>
-                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center"><XCircle className="w-5 h-5 text-red-500" /></div>
-                                        <div><p className="text-xl font-black text-slate-900">{stats.rejectedRequests}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rejected</p></div>
-                                    </motion.div>
-                                    <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center"><TrendingUp className="w-5 h-5 text-violet-600" /></div>
-                                        <div><p className="text-xl font-black text-slate-900">{stats.totalValue.toLocaleString()}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Value (ETB)</p></div>
-                                    </motion.div>
-                                </div>
-
-                                {/* Recent Requests Table */}
-                                <motion.div variants={itemVariants} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-                                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                                        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2"><FileText className="w-4 h-4 text-blue-600" /> Recent Requests</h3>
-                                        <Link href="/workspace/approve-requests" className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">View All <ArrowRight className="w-3 h-3" /></Link>
-                                    </div>
-                                    <table className="w-full text-sm">
-                                        <thead><tr className="bg-slate-50/50">
-                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Requester</th>
-                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Material</th>
-                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</th>
-                                            <th className="text-left px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                                        </tr></thead>
-                                        <tbody>
-                                            {recentRequests.length > 0 ? recentRequests.map(req => (
-                                                <tr key={req.id} className="border-t border-slate-50 hover:bg-blue-50/30 transition-colors">
-                                                    <td className="px-5 py-3"><p className="font-semibold text-slate-800 text-[13px]">{req.requester}</p><p className="text-[11px] text-slate-400">{req.department}</p></td>
-                                                    <td className="px-5 py-3 text-slate-600 text-[13px] max-w-[140px] truncate">{req.material}</td>
-                                                    <td className="px-5 py-3 text-slate-400 text-[12px]">{req.date}</td>
-                                                    <td className="px-5 py-3"><StatusBadge status={req.status} /></td>
-                                                </tr>
-                                            )) : (<tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400 text-sm">No recent requests</td></tr>)}
-                                        </tbody>
-                                    </table>
-                                </motion.div>
-                            </div>
-
-                            {/* Right: Stock Health */}
-                            <motion.div variants={itemVariants} className="space-y-6">
-                                <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
-                                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2"><Package className="w-4 h-4 text-blue-600" /> Stock Health</h3>
-                                    <div className="space-y-3">
-                                        <StockBar label="In Stock" value={stats.totalInventory - stats.lowStock - stats.outOfStock} total={stats.totalInventory} color="bg-emerald-500" />
-                                        <StockBar label="Low Stock" value={stats.lowStock} total={stats.totalInventory} color="bg-amber-500" />
-                                        <StockBar label="Out of Stock" value={stats.outOfStock} total={stats.totalInventory} color="bg-red-500" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
-                                        <div className="text-center p-3 bg-indigo-50 rounded-xl"><p className="text-lg font-black text-indigo-700">{stats.fixedAssets}</p><p className="text-[10px] text-indigo-500 font-bold">Fixed Assets</p></div>
-                                        <div className="text-center p-3 bg-emerald-50 rounded-xl"><p className="text-lg font-black text-emerald-700">{stats.consumables}</p><p className="text-[10px] text-emerald-500 font-bold">Consumables</p></div>
-                                    </div>
-                                </div>
-                                <Link href="/workspace/analytics" className="block bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-blue-200 transition-all">
-                                    <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><TrendingUp className="w-5 h-5" /></div><h3 className="font-bold">View Analytics</h3></div>
-                                    <p className="text-blue-100 text-sm">Charts, trends & detailed reports</p>
-                                </Link>
-                            </motion.div>
-                        </div>
-                    )}
+                    {/* Team Leader Specific View removed to use ProcurementTeamLeaderDashboardContent */}
 
                     {/* Stock Clerk Specific View */}
                     {userRole?.includes('stock_clerk') && (

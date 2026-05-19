@@ -8,8 +8,10 @@ import {
     FiDownload, FiFileText, FiSearch, FiCalendar,
     FiPackage, FiCheckCircle, FiUsers, FiTrendingUp,
     FiFilter, FiPrinter, FiChevronLeft, FiChevronRight,
-    FiHome, FiUserCheck, FiMapPin
+    FiHome, FiUserCheck, FiMapPin, FiGrid, FiList
 } from 'react-icons/fi';
+import ReadOnlyModel19 from './ReadOnlyModel19';
+import ReadOnlyEmployeeModel22 from './ReadOnlyEmployeeModel22';
 
 interface ProcessedItem {
     id: string;
@@ -36,15 +38,17 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
     const [registeredItems, setRegisteredItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [reportView, setReportView] = useState<'issued' | 'registered' | 'stock'>('issued');
+    const [viewFormat, setViewFormat] = useState<'table' | 'paper'>('table');
     const [stockInside, setStockInside] = useState<any[]>([]);
     const [stockOutside, setStockOutside] = useState<any[]>([]);
+    const [rawMaterialDocs, setRawMaterialDocs] = useState<any[]>([]);
+    const [signaturesMap, setSignaturesMap] = useState<Record<string, any>>({});
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [filterMonth, setFilterMonth] = useState<string>('all');
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
     const tableRef = useRef<HTMLDivElement>(null);
 
     // Generate years for filter (current year down to 2024)
@@ -86,6 +90,7 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                     const dateObj = d.withdrawalDate?.toDate() || d.createdAt?.toDate() || new Date();
                     const itemData = {
                         id: doc.id,
+                        requesterId: d.requesterId || d.requester_user_id || '',
                         requesterName: d.requesterName || 'Unknown',
                         department: d.department || 'General',
                         materialName: d.materialName || 'Unknown',
@@ -110,15 +115,35 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                 setItems(processed);
                 setStockOutside(outside);
 
+                // Fetch signatures for issuances
+                const sigsSnap = await getDocs(collection(db!, 'Send_to_Users'));
+                const sigsMap: Record<string, any> = {};
+                sigsSnap.docs.forEach(doc => {
+                    const data = doc.data();
+                    const reqId = data.requester_user_id || data.requesterId;
+                    if (reqId && (data.recipientSignature || data.keeperSignature)) {
+                        const currentBest = sigsMap[reqId];
+                        const tDate = data.created_at?.seconds || 0;
+                        if (!currentBest || tDate > (currentBest.created_at?.seconds || 0)) {
+                            sigsMap[reqId] = data;
+                        }
+                    }
+                });
+                setSignaturesMap(sigsMap);
+
                 // Fetch Materials (for Registration and Store Inventory)
                 const materialsRef = collection(db!, 'materials');
                 const materialsSnap = await getDocs(materialsRef);
                 const registered: any[] = [];
                 const inside: any[] = [];
+                const rawDocs: any[] = [];
 
                 materialsSnap.docs.forEach(doc => {
                     const d = doc.data();
                     const matType = (d.materialType || '').toLowerCase();
+
+                    // Store raw doc for paper view
+                    rawDocs.push({ id: doc.id, ...d });
 
                     // Filter by stock type
                     if (stockType === 'fixed' && !matType.includes('fixed')) return;
@@ -142,6 +167,8 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                             id: `${doc.id}-${item.id || Math.random()}`,
                             receiptNo: d.receiptNo || '-',
                             description: item.description || 'Unknown',
+                            model: item.model || d.model || '',
+                            serie: item.serie || d.serie || item.serial || d.serial || '',
                             materialType: itemMatType || 'unknown',
                             quantity: displayQty, // Registration uses original
                             currentQuantity: currentQty, // Inventory uses current
@@ -168,6 +195,7 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                 registered.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
                 setRegisteredItems(registered);
                 setStockInside(inside);
+                setRawMaterialDocs(rawDocs);
 
                 setLoading(false);
             } catch (error) {
@@ -255,11 +283,40 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
         }
     }, [filtered, reportView, stockInside, stockOutside]);
 
-    // Pagination
-    const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-    const paginatedItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    // Pagination and Grouping
+    const itemsPerPage = viewFormat === 'paper' ? 1 : 15;
 
-    useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFrom, dateTo, reportView]);
+    const paperGroups = useMemo(() => {
+        if (viewFormat !== 'paper') return [];
+        if (reportView === 'issued') {
+            const groups: any[] = [];
+            const map: Record<string, ProcessedItem[]> = {};
+            filtered.forEach(item => {
+                const key = `${item.requesterName}|${item.department}|${item.processedDate}`;
+                if (!map[key]) map[key] = [];
+                map[key].push(item as ProcessedItem);
+            });
+            Object.values(map).forEach(group => groups.push(group));
+            return groups;
+        } else if (reportView === 'registered') {
+            return filtered.map(item => [item]); // Each item is its own group for Model 19
+        }
+        return [];
+    }, [filtered, viewFormat, reportView]);
+
+    const totalPages = viewFormat === 'paper' 
+        ? Math.max(1, paperGroups.length) 
+        : Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+
+    const paginatedItems = viewFormat === 'paper' 
+        ? [] 
+        : filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const currentPaperGroup = viewFormat === 'paper' && paperGroups.length > 0 
+        ? paperGroups[currentPage - 1] 
+        : null;
+
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFrom, dateTo, reportView, viewFormat]);
 
     // Department breakdown
     const deptBreakdown = useMemo(() => {
@@ -387,22 +444,35 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight">{roleType === 'team_leader' ? 'System Work Report' : 'Work Report'}</h2>
                         <div className="flex bg-slate-100 p-1 rounded-lg">
                             <button
-                                onClick={() => setReportView('issued')}
-                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'issued' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setReportView('issued'); setViewFormat('table'); }}
+                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'issued' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Issuance
                             </button>
                             <button
-                                onClick={() => setReportView('registered')}
-                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'registered' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setReportView('registered'); setViewFormat('table'); }}
+                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'registered' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Registration
                             </button>
                             <button
-                                onClick={() => setReportView('stock')}
+                                onClick={() => { setReportView('stock'); setViewFormat('table'); }}
                                 className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'stock' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Store Status
+                            </button>
+                            <div className="w-px bg-slate-300 mx-1"></div>
+                            <button
+                                onClick={() => { setReportView('registered'); setViewFormat('paper'); }}
+                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all flex items-center gap-1 ${reportView === 'registered' && viewFormat === 'paper' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <FiFileText /> Model 19
+                            </button>
+                            <button
+                                onClick={() => { setReportView('issued'); setViewFormat('paper'); }}
+                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all flex items-center gap-1 ${reportView === 'issued' && viewFormat === 'paper' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <FiFileText /> Model 22
                             </button>
                         </div>
                     </div>
@@ -494,7 +564,80 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
 
             {/* Data Table */}
             <div ref={tableRef} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                {viewFormat === 'paper' && reportView !== 'stock' ? (
+                    <div className="p-8 bg-[#f8fafc] overflow-y-auto max-h-[800px]">
+                        {reportView === 'issued' && currentPaperGroup && (
+                            <div className="space-y-12 max-w-[210mm] mx-auto">
+                                <div className="bg-white shadow-xl printable-receipt-wrapper">
+                                    <ReadOnlyEmployeeModel22
+                                        employeeName={currentPaperGroup[0].requesterName}
+                                        department={currentPaperGroup[0].department.replace(/_/g, ' ')}
+                                        reports={currentPaperGroup.map((item: any) => ({
+                                            ...item,
+                                            materialName: item.description || item.materialName
+                                        }))}
+                                        materialDetails={rawMaterialDocs.reduce((acc: any, doc: any) => {
+                                            if (doc.materialCode) acc[doc.materialCode] = doc;
+                                            if (doc.materialName) acc[doc.materialName.trim().toLowerCase()] = doc;
+                                            if (doc.items && Array.isArray(doc.items)) {
+                                                doc.items.forEach((sub: any) => {
+                                                    const subName = sub.description || sub.materialName;
+                                                    if (subName) acc[subName.trim().toLowerCase()] = doc;
+                                                });
+                                            }
+                                            return acc;
+                                        }, {})}
+                                        recipientSignature={currentPaperGroup[0]?.requesterId ? signaturesMap[currentPaperGroup[0].requesterId]?.recipientSignature : undefined}
+                                        keeperSignature={currentPaperGroup[0]?.requesterId ? signaturesMap[currentPaperGroup[0].requesterId]?.keeperSignature : undefined}
+                                        keeperName={currentPaperGroup[0]?.requesterId ? signaturesMap[currentPaperGroup[0].requesterId]?.keeperName : undefined}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {reportView === 'registered' && currentPaperGroup && (
+                            <div className="space-y-12 max-w-[210mm] mx-auto">
+                                {(() => {
+                                    const itemsGrp = currentPaperGroup;
+                                    const receiptNo = itemsGrp[0].receiptNo;
+                                    const rawDoc = rawMaterialDocs.find(d => d.receiptNo === receiptNo) || {};
+                                    return (
+                                        <div className="bg-white shadow-xl printable-receipt-wrapper">
+                                            <ReadOnlyModel19
+                                                receiptNo={receiptNo}
+                                                department={itemsGrp[0]?.department}
+                                                registeredByName={itemsGrp[0]?.registeredBy}
+                                                createdAt={itemsGrp[0]?.processedDate}
+                                                expenditureRegistryNo={rawDoc.expenditureRegistryNo}
+                                                incomingGoodsEntryNo={rawDoc.incomingGoodsEntryNo}
+                                                classificationOfStock={rawDoc.classificationOfStock}
+                                                storeNo={rawDoc.storeNo}
+                                                shelfNo={rawDoc.shelfNo}
+                                                fromLocation={rawDoc.fromLocation}
+                                                recipientName={rawDoc.recipientName}
+                                                delivererDonor={rawDoc.delivererDonor}
+                                                delivererRecipient={rawDoc.delivererRecipient}
+                                                items={itemsGrp.map((item: any) => ({
+                                                    description: item.description,
+                                                    model: item.model,
+                                                    serie: item.serie,
+                                                    quantity: item.quantity,
+                                                    unitPriceBirr: Math.floor(item.unitPrice || 0).toString(),
+                                                    unitPriceCents: Math.round(((item.unitPrice || 0) % 1) * 100).toString(),
+                                                    totalPriceBirr: Math.floor(item.totalPrice || 0).toString(),
+                                                    totalPriceCents: Math.round(((item.totalPrice || 0) % 1) * 100).toString()
+                                                }))}
+                                            />
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                        {!currentPaperGroup && (
+                            <div className="text-center p-8 text-slate-500">No records found to generate Paper Form.</div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
@@ -647,11 +790,16 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                         </tbody>
                     </table>
                 </div>
+                )}
 
                 {/* Pagination */}
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Showing <span className="text-slate-600">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-600">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> of <span className="text-slate-600">{filtered.length}</span> records
+                        {viewFormat === 'paper' ? (
+                            <>Showing Model <span className="text-slate-600">{filtered.length === 0 ? 0 : currentPage}</span> of <span className="text-slate-600">{totalPages}</span></>
+                        ) : (
+                            <>Showing <span className="text-slate-600">{filtered.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-600">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> of <span className="text-slate-600">{filtered.length}</span> records</>
+                        )}
                     </p>
                     <div className="flex items-center gap-2">
                         <button

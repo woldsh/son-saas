@@ -558,7 +558,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             note: noteToSave
                         }
                     ],
-                    ...(signature && { managingDirectorSignature: signature })
+                    ...(signature && { managingDirectorSignature: signature }),
+                    mdApproverName: userData.displayName || 'Managing Director'
                 });
                 setSuccessMessage({ text: `Request approved and forwarded to ${nextApproverName}`, type: 'md' });
             } else if (effectiveRole === 'team_leader') {
@@ -871,7 +872,9 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 timestamp: new Date().toISOString(),
                                 note: noteToSave
                             }
-                        ]
+                        ],
+                        ...(signature && { acSignature: signature }),
+                        acApproverName: userData.displayName || 'Academic Coordinator'
                     });
                     setSuccessMessage({
                         text: "This request needs Academic Commission decision",
@@ -901,7 +904,9 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 timestamp: new Date().toISOString(),
                                 note: noteToSave
                             }
-                        ]
+                        ],
+                        ...(signature && { acSignature: signature }),
+                        acApproverName: userData.displayName || 'Academic Coordinator'
                     });
                     setSuccessMessage({
                         text: "Successfully sent message",
@@ -1012,7 +1017,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                     timestamp: new Date().toISOString(),
                                     note: 'Fixed assets requiring Chief decision forwarded to executive collection (Bulk).'
                                 }
-                            ]
+                            ],
+                            acApproverName: userData.displayName || 'Academic Coordinator'
                         });
 
                     } else {
@@ -1032,7 +1038,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                     timestamp: new Date().toISOString(),
                                     note: 'Request approved by Academic Coordinator (Bulk). Forwarded to Procurement Team Leader.'
                                 }
-                            ]
+                            ],
+                            acApproverName: userData.displayName || 'Academic Coordinator'
                         });
                     }
                     approvedCount++;
@@ -1054,7 +1061,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                 timestamp: new Date().toISOString(),
                                 note: 'Approved by Managing Director. Forwarded to Procurement Team Leader (Bulk).'
                             }
-                        ]
+                        ],
+                        mdApproverName: userData.displayName || 'Managing Director'
                     });
                     approvedCount++;
                 } else if (effectiveRole === 'team_leader') {
@@ -1376,6 +1384,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             setModel22Request(selectedRequest);
                             setSelectedRequest(null);
                         }}
+                        currentUserDisplayName={userData?.displayName || ''}
                     />
                 )}
                 {selectedRequest && selectedRequest.formType !== 'paper_form_20' && (

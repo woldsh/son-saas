@@ -17,14 +17,26 @@ export async function POST(req: NextRequest) {
         const usersRef = db.collection('users');
         const snapshot = await usersRef.where('username', '==', username).limit(1).get();
 
-        if (snapshot.empty) {
-            return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+        let userData: any = null;
+
+        if (!snapshot.empty) {
+            userData = snapshot.docs[0].data();
+        } else {
+            // Fallback: check the admins collection
+            const adminsRef = db.collection('admins');
+            const adminSnapshot = await adminsRef.where('username', '==', username).limit(1).get();
+
+            if (!adminSnapshot.empty) {
+                userData = adminSnapshot.docs[0].data();
+            }
         }
 
-        const userData = snapshot.docs[0].data();
-        
+        if (!userData) {
+            return NextResponse.json({ success: false, error: 'User not found' }, { status: 400 });
+        }
+
         if (!userData.email) {
-            return NextResponse.json({ success: false, error: 'No email associated with this username' }, { status: 404 });
+            return NextResponse.json({ success: false, error: 'No email associated with this username' }, { status: 400 });
         }
 
         return NextResponse.json({

@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, where, getDocs, writeBatch, doc, deleteDoc } from 'firebase/firestore';
 import { FiSearch, FiUser, FiPackage, FiCheckCircle, FiClock, FiActivity, FiCopy, FiCheck, FiArrowRight } from 'react-icons/fi';
 import ClerkModel22Form from './ClerkModel22Form';
+import KeeperModel22SigningModal from './KeeperModel22SigningModal';
 import { getDoc } from 'firebase/firestore';
 
 
@@ -26,6 +27,9 @@ interface RequestRecord {
     created_at: any;
     sharedAt?: string; // ISO string
     department?: string;
+    recipientSignature?: string;
+    keeperSignature?: string;
+    keeperName?: string;
 }
 
 interface StoreRequestVerificationProps {
@@ -50,6 +54,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
     // Modal State
     const [model22Request, setModel22Request] = useState<any | null>(null);
     const [isFetchingRequest, setIsFetchingRequest] = useState(false);
+    const [keeperSigningRecord, setKeeperSigningRecord] = useState<RequestRecord | null>(null);
 
 
     useEffect(() => {
@@ -73,43 +78,16 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
         return () => unsubscribe();
     }, []);
 
-    // Auto-verify logic
+    // Auto-verify logic (only for manual code entry)
     useEffect(() => {
-        // 1. Auto-verify input when 6 digits match
+        // Auto-verify input when 6 digits match
         if (inputCode.length === 6 && verifyingId) {
             const record = requests.find(r => r.id === verifyingId);
             if (record && !processingIds.has(record.id)) {
                 handleVerify(record, inputCode);
             }
         }
-
-        // 2. Immediate Auto-verify for "shared_with_store" status
-        requests.forEach(req => {
-            if (req.status === 'shared_with_store' && !processingIds.has(req.id)) {
-                console.log(`Immediate auto-verifying request ${req.id}`);
-                setProcessingIds(prev => new Set(prev).add(req.id));
-                handleVerify(req, req.verification_code, true);
-            }
-        });
-
-        // 3. Auto-verify timed out "shared_with_store" requests (every 10 seconds check for safety)
-        const intervalId = setInterval(() => {
-            requests.forEach(req => {
-                if (req.status === 'shared_with_store' && req.sharedAt && !processingIds.has(req.id)) {
-                    const sharedTime = new Date(req.sharedAt).getTime();
-                    const now = new Date().getTime();
-                    const minutesPassed = (now - sharedTime) / (1000 * 60);
-
-                    if (minutesPassed >= 10) {
-                        console.log(`Timeout auto-verifying request ${req.id}`);
-                        setProcessingIds(prev => new Set(prev).add(req.id));
-                        handleVerify(req, req.verification_code, true);
-                    }
-                }
-            });
-        }, 10000);
-
-        return () => clearInterval(intervalId);
+        // Note: shared_with_store requests now require keeper signature via KeeperModel22SigningModal
     }, [inputCode, verifyingId, requests, processingIds]);
 
     const handleVerify = async (record: RequestRecord, codeToCheck?: string, isAutoVerify: boolean = false) => {
@@ -201,7 +179,10 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                     id: requestDoc.id,
                     ...data,
                     items: data.items || record.material_details,
-                    department: data.department || record.department || 'Property Management'
+                    department: data.department || record.department || 'Property Management',
+                    recipientSignature: data.recipientSignature || record.recipientSignature,
+                    keeperSignature: data.keeperSignature || record.keeperSignature,
+                    keeperName: data.keeperName || record.keeperName
                 });
             } else {
                 // Fallback: Reconstruct a synthetic request from the local record if the original archive was deleted
@@ -236,7 +217,10 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                     items: reconstructedItems,
                     status: 'handout_completed',
                     createdAt: record.created_at,
-                    receiptNo: record.verification_code || '---'
+                    receiptNo: record.verification_code || '---',
+                    recipientSignature: record.recipientSignature,
+                    keeperSignature: record.keeperSignature,
+                    keeperName: record.keeperName
                 });
             }
         } catch (err) {
@@ -321,7 +305,13 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                 return (
                                     <tr
                                         key={req.id}
-                                        onClick={() => openModel22(req)}
+                                        onClick={() => {
+                                            if (!isCompleted && req.status === 'shared_with_store') {
+                                                setKeeperSigningRecord(req);
+                                            } else {
+                                                openModel22(req);
+                                            }
+                                        }}
                                         className={`hover:bg-slate-50/50 transition-colors group cursor-pointer ${isFetchingRequest ? 'pointer-events-none opacity-80' : ''}`}
                                     >
                                         <td className="p-5 align-middle">
@@ -376,15 +366,19 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                                         </td>
                                         <td className="p-5 align-middle">
                                             <div className="flex flex-col items-end gap-3">
-                                                {/* Always show View Model 22 button */}
+                                                {/* Model 22 button - Sign or View */}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        openModel22(req);
+                                                        if (!isCompleted && req.status === 'shared_with_store') {
+                                                            setKeeperSigningRecord(req);
+                                                        } else {
+                                                            openModel22(req);
+                                                        }
                                                     }}
-                                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg shadow-blue-600/20 hover:bg-blue-500 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn"
+                                                    className={`px-5 py-2.5 ${!isCompleted && req.status === 'shared_with_store' ? 'bg-green-600 shadow-green-600/20 hover:bg-green-500' : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-500'} text-white rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 group/btn`}
                                                 >
-                                                    View Model 22
+                                                    {!isCompleted && req.status === 'shared_with_store' ? 'Sign & Process' : 'View Model 22'}
                                                     <FiArrowRight className="group-hover/btn:translate-x-1 transition-transform" />
                                                 </button>
 
@@ -443,8 +437,20 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
                 <ClerkModel22Form
                     request={model22Request}
                     onClose={() => setModel22Request(null)}
-                    onApprove={async () => { }} // No approval needed from keeper view
+                    onApprove={async () => { }}
                     readOnly={true}
+                />
+            )}
+
+            {/* Keeper signing modal for shared_with_store requests */}
+            {keeperSigningRecord && (
+                <KeeperModel22SigningModal
+                    record={keeperSigningRecord}
+                    onClose={() => setKeeperSigningRecord(null)}
+                    onFinalized={() => {
+                        setKeeperSigningRecord(null);
+                        setSuccessId(keeperSigningRecord.id);
+                    }}
                 />
             )}
         </div>

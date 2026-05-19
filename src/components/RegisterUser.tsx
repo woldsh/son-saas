@@ -379,8 +379,8 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
       const result = await response.json();
 
       if (!result.success) {
-        const errorMsg = result.error === 'Email is already registered.' 
-          ? 'Email is already registered to another user.' 
+        const errorMsg = result.error === 'Email is already registered.'
+          ? 'Email is already registered to another user.'
           : (result.error || 'Failed to register user.');
         throw new Error(errorMsg);
       }
@@ -464,7 +464,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               <input
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => { const v = e.target.value.replace(/[^\p{L}\s./]/gu, ''); setFirstName(v); }}
                 required
                 placeholder="Abebe"
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
@@ -475,7 +475,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               <input
                 type="text"
                 value={middleName}
-                onChange={(e) => setMiddleName(e.target.value)}
+                onChange={(e) => { const v = e.target.value.replace(/[^\p{L}\s./]/gu, ''); setMiddleName(v); }}
                 required
                 placeholder="Kebede"
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"
@@ -486,7 +486,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               <input
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => { const v = e.target.value.replace(/[^\p{L}\s./]/gu, ''); setLastName(v); }}
                 required
                 placeholder="Tessema"
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900 transition-shadow"

@@ -16,15 +16,28 @@ export async function POST(req: NextRequest) {
         const admin = initializeFirebaseAdmin();
         const db = admin.firestore();
 
-        // 1. Look up user by username
+        // 1. Look up user by username (check both users and admins collections)
         const usersRef = db.collection('users');
         const snapshot = await usersRef.where('username', '==', username.toLowerCase().trim()).limit(1).get();
 
-        if (snapshot.empty) {
+        let userData: any = null;
+
+        if (!snapshot.empty) {
+            userData = snapshot.docs[0].data();
+        } else {
+            // Fallback: check the admins collection
+            const adminsRef = db.collection('admins');
+            const adminSnapshot = await adminsRef.where('username', '==', username.toLowerCase().trim()).limit(1).get();
+
+            if (!adminSnapshot.empty) {
+                userData = adminSnapshot.docs[0].data();
+            }
+        }
+
+        if (!userData) {
             return NextResponse.json({ success: false, error: 'Username not found' }, { status: 404 });
         }
 
-        const userData = snapshot.docs[0].data();
         const userEmail = userData.email;
         const fullName = userData.displayName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
 

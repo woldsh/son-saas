@@ -82,11 +82,23 @@ export default function AcademicCoordinatorSidebar() {
 
     const menuItems = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
-        { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
-        { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
-        { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
-        { label: t('join_meeting'), href: '/dashboard/meeting', icon: Video },
-        { label: t('view_ac_report'), href: `${basePath}/ac-report`, icon: FileBarChart, hasDivider: true },
+        {
+            label: t('approvals') || "Approval",
+            icon: CheckSquare,
+            badge: requestCount,
+            subItems: [
+                { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
+            ],
+            hasDivider: true
+        },
+        {
+            label: "Stock Management",
+            icon: Package,
+            subItems: [
+                { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
+            ]
+        },
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
 
@@ -106,19 +118,10 @@ export default function AcademicCoordinatorSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-                { label: t('report_issue'), href: `${basePath}/report-issue`, icon: AlertCircle },
-                { label: t('maintenance_history'), href: `${basePath}/maintenance-history`, icon: Wrench },
+
             ]
         },
-        {
-            label: t('material_transfer'),
-            icon: RefreshCw,
-            subItems: [
-                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: ArrowUpRight },
-                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: ArrowDownLeft },
-            ],
-            hasDivider: true
-        },
+        { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RefreshCw, hasDivider: true },
         { label: t('manage_account'), href: `${basePath}/manage-account`, icon: Settings },
     ];
 
@@ -158,9 +161,6 @@ export default function AcademicCoordinatorSidebar() {
                                 </div>
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <h2 className="text-[14px] font-black text-slate-700 leading-tight truncate -mb-0.5 uppercase">
-                                    {department || 'administration'}
-                                </h2>
                                 <h3 className="text-[18px] font-black text-slate-900 leading-tight truncate">
                                     {t('academic_coordinator')}
                                 </h3>

@@ -14,9 +14,12 @@ interface ReadOnlyEmployeeModel22Props {
     department: string;
     reports: ReportItem[];
     materialDetails?: Record<string, any>;
+    recipientSignature?: string;
+    keeperSignature?: string;
+    keeperName?: string;
 }
 
-export default function ReadOnlyEmployeeModel22({ employeeName, department, reports, materialDetails = {} }: ReadOnlyEmployeeModel22Props) {
+export default function ReadOnlyEmployeeModel22({ employeeName, department, reports, materialDetails = {}, recipientSignature, keeperSignature, keeperName }: ReadOnlyEmployeeModel22Props) {
     const inputClasses = "absolute inset-0 bg-transparent border-none outline-none text-[13px] font-bold px-1 text-[#0033aa] font-[Kalam] w-full text-center";
     const thClasses = "border-[1.5px] border-black p-1 text-center font-bold text-[12px] leading-tight";
     const tdClasses = "border-[1.5px] border-black p-1 text-center text-[12px] h-[30px] font-bold";
@@ -381,14 +384,34 @@ export default function ReadOnlyEmployeeModel22({ employeeName, department, repo
 
                         <div className="flex justify-between mt-8 px-10">
                             <div className="flex flex-col items-center">
+                                {keeperSignature ? (
+                                    <div style={{ width: 180, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={keeperSignature} alt="Keeper Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+                                    </div>
+                                ) : (
+                                    <div style={{ width: 180, height: 60 }}></div>
+                                )}
+                                {keeperName && (
+                                    <span className="text-[14px] font-[Kalam] text-[#0033aa] mt-0.5 leading-none mb-1">{keeperName}</span>
+                                )}
                                 <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                                 <span className="font-bold text-[13px] mt-1">የግምጃ ቤቱ ፊርማ</span>
-                                <span className="italic text-[11px]">Store Keeper's Signature</span>
+                                <span className="italic text-[11px]">Store Keeper&apos;s Signature</span>
                             </div>
                             <div className="flex flex-col items-center">
+                                {recipientSignature ? (
+                                    <div style={{ width: 180, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={recipientSignature} alt="Recipient Signature" style={{ maxHeight: '100%', maxWidth: '100%', display: 'block', margin: '0 auto' }} />
+                                    </div>
+                                ) : (
+                                    <div style={{ width: 180, height: 60 }}></div>
+                                )}
+                                <span className="text-[14px] font-[Kalam] text-[#0033aa] mt-0.5 leading-none mb-1">{employeeName}</span>
                                 <span className="w-[180px] border-b-[1.5px] border-black block"></span>
                                 <span className="font-bold text-[13px] mt-1">የተቀባይ ፊርማ</span>
-                                <span className="italic text-[11px]">Recipient's Signature</span>
+                                <span className="italic text-[11px]">Recipient&apos;s Signature</span>
                             </div>
                         </div>
 

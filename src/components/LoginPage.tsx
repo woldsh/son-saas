@@ -101,25 +101,21 @@ export default function LoginPage() {
 
     try {
       if (!db) throw new Error("Firebase not initialized");
-      // Login user
-      let loginIdentifier = username.toLowerCase().trim();
+      // Login user — always resolve username to email (no direct email login)
+      const loginUsername = username.toLowerCase().trim();
 
-      if (!loginIdentifier.includes('@')) {
-        const res = await fetch('/api/auth/lookup-username', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: loginIdentifier })
-        });
-        const data = await res.json();
+      const res = await fetch('/api/auth/lookup-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername })
+      });
+      const data = await res.json();
 
-        if (data.success && data.email) {
-          loginIdentifier = data.email;
-        } else {
-          throw new Error('Username not found or no associated email.');
-        }
+      if (!data.success || !data.email) {
+        throw new Error('Username not found. Please check your username and try again.');
       }
 
-      await login(loginIdentifier, password);
+      await login(data.email, password);
       // Redirection is handled by the parent component (src/app/login/page.tsx)
       // once AuthContext confirms the user is verified and active.
       localStorage.removeItem('loginFailedAttempts');

@@ -125,20 +125,16 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                 { label: t('materials_list'), href: `${basePath}/materials-list`, icon: Layers },
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
-                { label: t('clerk_report'), href: `${basePath}/clerk-report`, icon: FileText },
+                { label: 'Bin Card', href: `${basePath}/bin-card`, icon: Clipboard },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
-                    badge: stockAlerts.total,
+                    badge: stockAlerts.lowStock + stockAlerts.outOfStock,
                     subItems: [
                         { label: t('low_stock'), href: `${basePath}/low-stock`, icon: TrendingDown, badge: stockAlerts.lowStock },
                         { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: PackageX, badge: stockAlerts.outOfStock },
-                        { label: t('expiry_alerts'), href: `${basePath}/expiry-alerts`, icon: Clock, badge: stockAlerts.expireStock },
-                        { label: t('maintenance_alerts'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
                     ]
                 },
-                { label: 'Bin Management', href: `${basePath}/bin-management`, icon: Grid },
-                { label: 'Bin Card', href: `${basePath}/bin-card`, icon: Clipboard },
             ],
             hasDivider: false
         },
@@ -159,16 +155,14 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             icon: Briefcase,
             subItems: [
                 { label: t('my_custody_list') || 'My Custody List', href: `${basePath}/properties`, icon: User },
-                { label: t('report_issue') || 'Report Issue', href: `${basePath}/report-issue`, icon: AlertCircle },
-                { label: t('maintenance_history') || 'Maintenance History', href: `${basePath}/maintenance-history`, icon: Wrench },
+
             ]
         },
         {
             label: t('material_transfer') || "Material Transfer",
             icon: Send,
             subItems: [
-                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Package },
-                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
+                { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RotateCcw },
                 { label: t('stock_handover') || 'Stock Handover', href: `${basePath}/stock-handover`, icon: ClipboardCheck },
             ],
             hasDivider: true

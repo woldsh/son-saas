@@ -10,7 +10,7 @@ export function getRequestCreatedDate(d: Record<string, unknown>): Date | null {
 }
 
 /** Must match dashboard stat logic per area (each request counts once). */
-export type DashboardStatsMode = 'employee' | 'teacher' | 'academic';
+export type DashboardStatsMode = 'employee' | 'teacher' | 'academic' | 'academic_coordinator' | 'md' | 'team_leader';
 
 export type DashboardBucketCounts = {
   pending: number;
@@ -53,8 +53,17 @@ export function categorizeDashboardStatus(
         return 'pending';
       return 'pending';
     case 'academic':
+    case 'academic_coordinator':
       if (s === 'completed') return 'approved';
       if (s.includes('approved')) return 'approved';
+      return 'pending';
+    case 'md':
+      if (['approved_by_md', 'completed', 'received', 'issued'].includes(s)) return 'approved';
+      if (['approved_by_coordinator'].includes(s)) return 'pending';
+      return 'pending';
+    case 'team_leader':
+      if (s.includes('approved') || s === 'completed' || s === 'received' || s === 'issued') return 'approved';
+      if (s.includes('forwarded_to_team_leader') || s === 'pending_procurement') return 'pending';
       return 'pending';
     default:
       return 'pending';

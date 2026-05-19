@@ -4,14 +4,14 @@ import UserManagement from '@/components/UserManagement';
 
 export default function ManageDirectoryPage() {
     return (
-        <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Manage Employees</h1>
-                <p className="text-gray-500 mt-1">Audit and manage institutional personnel records, roles, and status.</p>
+        <div className="p-2 md:p-4 max-w-7xl mx-auto space-y-1.5">
+            <div className="flex items-baseline gap-2">
+                <h1 className="text-sm font-bold text-gray-900">Manage Employees</h1>
+                <span className="text-[11px] text-gray-400">— Audit and manage personnel records, roles, and status.</span>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
-                <div className="p-6 min-h-[600px]">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="p-2 md:p-3">
                     <UserManagement />
                 </div>
             </div>

@@ -103,15 +103,14 @@ export default function ProcurementTeamLeaderSidebar() {
                 { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
                 { label: 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
                 { label: t('gate_pass'), href: `${basePath}/gate-pass`, icon: FileText },
+                { label: 'Material Transfer Order', href: `${basePath}/material-transfer-order`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
-                    badge: stockAlerts.total,
+                    badge: stockAlerts.lowStock + stockAlerts.outOfStock,
                     subItems: [
                         { label: t('low_stock'), href: `${basePath}/low-stock`, icon: AlertCircle, badge: stockAlerts.lowStock },
-                        { label: t('expire_stock'), href: `${basePath}/expiry-alerts`, icon: AlertCircle, badge: stockAlerts.expireStock },
                         { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: AlertCircle, badge: stockAlerts.outOfStock },
-                        { label: t('maintenance'), href: `${basePath}/maintenance-alerts`, icon: Wrench },
                     ]
                 }
             ],
@@ -135,16 +134,14 @@ export default function ProcurementTeamLeaderSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-                { label: t('report_issue'), href: `${basePath}/report-issue`, icon: AlertCircle },
-                { label: t('maintenance_history'), href: `${basePath}/maintenance-history`, icon: Wrench },
+
             ]
         },
         {
             label: t('material_transfer'),
             icon: ArrowRightLeft,
             subItems: [
-                { label: t('receive_goods'), href: `${basePath}/receive-goods`, icon: Truck },
-                { label: t('return_goods'), href: `${basePath}/return-goods`, icon: RotateCcw },
+                { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RotateCcw },
             ],
             hasDivider: true
         },

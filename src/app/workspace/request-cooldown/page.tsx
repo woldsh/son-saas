@@ -16,6 +16,7 @@ interface CooldownRule {
     materialCode: string;
     cooldownDays: number;
     cooldownLabel: string;
+    maxRequestedQuantity?: number;
     image?: string;
     updatedAt?: any;
 }
@@ -42,7 +43,11 @@ export default function RequestCooldownPage() {
     const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
     const [existingRules, setExistingRules] = useState<CooldownRule[]>([]);
     const [loadingRules, setLoadingRules] = useState(true);
+    const [maxRequestedQuantity, setMaxRequestedQuantity] = useState<number | ''>('');
     const [editingRule, setEditingRule] = useState<CooldownRule | null>(null);
+
+    const [enableCooldown, setEnableCooldown] = useState(true);
+    const [enableQuantityLimits, setEnableQuantityLimits] = useState(false);
 
     // Listen to existing cooldown rules
     useEffect(() => {
@@ -69,6 +74,30 @@ export default function RequestCooldownPage() {
         return opt ? opt.label : `${days} ቀን (${days} Days)`;
     };
 
+    const initializeCooldownDaysState = (days: number) => {
+        setSelectedDays(days);
+        if (days === 0) {
+            setIsCustom(false);
+            return;
+        }
+        const opt = COOLDOWN_OPTIONS.find(o => o.days === days);
+        if (opt) {
+            setIsCustom(false);
+        } else {
+            setIsCustom(true);
+            if (days % 365 === 0) {
+                setCustomValue(days / 365);
+                setCustomUnit('years');
+            } else if (days % 30 === 0) {
+                setCustomValue(days / 30);
+                setCustomUnit('months');
+            } else {
+                setCustomValue(days);
+                setCustomUnit('days');
+            }
+        }
+    };
+
     const handleSubmit = async () => {
         const target = editingRule || selectedMaterial;
         if (!target || !db) return;
@@ -81,20 +110,31 @@ export default function RequestCooldownPage() {
         const materialCode = editingRule ? editingRule.materialCode : (selectedMaterial!.materialCode || '');
         const image = editingRule ? editingRule.image : (selectedMaterial!.image || '');
 
+        const cooldownDaysToSave = enableCooldown ? selectedDays : 0;
+        const cooldownLabelToSave = enableCooldown 
+            ? (getLabelForDays(selectedDays).split('(')[1]?.replace(')', '').trim() || `${selectedDays} Days`)
+            : 'No Cooldown';
+        const maxRequestedQtyToSave = enableQuantityLimits && maxRequestedQuantity !== '' ? Number(maxRequestedQuantity) : 0;
+
         try {
             await setDoc(doc(db!, 'request_cooldown_rules', materialId), {
                 materialId,
                 materialName,
                 materialCode,
-                cooldownDays: selectedDays,
-                cooldownLabel: getLabelForDays(selectedDays).split('(')[1]?.replace(')', '').trim() || `${selectedDays} Days`,
+                cooldownDays: cooldownDaysToSave,
+                cooldownLabel: cooldownLabelToSave,
+                maxRequestedQuantity: maxRequestedQtyToSave,
                 image: image || '',
                 updatedAt: serverTimestamp()
             });
-            setStatus({ type: 'success', message: `✅ "${materialName}" — cooldown set to ${getLabelForDays(selectedDays)}` });
+            setStatus({ type: 'success', message: `✅ "${materialName}" — rule saved successfully.` });
             setSelectedMaterial(null);
             setEditingRule(null);
             setSelectedDays(30);
+            setIsCustom(false);
+            setMaxRequestedQuantity('');
+            setEnableCooldown(true);
+            setEnableQuantityLimits(false);
         } catch (err) {
             console.error("Error saving cooldown rule:", err);
             setStatus({ type: 'error', message: 'Failed to save. Please try again.' });
@@ -116,7 +156,19 @@ export default function RequestCooldownPage() {
     const handleEdit = (rule: CooldownRule) => {
         setEditingRule(rule);
         setSelectedMaterial(null);
-        setSelectedDays(rule.cooldownDays);
+        
+        const hasCooldown = rule.cooldownDays !== undefined && rule.cooldownDays > 0;
+        setEnableCooldown(hasCooldown);
+        if (hasCooldown) {
+            initializeCooldownDaysState(rule.cooldownDays);
+        } else {
+            setSelectedDays(30);
+            setIsCustom(false);
+        }
+
+        const reqQtyVal = rule.maxRequestedQuantity !== undefined && rule.maxRequestedQuantity > 0 ? rule.maxRequestedQuantity : '';
+        setMaxRequestedQuantity(reqQtyVal);
+        setEnableQuantityLimits(reqQtyVal !== '');
         setStatus({ type: null, message: '' });
     };
 
@@ -126,9 +178,24 @@ export default function RequestCooldownPage() {
         setStatus({ type: null, message: '' });
         const existingRule = ruledMap.get(m.id);
         if (existingRule) {
-            setSelectedDays(existingRule.cooldownDays);
+            const hasCooldown = existingRule.cooldownDays !== undefined && existingRule.cooldownDays > 0;
+            setEnableCooldown(hasCooldown);
+            if (hasCooldown) {
+                initializeCooldownDaysState(existingRule.cooldownDays);
+            } else {
+                setSelectedDays(30);
+                setIsCustom(false);
+            }
+
+            const reqQtyVal = existingRule.maxRequestedQuantity !== undefined && existingRule.maxRequestedQuantity > 0 ? existingRule.maxRequestedQuantity : '';
+            setMaxRequestedQuantity(reqQtyVal);
+            setEnableQuantityLimits(reqQtyVal !== '');
         } else {
             setSelectedDays(30);
+            setIsCustom(false);
+            setEnableCooldown(true);
+            setMaxRequestedQuantity('');
+            setEnableQuantityLimits(false);
         }
     };
 
@@ -140,7 +207,7 @@ export default function RequestCooldownPage() {
             {/* Header */}
             <div className="bg-white border-b border-gray-200 px-6 lg:px-10 py-6">
                 <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                     <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
                         <FaClock className="text-lg" />
                     </div>
                     <div>
@@ -163,7 +230,7 @@ export default function RequestCooldownPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     {/* Left: Material Selection + Set Cooldown */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: '520px' }}>
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col" style={{ maxHeight: '600px' }}>
                         <div className="p-4 border-b border-gray-100">
                             <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                                 <FaBoxOpen className="text-blue-500" />
@@ -226,79 +293,145 @@ export default function RequestCooldownPage() {
 
                         {/* Set Cooldown Section - appears when a material is selected */}
                         {activeTarget && (
-                            <div className="border-t-2 border-blue-100 bg-blue-50/50 p-4 space-y-3">
+                            <div className="border-t-2 border-blue-100 bg-blue-50/50 p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <p className="text-sm font-bold text-gray-700">
-                                        <span className="text-blue-600">{activeTargetName}</span> — Cooldown:
+                                        Configure Rules for: <span className="text-blue-600">{activeTargetName}</span>
                                     </p>
                                     <button
-                                        onClick={() => { setSelectedMaterial(null); setEditingRule(null); }}
+                                        onClick={() => { 
+                                            setSelectedMaterial(null); 
+                                            setEditingRule(null); 
+                                            setMaxRequestedQuantity(''); 
+                                            setEnableCooldown(true);
+                                            setEnableQuantityLimits(false);
+                                        }}
                                         className="text-gray-400 hover:text-gray-600 text-sm"
                                     >
                                         <FaTimes />
                                     </button>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <select
-                                        value={isCustom ? 'custom' : selectedDays}
-                                        onChange={(e) => {
-                                            if (e.target.value === 'custom') {
-                                                setIsCustom(true);
-                                                const multiplier = customUnit === 'years' ? 365 : customUnit === 'months' ? 30 : 1;
-                                                setSelectedDays(customValue * multiplier);
-                                            } else {
-                                                setIsCustom(false);
-                                                setSelectedDays(Number(e.target.value));
-                                            }
-                                        }}
-                                        className="flex-1 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                                    >
-                                        {COOLDOWN_OPTIONS.map(opt => (
-                                            <option key={opt.days} value={opt.days}>{opt.label}</option>
-                                        ))}
-                                        <option value="custom">✏️ ሌላ ያስገቡ (Custom)...</option>
-                                    </select>
+
+                                {/* Feature Toggles */}
+                                <div className="flex flex-wrap gap-3">
+                                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 select-none">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={enableCooldown} 
+                                            onChange={(e) => setEnableCooldown(e.target.checked)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                        />
+                                        <span>⏱️ Cooldown Period (የጊዜ ገደብ)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 select-none">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={enableQuantityLimits} 
+                                            onChange={(e) => setEnableQuantityLimits(e.target.checked)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                        />
+                                        <span>📊 Quantity Limits (የመጠን ገደብ)</span>
+                                    </label>
+                                </div>
+
+                                {/* Cooldown Duration Section */}
+                                {enableCooldown && (
+                                    <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+                                        <label className="block text-[11px] font-bold text-blue-600 uppercase tracking-wider">
+                                            ⏱️ Cooldown Duration (የመጠባበቂያ ጊዜ)
+                                        </label>
+                                        <div className="flex items-center gap-3">
+                                            <select
+                                                value={isCustom ? 'custom' : selectedDays}
+                                                onChange={(e) => {
+                                                    if (e.target.value === 'custom') {
+                                                        setIsCustom(true);
+                                                        const multiplier = customUnit === 'years' ? 365 : customUnit === 'months' ? 30 : 1;
+                                                        setSelectedDays(customValue * multiplier);
+                                                    } else {
+                                                        setIsCustom(false);
+                                                        setSelectedDays(Number(e.target.value));
+                                                    }
+                                                }}
+                                                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                                            >
+                                                {COOLDOWN_OPTIONS.map(opt => (
+                                                    <option key={opt.days} value={opt.days}>{opt.label}</option>
+                                                ))}
+                                                <option value="custom">✏️ ሌላ ያስገቡ (Custom)...</option>
+                                            </select>
+                                        </div>
+                                        {isCustom && (
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={customValue}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 0;
+                                                        setCustomValue(val);
+                                                        const multiplier = customUnit === 'years' ? 365 : customUnit === 'months' ? 30 : 1;
+                                                        setSelectedDays(val * multiplier);
+                                                    }}
+                                                    placeholder="ቁጥር"
+                                                    className="w-20 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-center focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                                                />
+                                                <select
+                                                    value={customUnit}
+                                                    onChange={(e) => {
+                                                        const unit = e.target.value as 'days' | 'months' | 'years';
+                                                        setCustomUnit(unit);
+                                                        const multiplier = unit === 'years' ? 365 : unit === 'months' ? 30 : 1;
+                                                        setSelectedDays(customValue * multiplier);
+                                                    }}
+                                                    className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                                                >
+                                                    <option value="days">ቀን (Days)</option>
+                                                    <option value="months">ወር (Months)</option>
+                                                    <option value="years">ዓመት (Years)</option>
+                                                </select>
+                                                <span className="text-xs text-gray-400">= {selectedDays} ቀን</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Quantity Limits Section */}
+                                {enableQuantityLimits && (
+                                    <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-3">
+                                        <label className="block text-[11px] font-bold text-blue-600 uppercase tracking-wider">
+                                            📊 Max Quantity Limits (የመጠን ገደብ)
+                                        </label>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
+                                                Max Requested Qty (የሚፈቀደው ከፍተኛ መጠን)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={maxRequestedQuantity}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setMaxRequestedQuantity(val === '' ? '' : Math.max(0, parseInt(val) || 0));
+                                                }}
+                                                placeholder="Unlimited (ገደብ የለውም)"
+                                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Buttons Row */}
+                                <div className="flex items-center justify-end gap-3 pt-2">
                                     <button
                                         onClick={handleSubmit}
-                                        disabled={isSubmitting || (isCustom && customValue < 1)}
+                                        disabled={isSubmitting || (!enableCooldown && !enableQuantityLimits) || (enableCooldown && isCustom && customValue < 1)}
                                         className="px-6 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm"
                                     >
                                         {isSubmitting ? <FaSpinner className="animate-spin" /> : <FaSave />}
-                                        {isSubmitting ? 'Saving...' : 'Save'}
+                                        {isSubmitting ? 'Saving...' : 'Save Rule'}
                                     </button>
                                 </div>
-                                {isCustom && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={customValue}
-                                            onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
-                                                setCustomValue(val);
-                                                const multiplier = customUnit === 'years' ? 365 : customUnit === 'months' ? 30 : 1;
-                                                setSelectedDays(val * multiplier);
-                                            }}
-                                            placeholder="ቁጥር"
-                                            className="w-20 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-center focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                                        />
-                                        <select
-                                            value={customUnit}
-                                            onChange={(e) => {
-                                                const unit = e.target.value as 'days' | 'months' | 'years';
-                                                setCustomUnit(unit);
-                                                const multiplier = unit === 'years' ? 365 : unit === 'months' ? 30 : 1;
-                                                setSelectedDays(customValue * multiplier);
-                                            }}
-                                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                                        >
-                                            <option value="days">ቀን (Days)</option>
-                                            <option value="months">ወር (Months)</option>
-                                            <option value="years">ዓመት (Years)</option>
-                                        </select>
-                                        <span className="text-xs text-gray-400">= {selectedDays} ቀን</span>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
@@ -340,10 +473,25 @@ export default function RequestCooldownPage() {
                                                         <span className="font-semibold text-gray-700 text-sm">{rule.materialName}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md">
-                                                        {rule.cooldownLabel} ({rule.cooldownDays} days)
-                                                    </span>
+                                                 <td className="px-4 py-3">
+                                                     <div className="flex flex-col gap-1">
+                                                         {rule.cooldownDays > 0 ? (
+                                                             <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md w-fit">
+                                                                 {rule.cooldownLabel} ({rule.cooldownDays} days)
+                                                             </span>
+                                                         ) : (
+                                                             <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-md w-fit border border-gray-200">
+                                                                 No Cooldown (ገደብ የለውም)
+                                                             </span>
+                                                         )}
+                                                        {rule.maxRequestedQuantity ? (
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-100">
+                                                                    Req Max: {rule.maxRequestedQuantity}
+                                                                </span>
+                                                            </div>
+                                                        ) : null}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <div className="flex items-center justify-end gap-1">

@@ -32,7 +32,8 @@ import {
     ArrowUpRight,
     ArrowDownLeft,
     Route,
-    LayoutDashboard
+    LayoutDashboard,
+    Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -69,12 +70,13 @@ export default function TeacherSidebar() {
                 { label: t('feedback'), href: `${basePath}/feedback`, icon: MessageSquare, badge: feedbackCount },
             ]
         },
+
         {
             label: t('my_assets'),
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials/personal`, icon: Boxes },
             ]
         },
         {

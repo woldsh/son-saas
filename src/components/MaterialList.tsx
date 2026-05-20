@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, getDocs, where, updateDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 import {
-    FiSearch, FiEye, FiBox, FiTag, FiInfo, FiCalendar,
-    FiDollarSign, FiUser, FiMapPin, FiLayers, FiX, FiPackage, FiPrinter
+    FiSearch, FiEye, FiBox, FiX, FiPackage, FiPrinter, FiExternalLink
 } from 'react-icons/fi';
 import Image from 'next/image';
+import { getAssetCode, getAssetProfilePath, isFixedAsset } from '@/utils/assetIdentity';
 
 interface Material {
     id: string;
@@ -34,6 +36,8 @@ interface Material {
     vendorName: string;
     warrantyDate: string;
     expiryDate?: string;
+    assetCode?: string;
+    assetStatus?: string;
     expenditureRegistryNo?: string;
     incomingGoodsEntryNo?: string;
     classificationOfStock?: string;
@@ -47,6 +51,25 @@ interface Material {
     unitPriceCents?: number;
     originalQuantity?: number;
     receiptEntries?: Material[];
+}
+
+interface ReceiptItem {
+    description?: string;
+    condition?: string;
+    imageUrl?: string;
+    image?: string;
+    itemNo?: string;
+    quantity?: number | string;
+    originalQuantity?: number | string;
+    remark?: string;
+    unit?: string;
+    unitPriceBirr?: number | string;
+    model?: string;
+    serie?: string;
+    pageFrom?: string;
+    pageTo?: string;
+    unitPriceCents?: number | string;
+    totalPriceCents?: number | string;
 }
 
 interface MaterialListProps {
@@ -63,6 +86,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
     const itemsPerPage = 10;
     const [receiptIndex, setReceiptIndex] = useState(0);
     const reconcileRan = useRef(false);
+    const { user, userRole } = useAuth();
 
     const getDepartmentLabel = (id: string) => {
         if (!id) return '—';
@@ -104,11 +128,20 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const materialList: Material[] = [];
+            const isClerk = userRole?.includes('clerk');
 
             snapshot.docs.forEach(doc => {
                 const d = doc.data();
+                
+                // For clerks, only show materials they registered in their domain
+                if (isClerk) {
+                    if (userRole?.includes('fixed') && d.materialType !== 'fixed_asset') return;
+                    if (userRole?.includes('consumable') && d.materialType !== 'consumable') return;
+                    if (d.registeredBy !== user?.uid) return;
+                }
+
                 if (d.items && Array.isArray(d.items) && (d.formType === 'receipt_for_articles' || (d.items.length > 0 && !d.materialName))) {
-                    d.items.forEach((item: any, idx: number) => {
+                    d.items.forEach((item: ReceiptItem, idx: number) => {
                         if (item.description && typeof item.description === 'string' && item.description.trim()) {
                             materialList.push({
                                 id: `${doc.id}_${idx}`,
@@ -256,8 +289,15 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
     const paginatedMaterials = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // Reset page when filter changes
-    useEffect(() => { setCurrentPage(1); }, [searchTerm, activeTab]);
+    const updateSearchTerm = (value: string) => {
+        setSearchTerm(value);
+        setCurrentPage(1);
+    };
+
+    const updateActiveTab = (tab: 'all' | 'fixed_asset' | 'consumable') => {
+        setActiveTab(tab);
+        setCurrentPage(1);
+    };
 
     // Counts
     const fixedCount = materials.filter(m => m.materialType === 'fixed_asset').length;
@@ -293,19 +333,19 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                     {!typeFilter && (
                         <div className="flex border-b border-gray-100">
                             <button
-                                onClick={() => setActiveTab('all')}
+                                onClick={() => updateActiveTab('all')}
                                 className={`flex-1 py-3 text-sm font-bold text-center transition-colors border-b-2 ${activeTab === 'all' ? 'text-blue-600 border-blue-600 bg-blue-50/30' : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'}`}
                             >
                                 ሁሉም (All) <span className="ml-1 text-xs text-gray-400">({materials.length})</span>
                             </button>
                             <button
-                                onClick={() => setActiveTab('fixed_asset')}
+                                onClick={() => updateActiveTab('fixed_asset')}
                                 className={`flex-1 py-3 text-sm font-bold text-center transition-colors border-b-2 ${activeTab === 'fixed_asset' ? 'text-indigo-600 border-indigo-600 bg-indigo-50/30' : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'}`}
                             >
                                 🏗️ የማይንቀሳቀስ ንብረት (Fixed Assets) <span className="ml-1 text-xs text-gray-400">({fixedCount})</span>
                             </button>
                             <button
-                                onClick={() => setActiveTab('consumable')}
+                                onClick={() => updateActiveTab('consumable')}
                                 className={`flex-1 py-3 text-sm font-bold text-center transition-colors border-b-2 ${activeTab === 'consumable' ? 'text-green-600 border-green-600 bg-green-50/30' : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'}`}
                             >
                                 📦 ፍጆታ ዕቃ (Consumables) <span className="ml-1 text-xs text-gray-400">({consumableCount})</span>
@@ -321,7 +361,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                 type="text"
                                 placeholder="ዕቃ ፈልግ... Search material..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => updateSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm"
                             />
                         </div>
@@ -401,13 +441,24 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <button
-                                                    onClick={() => setSelectedMaterial(m)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                    title="View Details"
-                                                >
-                                                    <FiEye className="text-base" />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-1">
+                                                    {isFixedAsset(m) && (
+                                                        <Link
+                                                            href={getAssetProfilePath(m)}
+                                                            className="px-2 py-1.5 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                            title="Open QR Asset Profile"
+                                                        >
+                                                            QR
+                                                        </Link>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setSelectedMaterial(m)}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <FiEye className="text-base" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -480,325 +531,344 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                 const currentEntry = entries[receiptIndex] || entries[0];
                 const hasMultipleReceipts = entries.length > 1;
                 return (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:absolute print:inset-0 print:block print:bg-white print:p-0 print:m-0" onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }}>
-                    <div className="bg-white w-full max-w-[1000px] max-h-[90vh] rounded-xl shadow-2xl overflow-y-auto print:absolute print:top-0 print:left-0 print:max-w-none print:w-[210mm] print:max-h-none print:overflow-visible print:shadow-none print:m-0 print:p-0 print:rounded-none" onClick={(e) => e.stopPropagation()}>
-                        <div className="sticky top-0 right-0 p-4 flex justify-between items-center bg-white/90 backdrop-blur-md border-b border-gray-100 z-10 print:hidden">
-                            {/* Receipt Navigator */}
-                            {hasMultipleReceipts && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm print:absolute print:inset-0 print:block print:bg-white print:p-0 print:m-0" onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }}>
+                        <div className="bg-white w-full max-w-[1000px] max-h-[90vh] rounded-xl shadow-2xl overflow-y-auto print:absolute print:top-0 print:left-0 print:max-w-none print:w-[210mm] print:max-h-none print:overflow-visible print:shadow-none print:m-0 print:p-0 print:rounded-none" onClick={(e) => e.stopPropagation()}>
+                            <div className="sticky top-0 right-0 p-4 flex justify-between items-center bg-white/90 backdrop-blur-md border-b border-gray-100 z-10 print:hidden">
+                                {/* Receipt Navigator */}
+                                {hasMultipleReceipts && (
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setReceiptIndex(i => Math.max(0, i - 1))}
+                                            disabled={receiptIndex === 0}
+                                            className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            ← ቀዳሚ
+                                        </button>
+                                        <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
+                                            ደረሰኝ {receiptIndex + 1} / {entries.length}
+                                        </span>
+                                        <button
+                                            onClick={() => setReceiptIndex(i => Math.min(entries.length - 1, i + 1))}
+                                            disabled={receiptIndex === entries.length - 1}
+                                            className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            ቀጣይ →
+                                        </button>
+                                    </div>
+                                )}
+                                {!hasMultipleReceipts && <div />}
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setReceiptIndex(i => Math.max(0, i - 1))}
-                                        disabled={receiptIndex === 0}
-                                        className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        ← ቀዳሚ
+                                    {isFixedAsset(selectedMaterial) && (
+                                        <Link
+                                            href={getAssetProfilePath(selectedMaterial)}
+                                            className="px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-100 transition-colors flex items-center gap-2 font-bold shadow-sm"
+                                        >
+                                            <FiExternalLink className="text-lg" /> Asset Profile
+                                        </Link>
+                                    )}
+                                    <button onClick={() => window.print()} className="px-4 py-2 bg-gray-100 border border-gray-300 text-slate-800 rounded hover:bg-gray-200 transition-colors flex items-center gap-2 font-bold shadow-sm">
+                                        <FiPrinter className="text-xl" /> Print
                                     </button>
-                                    <span className="text-sm font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg">
-                                        ደረሰኝ {receiptIndex + 1} / {entries.length}
-                                    </span>
-                                    <button
-                                        onClick={() => setReceiptIndex(i => Math.min(entries.length - 1, i + 1))}
-                                        disabled={receiptIndex === entries.length - 1}
-                                        className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        ቀጣይ →
+                                    <button onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-500 transition-colors flex items-center gap-2 font-bold">
+                                        <FiX className="text-xl" /> Close
                                     </button>
                                 </div>
-                            )}
-                            {!hasMultipleReceipts && <div />}
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => window.print()} className="px-4 py-2 bg-gray-100 border border-gray-300 text-slate-800 rounded hover:bg-gray-200 transition-colors flex items-center gap-2 font-bold shadow-sm">
-                                    <FiPrinter className="text-xl" /> Print
-                                </button>
-                                <button onClick={() => { setSelectedMaterial(null); setReceiptIndex(0); }} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-500 transition-colors flex items-center gap-2 font-bold">
-                                    <FiX className="text-xl" /> Close
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="printable-receipt" className="p-8 md:p-12 font-serif bg-[#FDFCF8] print:p-4 print:text-[11px]" style={{ color: '#1a1a1a' }}>
-                            {/* Header Row 1: Model / Serial / Receipt No */}
-                            <div className="flex justify-between items-start mb-6 print:mb-2">
-                                <div className="w-[150px]">
-                                    <p className="text-[14px] font-bold leading-tight">ሞዴል ፲፱</p>
-                                    <p className="text-[12px] italic">Model 19</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-[14px] font-bold leading-tight">ሴሪ ሀ/13</p>
-                                    <p className="text-[12px] italic">Serial A/13</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[20px] font-bold">ቁ.</span>
-                                    <div className="w-[140px] border-b border-black h-[24px] relative">
-                                        <div className="absolute inset-0 flex items-center justify-center text-[16px] font-bold tracking-widest">{currentEntry.materialCode || 'N/A'}</div>
-                                    </div>
-                                </div>
                             </div>
 
-                            {/* Row 2: Emblem + Gov Text | Numbered lines */}
-                            <div className="flex justify-between gap-8 mb-6 print:mb-2">
-                                <div className="w-[450px] flex flex-col items-center justify-start mt-[-40px] shrink-0 print:mt-[-20px]">
-                                    <div className="w-[70px] h-[70px] rounded-full flex items-center justify-center shrink-0 mb-3 print:mb-1 print:w-[60px] print:h-[60px]" style={{ filter: 'grayscale(1) contrast(1000%) brightness(1.1)', opacity: 0.9 }}>
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Emblem_of_Ethiopia.svg" alt="Emblem of Ethiopia" className="w-full h-full object-contain" />
+                            <div id="printable-receipt" className="p-8 md:p-12 font-serif bg-[#FDFCF8] print:p-4 print:text-[11px]" style={{ color: '#1a1a1a' }}>
+                                {/* Header Row 1: Model / Serial / Receipt No */}
+                                <div className="flex justify-between items-start mb-6 print:mb-2">
+                                    <div className="w-[150px]">
+                                        <p className="text-[14px] font-bold leading-tight">ሞዴል ፲፱</p>
+                                        <p className="text-[12px] italic">Model 19</p>
                                     </div>
-                                    <div className="flex flex-col text-center justify-center w-full">
-                                        <p className="text-[14px] font-bold leading-tight print:text-[12px]">በኢትዮጵያ ፌዴራላዊ ዲሞክራሲያዊ ሪፐብሊክ</p>
-                                        <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">The Federal Democratic Republic of Ethiopia</p>
-                                        <p className="text-[14px] font-bold leading-tight mt-2 print:mt-1 print:text-[12px]">የገንዘብና ኢኮኖሚ ትብብር ሚኒስቴር</p>
-                                        <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">Ministry of Finance and</p>
-                                        <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">Economic Cooperation</p>
+                                    <div className="text-center">
+                                        <p className="text-[14px] font-bold leading-tight">ሴሪ ሀ/13</p>
+                                        <p className="text-[12px] italic">Serial A/13</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[20px] font-bold">ቁ.</span>
+                                        <div className="w-[140px] border-b border-black h-[24px] relative">
+                                            <div className="absolute inset-0 flex items-center justify-center text-[16px] font-bold tracking-widest">{currentEntry.materialCode || 'N/A'}</div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="flex-1 text-[12px] space-y-4 print:space-y-2 print:text-[10px]">
-                                    <div className="flex items-end">
-                                        <span className="shrink-0 whitespace-nowrap">1. ዋጋው በገንዘብ ወጪ መዝገብ የተመዘገበት ተራ ቁጥር</span>
-                                        <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {currentEntry.expenditureRegistryNo || '—'}
+                                {isFixedAsset(selectedMaterial) && (
+                                    <div className="mb-6 print:mb-2 border border-dashed border-black/40 px-4 py-3 flex justify-between items-center">
+                                        <div>
+                                            <p className="text-[12px] font-bold">Asset QR Profile Code</p>
+                                            <p className="text-[11px] italic">Scan this code to open the role-based asset profile.</p>
                                         </div>
+                                        <p className="text-[14px] font-bold tracking-wider">{getAssetCode(selectedMaterial)}</p>
                                     </div>
-                                    <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Item No. In Expenditure Registry</p>
+                                )}
 
-                                    <div className="flex items-end">
-                                        <span className="shrink-0 whitespace-nowrap">2. ዕቃ ገቢ መዝገብ የገባበት ገጽ</span>
-                                        <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {currentEntry.incomingGoodsEntryNo || '—'}
+                                {/* Row 2: Emblem + Gov Text | Numbered lines */}
+                                <div className="flex justify-between gap-8 mb-6 print:mb-2">
+                                    <div className="w-[450px] flex flex-col items-center justify-start mt-[-40px] shrink-0 print:mt-[-20px]">
+                                        <div className="w-[70px] h-[70px] rounded-full flex items-center justify-center shrink-0 mb-3 print:mb-1 print:w-[60px] print:h-[60px]" style={{ filter: 'grayscale(1) contrast(1000%) brightness(1.1)', opacity: 0.9 }}>
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Emblem_of_Ethiopia.svg" alt="Emblem of Ethiopia" className="w-full h-full object-contain" />
+                                        </div>
+                                        <div className="flex flex-col text-center justify-center w-full">
+                                            <p className="text-[14px] font-bold leading-tight print:text-[12px]">በኢትዮጵያ ፌዴራላዊ ዲሞክራሲያዊ ሪፐብሊክ</p>
+                                            <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">The Federal Democratic Republic of Ethiopia</p>
+                                            <p className="text-[14px] font-bold leading-tight mt-2 print:mt-1 print:text-[12px]">የገንዘብና ኢኮኖሚ ትብብር ሚኒስቴር</p>
+                                            <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">Ministry of Finance and</p>
+                                            <p className="text-[11px] font-bold leading-tight uppercase print:text-[9px]">Economic Cooperation</p>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">No. of entry in the register of incoming goods</p>
 
-                                    <div className="flex items-end">
-                                        <span className="shrink-0 whitespace-nowrap">3. ለዕቃው የተሰጠው መደብ</span>
-                                        <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {getClassificationLabel(currentEntry.classificationOfStock || '') || (currentEntry.materialType === 'fixed_asset' ? 'Fixed Asset' : 'Consumable')}
+                                    <div className="flex-1 text-[12px] space-y-4 print:space-y-2 print:text-[10px]">
+                                        <div className="flex items-end">
+                                            <span className="shrink-0 whitespace-nowrap">1. ዋጋው በገንዘብ ወጪ መዝገብ የተመዘገበት ተራ ቁጥር</span>
+                                            <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
+                                                {currentEntry.expenditureRegistryNo || '—'}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Classification of stock</p>
+                                        <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Item No. In Expenditure Registry</p>
 
-                                    <div className="flex items-end">
-                                        <span className="shrink-0 whitespace-nowrap">4. ዕቃው የሚቀመጥበት መጋዝን ቁጥር</span>
-                                        <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {currentEntry.storeLocation || '—'}
+                                        <div className="flex items-end">
+                                            <span className="shrink-0 whitespace-nowrap">2. ዕቃ ገቢ መዝገብ የገባበት ገጽ</span>
+                                            <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
+                                                {currentEntry.incomingGoodsEntryNo || '—'}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Store No.</p>
+                                        <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">No. of entry in the register of incoming goods</p>
 
-                                    <div className="flex items-end">
-                                        <span className="shrink-0 whitespace-nowrap">5. የመደርደሪያው ቁጥር</span>
-                                        <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
-                                            {currentEntry.shelfNumber || '—'}
+                                        <div className="flex items-end">
+                                            <span className="shrink-0 whitespace-nowrap">3. ለዕቃው የተሰጠው መደብ</span>
+                                            <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
+                                                {getClassificationLabel(currentEntry.classificationOfStock || '') || (currentEntry.materialType === 'fixed_asset' ? 'Fixed Asset' : 'Consumable')}
+                                            </div>
                                         </div>
+                                        <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Classification of stock</p>
+
+                                        <div className="flex items-end">
+                                            <span className="shrink-0 whitespace-nowrap">4. ዕቃው የሚቀመጥበት መጋዝን ቁጥር</span>
+                                            <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
+                                                {currentEntry.storeLocation || '—'}
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Store No.</p>
+
+                                        <div className="flex items-end">
+                                            <span className="shrink-0 whitespace-nowrap">5. የመደርደሪያው ቁጥር</span>
+                                            <div className="flex-1 border-b border-black ml-3 h-[18px] flex items-end justify-center font-bold pb-[2px] print:h-[14px]">
+                                                {currentEntry.shelfNumber || '—'}
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Shelf No.</p>
                                     </div>
-                                    <p className="text-[10px] italic pl-4 -mt-1 print:text-[8px] print:-mt-0.5">Shelf No.</p>
                                 </div>
-                            </div>
 
-                            <div className="mb-8 relative w-[350px] print:mb-2">
-                                <div className="flex items-end">
-                                    <span className="text-[14px] font-bold leading-tight mr-2 print:text-[12px]">የ</span>
-                                    <div className="flex-1 border-b border-black h-[22px] flex items-end justify-center font-bold pb-1 text-[13px] print:h-[16px] print:text-[11px] print:pb-0">
-                                        {getDepartmentLabel(currentEntry.department || currentEntry.category || '')}
+                                <div className="mb-8 relative w-[350px] print:mb-2">
+                                    <div className="flex items-end">
+                                        <span className="text-[14px] font-bold leading-tight mr-2 print:text-[12px]">የ</span>
+                                        <div className="flex-1 border-b border-black h-[22px] flex items-end justify-center font-bold pb-1 text-[13px] print:h-[16px] print:text-[11px] print:pb-0">
+                                            {getDepartmentLabel(currentEntry.department || currentEntry.category || '')}
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] italic ml-10 mt-1 leading-none print:text-[9px]">
+                                        Department
                                     </div>
                                 </div>
-                                <div className="text-[11px] italic ml-10 mt-1 leading-none print:text-[9px]">
-                                    Department
+
+                                <div className="text-center mb-8 mt-2 relative print:mb-4 print:mt-1">
+                                    <p className="text-[20px] font-bold tracking-[0.2em] print:text-[16px]">
+                                        የዕቃ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ወይም &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; የንብረት &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ገቢ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ደረሰኝ
+                                    </p>
+                                    <p className="text-[13px] font-bold tracking-[0.05em] mt-1 border-b-[1.5px] border-black inline-block pb-0.5 print:text-[11px]">
+                                        RECEIPT FOR ARTICLES OR PROPERTY RECEIVED
+                                    </p>
                                 </div>
-                            </div>
 
-                            <div className="text-center mb-8 mt-2 relative print:mb-4 print:mt-1">
-                                <p className="text-[20px] font-bold tracking-[0.2em] print:text-[16px]">
-                                    የዕቃ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ወይም &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; የንብረት &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ገቢ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ደረሰኝ
-                                </p>
-                                <p className="text-[13px] font-bold tracking-[0.05em] mt-1 border-b-[1.5px] border-black inline-block pb-0.5 print:text-[11px]">
-                                    RECEIPT FOR ARTICLES OR PROPERTY RECEIVED
-                                </p>
-                            </div>
-
-                            <div className="space-y-2 mb-6 text-[12px] leading-relaxed print:mb-2 print:text-[10px]">
-                                <div className="relative">
-                                    <div className="flex items-end">
-                                        <span className="text-[14px] font-bold whitespace-nowrap mr-2 leading-tight print:text-[12px]">ስም</span>
-                                        <div className="w-[45%] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                            {currentEntry.responsiblePerson || '—'}
+                                <div className="space-y-2 mb-6 text-[12px] leading-relaxed print:mb-2 print:text-[10px]">
+                                    <div className="relative">
+                                        <div className="flex items-end">
+                                            <span className="text-[14px] font-bold whitespace-nowrap mr-2 leading-tight print:text-[12px]">ስም</span>
+                                            <div className="w-[45%] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
+                                                {currentEntry.responsiblePerson || '—'}
+                                            </div>
+                                            <span className="text-[14px] font-bold whitespace-nowrap ml-4 leading-tight print:text-[12px]">ከዚህ በታች በዝርዝር የተመለከተውን</span>
+                                            <div className="flex-1 border-b border-black h-[18px] ml-2 print:h-[14px]"></div>
                                         </div>
-                                        <span className="text-[14px] font-bold whitespace-nowrap ml-4 leading-tight print:text-[12px]">ከዚህ በታች በዝርዝር የተመለከተውን</span>
-                                        <div className="flex-1 border-b border-black h-[18px] ml-2 print:h-[14px]"></div>
+                                        <div className="flex text-[11px] italic mt-1 leading-none print:text-[9px]">
+                                            <span className="ml-[60px]">Name</span>
+                                            <span className="ml-[45%]">Received the following</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-end gap-1 relative mt-3 print:mt-2">
+                                        <div className="w-[20%] border-b border-black h-[18px] print:h-[14px]"></div>
+                                        <span className="text-[14px] font-bold whitespace-nowrap ml-2 leading-tight print:text-[12px]">ቀን ፳፻</span>
+                                        <div className="w-[60px] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
+                                            {currentEntry.purchaseDate || '—'}
+                                        </div>
+                                        <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ዓ.ም</span>
+
+                                        <span className="text-[14px] font-bold whitespace-nowrap ml-8 leading-tight print:text-[12px]">ከ</span>
+                                        <div className="flex-1 border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
+                                            {currentEntry.vendorName || '—'}
+                                        </div>
+                                        <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ተቀብያለሁ ::</span>
                                     </div>
                                     <div className="flex text-[11px] italic mt-1 leading-none print:text-[9px]">
-                                        <span className="ml-[60px]">Name</span>
-                                        <span className="ml-[45%]">Received the following</span>
+                                        <span className="ml-[25%]">Day 20</span>
+                                        <span className="ml-[24%]">From</span>
                                     </div>
                                 </div>
 
-                                <div className="flex items-end gap-1 relative mt-3 print:mt-2">
-                                    <div className="w-[20%] border-b border-black h-[18px] print:h-[14px]"></div>
-                                    <span className="text-[14px] font-bold whitespace-nowrap ml-2 leading-tight print:text-[12px]">ቀን ፳፻</span>
-                                    <div className="w-[60px] border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                        {currentEntry.purchaseDate || '—'}
-                                    </div>
-                                    <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ዓ.ም</span>
+                                <table className="w-full border-collapse border-[1.5px] border-black text-[12px] mb-8 print:mb-2 print:text-[10px]">
+                                    <thead>
+                                        <tr className="h-[40px] print:h-[30px]">
+                                            <th rowSpan={2} className="border border-black w-[45px] text-center p-0 align-middle print:w-[35px]">
+                                                <div className="font-bold">ተ.ቁ</div>
+                                                <div className="text-[9px] italic leading-tight print:text-[7px]">Serial<br />No.</div>
+                                                <div className="text-[8px] mt-1 print:text-[6px]">This</div>
+                                            </th>
+                                            <th rowSpan={2} className="border border-black px-2 align-middle min-w-[250px]">
+                                                <div className="font-bold text-center">የዕቃው ወይም የንብረት ዓይነት ዝርዝር</div>
+                                                <div className="text-[10px] italic text-center print:text-[8px]">Detailed Description of Articles or Property</div>
+                                            </th>
+                                            <th rowSpan={2} className="border border-black w-[60px] text-center align-middle print:w-[45px]">
+                                                <div className="font-bold">ሞዴል</div>
+                                                <div className="text-[9px] italic print:text-[7px]">Model</div>
+                                            </th>
+                                            <th rowSpan={2} className="border border-black w-[50px] text-center align-middle print:w-[40px]">
+                                                <div className="font-bold">ሴሪ</div>
+                                                <div className="text-[9px] italic print:text-[7px]">Serie</div>
+                                            </th>
+                                            <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
+                                                <div className="font-bold">ተከታታይ ገ.</div>
+                                                <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Page No.</div>
+                                            </th>
+                                            <th rowSpan={2} className="border border-black w-[60px] text-center align-middle print:w-[40px]">
+                                                <div className="font-bold">ብዛት</div>
+                                                <div className="text-[9px] italic print:text-[7px]">Quantity</div>
+                                            </th>
+                                            <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
+                                                <div className="font-bold">የአንዱ ዋጋ</div>
+                                                <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Unit price</div>
+                                            </th>
+                                            <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
+                                                <div className="font-bold">የዋጋው ድምር</div>
+                                                <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Total price</div>
+                                            </th>
+                                        </tr>
+                                        <tr className="h-[35px] print:h-[24px]">
+                                            <th className="border border-black w-[35px] text-center print:w-[25px]"><div className="font-bold">ከ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">From</div></th>
+                                            <th className="border border-black w-[35px] text-center print:w-[25px]"><div className="font-bold">እስከ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">To</div></th>
+                                            <th className="border border-black w-[50px] text-center print:w-[40px]"><div className="font-bold">ብር</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">Birr</div></th>
+                                            <th className="border border-black w-[30px] text-center print:w-[20px]"><div className="font-bold">ሳ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">C</div></th>
+                                            <th className="border border-black w-[50px] text-center print:w-[40px]"><div className="font-bold">ብር</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">Birr</div></th>
+                                            <th className="border border-black w-[30px] text-center print:w-[20px]"><div className="font-bold">ሳ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">C</div></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array.from({ length: 15 }).map((_, i) => {
+                                            if (i === 0) {
+                                                return (
+                                                    <tr key={i} className="h-[26px] print:h-[20px]">
+                                                        <td className="border border-black text-center print:text-[10px]">1</td>
+                                                        <td className="border border-black px-2 py-1 relative">
+                                                            <div className="font-bold text-[13px] print:text-[10px]">{currentEntry.materialName}</div>
+                                                            {currentEntry.description && <div className="text-[10px] text-gray-700 print:text-[8px]">{currentEntry.description}</div>}
+                                                            {currentEntry.image && (
+                                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 print:hidden">
+                                                                    <Image src={currentEntry.image} alt={currentEntry.materialName} fill className="object-cover rounded border border-gray-300" />
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="border border-black text-center print:text-[10px]">{currentEntry.model || '—'}</td>
+                                                        <td className="border border-black text-center print:text-[10px]">{currentEntry.serie || currentEntry.serialNumber || '—'}</td>
+                                                        <td className="border border-black text-center print:text-[10px]">{currentEntry.pageFrom || '—'}</td>
+                                                        <td className="border border-black text-center print:text-[10px]">{currentEntry.pageTo || '—'}</td>
+                                                        <td className="border border-black text-center font-bold print:text-[10px]">{currentEntry.originalQuantity || currentEntry.quantity}</td>
+                                                        <td className="border border-black text-center font-bold print:text-[10px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
+                                                        <td className="border border-black text-center text-[10px] print:text-[8px]">
+                                                            {currentEntry.unitPriceCents !== undefined
+                                                                ? currentEntry.unitPriceCents.toString().padStart(2, '0')
+                                                                : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                                        </td>
+                                                        <td className="border border-black text-center font-bold bg-[#fcfcfc] print:text-[10px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
+                                                        <td className="border border-black text-center text-[10px] bg-[#fcfcfc] print:text-[8px]">
+                                                            {currentEntry.totalPriceCents !== undefined
+                                                                ? currentEntry.totalPriceCents.toString().padStart(2, '0')
+                                                                : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
 
-                                    <span className="text-[14px] font-bold whitespace-nowrap ml-8 leading-tight print:text-[12px]">ከ</span>
-                                    <div className="flex-1 border-b border-black h-[18px] flex items-end justify-center font-bold text-[14px] print:h-[14px] print:text-[12px]">
-                                        {currentEntry.vendorName || '—'}
-                                    </div>
-                                    <span className="text-[14px] font-bold whitespace-nowrap leading-tight print:text-[12px]">ተቀብያለሁ ::</span>
-                                </div>
-                                <div className="flex text-[11px] italic mt-1 leading-none print:text-[9px]">
-                                    <span className="ml-[25%]">Day 20</span>
-                                    <span className="ml-[24%]">From</span>
-                                </div>
-                            </div>
-
-                            <table className="w-full border-collapse border-[1.5px] border-black text-[12px] mb-8 print:mb-2 print:text-[10px]">
-                                <thead>
-                                    <tr className="h-[40px] print:h-[30px]">
-                                        <th rowSpan={2} className="border border-black w-[45px] text-center p-0 align-middle print:w-[35px]">
-                                            <div className="font-bold">ተ.ቁ</div>
-                                            <div className="text-[9px] italic leading-tight print:text-[7px]">Serial<br />No.</div>
-                                            <div className="text-[8px] mt-1 print:text-[6px]">This</div>
-                                        </th>
-                                        <th rowSpan={2} className="border border-black px-2 align-middle min-w-[250px]">
-                                            <div className="font-bold text-center">የዕቃው ወይም የንብረት ዓይነት ዝርዝር</div>
-                                            <div className="text-[10px] italic text-center print:text-[8px]">Detailed Description of Articles or Property</div>
-                                        </th>
-                                        <th rowSpan={2} className="border border-black w-[60px] text-center align-middle print:w-[45px]">
-                                            <div className="font-bold">ሞዴል</div>
-                                            <div className="text-[9px] italic print:text-[7px]">Model</div>
-                                        </th>
-                                        <th rowSpan={2} className="border border-black w-[50px] text-center align-middle print:w-[40px]">
-                                            <div className="font-bold">ሴሪ</div>
-                                            <div className="text-[9px] italic print:text-[7px]">Serie</div>
-                                        </th>
-                                        <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
-                                            <div className="font-bold">ተከታታይ ገ.</div>
-                                            <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Page No.</div>
-                                        </th>
-                                        <th rowSpan={2} className="border border-black w-[60px] text-center align-middle print:w-[40px]">
-                                            <div className="font-bold">ብዛት</div>
-                                            <div className="text-[9px] italic print:text-[7px]">Quantity</div>
-                                        </th>
-                                        <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
-                                            <div className="font-bold">የአንዱ ዋጋ</div>
-                                            <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Unit price</div>
-                                        </th>
-                                        <th colSpan={2} className="border border-black text-center h-[20px] print:h-[16px]">
-                                            <div className="font-bold">የዋጋው ድምር</div>
-                                            <div className="text-[9px] italic mt-[-2px] print:text-[7px]">Total price</div>
-                                        </th>
-                                    </tr>
-                                    <tr className="h-[35px] print:h-[24px]">
-                                        <th className="border border-black w-[35px] text-center print:w-[25px]"><div className="font-bold">ከ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">From</div></th>
-                                        <th className="border border-black w-[35px] text-center print:w-[25px]"><div className="font-bold">እስከ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">To</div></th>
-                                        <th className="border border-black w-[50px] text-center print:w-[40px]"><div className="font-bold">ብር</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">Birr</div></th>
-                                        <th className="border border-black w-[30px] text-center print:w-[20px]"><div className="font-bold">ሳ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">C</div></th>
-                                        <th className="border border-black w-[50px] text-center print:w-[40px]"><div className="font-bold">ብር</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">Birr</div></th>
-                                        <th className="border border-black w-[30px] text-center print:w-[20px]"><div className="font-bold">ሳ</div><div className="text-[9px] italic mt-[-2px] print:text-[7px]">C</div></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {Array.from({ length: 15 }).map((_, i) => {
-                                        if (i === 0) {
                                             return (
                                                 <tr key={i} className="h-[26px] print:h-[20px]">
-                                                    <td className="border border-black text-center print:text-[10px]">1</td>
-                                                    <td className="border border-black px-2 py-1 relative">
-                                                        <div className="font-bold text-[13px] print:text-[10px]">{currentEntry.materialName}</div>
-                                                        {currentEntry.description && <div className="text-[10px] text-gray-700 print:text-[8px]">{currentEntry.description}</div>}
-                                                        {currentEntry.image && (
-                                                            <div className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 print:hidden">
-                                                                <Image src={currentEntry.image} alt={currentEntry.materialName} fill className="object-cover rounded border border-gray-300" />
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.model || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.serie || currentEntry.serialNumber || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.pageFrom || '—'}</td>
-                                                    <td className="border border-black text-center print:text-[10px]">{currentEntry.pageTo || '—'}</td>
-                                                    <td className="border border-black text-center font-bold print:text-[10px]">{currentEntry.originalQuantity || currentEntry.quantity}</td>
-                                                    <td className="border border-black text-center font-bold print:text-[10px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
-                                                    <td className="border border-black text-center text-[10px] print:text-[8px]">
-                                                        {currentEntry.unitPriceCents !== undefined
-                                                            ? currentEntry.unitPriceCents.toString().padStart(2, '0')
-                                                            : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
-                                                    </td>
-                                                    <td className="border border-black text-center font-bold bg-[#fcfcfc] print:text-[10px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
-                                                    <td className="border border-black text-center text-[10px] bg-[#fcfcfc] print:text-[8px]">
-                                                        {currentEntry.totalPriceCents !== undefined
-                                                            ? currentEntry.totalPriceCents.toString().padStart(2, '0')
-                                                            : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
-                                                    </td>
+                                                    <td className="border border-black text-center">{i + 1}</td>
+                                                    <td className="border border-black px-2 py-1"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center"></td>
+                                                    <td className="border border-black text-center bg-[#fcfcfc]"></td>
+                                                    <td className="border border-black text-center bg-[#fcfcfc]"></td>
                                                 </tr>
                                             );
-                                        }
+                                        })}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="h-[36px] print:h-[24px]">
+                                            <td colSpan={6} className="border-none"></td>
+                                            <td className="border border-black border-t-[1.5px] border-r-0 text-right pr-2 leading-tight" style={{ borderWidth: '1px', borderTopWidth: '1.5px', borderRightWidth: '0' }}>
+                                                <div className="font-bold text-[13px] print:text-[11px]">ድምር</div><div className="text-[11px] italic mt-[-2px] print:text-[9px]">Total</div>
+                                            </td>
+                                            <td className="border border-black border-t-[1.5px] text-center font-bold text-[14px] print:text-[11px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
+                                            <td className="border border-black border-t-[1.5px] text-center font-bold text-[12px] print:text-[10px]">
+                                                {currentEntry.unitPriceCents !== undefined
+                                                    ? currentEntry.unitPriceCents.toString().padStart(2, '0')
+                                                    : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                            </td>
+                                            <td className="border border-black border-t-[1.5px] text-center font-bold text-[15px] print:text-[12px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
+                                            <td className="border border-black border-t-[1.5px] text-center font-bold text-[13px] print:text-[11px]">
+                                                {currentEntry.totalPriceCents !== undefined
+                                                    ? currentEntry.totalPriceCents.toString().padStart(2, '0')
+                                                    : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
 
-                                        return (
-                                            <tr key={i} className="h-[26px] print:h-[20px]">
-                                                <td className="border border-black text-center">{i + 1}</td>
-                                                <td className="border border-black px-2 py-1"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center"></td>
-                                                <td className="border border-black text-center bg-[#fcfcfc]"></td>
-                                                <td className="border border-black text-center bg-[#fcfcfc]"></td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                                <tfoot>
-                                    <tr className="h-[36px] print:h-[24px]">
-                                        <td colSpan={6} className="border-none"></td>
-                                        <td className="border border-black border-t-[1.5px] border-r-0 text-right pr-2 leading-tight" style={{ borderWidth: '1px', borderTopWidth: '1.5px', borderRightWidth: '0' }}>
-                                            <div className="font-bold text-[13px] print:text-[11px]">ድምር</div><div className="text-[11px] italic mt-[-2px] print:text-[9px]">Total</div>
-                                        </td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[14px] print:text-[11px]">{Math.floor(currentEntry.unitPrice || 0)}</td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[12px] print:text-[10px]">
-                                            {currentEntry.unitPriceCents !== undefined
-                                                ? currentEntry.unitPriceCents.toString().padStart(2, '0')
-                                                : Math.round(((currentEntry.unitPrice || 0) % 1) * 100).toString().padStart(2, '0')}
-                                        </td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[15px] print:text-[12px]">{Math.floor(currentEntry.totalPrice || 0)}</td>
-                                        <td className="border border-black border-t-[1.5px] text-center font-bold text-[13px] print:text-[11px]">
-                                            {currentEntry.totalPriceCents !== undefined
-                                                ? currentEntry.totalPriceCents.toString().padStart(2, '0')
-                                                : Math.round(((currentEntry.totalPrice || 0) % 1) * 100).toString().padStart(2, '0')}
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-
-                            <div className="flex justify-between mb-12 print:mb-4">
-                                <div className="w-[280px] text-center">
-                                    <p className="font-bold text-[15px] print:text-[12px]">አስረካቢው</p>
-                                    <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Donor)</p>
-                                    <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
-                                        {currentEntry.vendorName || '—'}
+                                <div className="flex justify-between mb-12 print:mb-4">
+                                    <div className="w-[280px] text-center">
+                                        <p className="font-bold text-[15px] print:text-[12px]">አስረካቢው</p>
+                                        <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Donor)</p>
+                                        <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
+                                            {currentEntry.vendorName || '—'}
+                                        </div>
+                                    </div>
+                                    <div className="w-[280px] text-center">
+                                        <p className="font-bold text-[15px] print:text-[12px]">ተረካቢው</p>
+                                        <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Recipient)</p>
+                                        <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
+                                            {currentEntry.delivererRecipient || currentEntry.responsiblePerson || '—'}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="w-[280px] text-center">
-                                    <p className="font-bold text-[15px] print:text-[12px]">ተረካቢው</p>
-                                    <p className="text-[12px] italic mb-8 print:mb-2 print:text-[10px]">Deliverer (Recipient)</p>
-                                    <div className="border-b-[1.5px] border-black pb-1 h-[30px] flex items-end justify-center font-bold print:h-[20px]">
-                                        {currentEntry.delivererRecipient || currentEntry.responsiblePerson || '—'}
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div className="border-t-[1.5px] border-black pt-4 print:pt-2">
-                                <div className="flex items-start gap-4 text-[11px] leading-relaxed text-justify print:text-[9px]">
-                                    <span className="font-bold shrink-0 text-[13px] print:text-[11px]">ማሳሰቢያ:-</span>
-                                    <p>ይህ ካርቲ ሦስት ኮፒ ያለው ስለሆነ ሀ/ የመጀመሪያው ኮፒ ለሂሳብ ክፍል ለ/ ሁለተኛው ለገንዘብ ወጪ ክፍል ሐ/ ሦስተኛው ዋናው ለዕቃ ገቢ ክፍል ይላካ :: ገንዘብ ከመሣሪያ ሰነድ ጋር ተያይዞ በወጪ መዝገብ ለገንዘብና ኢኮኖሚ ትብብር ሚኒስቴር ለሒሳብ ማቅረቢያ ይላካል ተያያዘ :: ያዙው ለአስረካቢ ያጣቃ :: ሦስተኛው በማይነቀል ሆኖ ከካርዱ ጋር እንደሆነ ለገባው ማስረጃ ዕቃ ግምጃ ቤት ይቀመጣል :: የዋጋው ድምር በሚለው ውስጥ በብርና ወይም በሌላ ምክንያት የተገኘ ዕቃ ወይም ንብረት የሆነ እንደሆነ ዋጋው ኤክስፐርት ተገምቶ በዋጋው ምትክ ውስጥ ይገባል ::</p>
+                                <div className="border-t-[1.5px] border-black pt-4 print:pt-2">
+                                    <div className="flex items-start gap-4 text-[11px] leading-relaxed text-justify print:text-[9px]">
+                                        <span className="font-bold shrink-0 text-[13px] print:text-[11px]">ማሳሰቢያ:-</span>
+                                        <p>ይህ ካርቲ ሦስት ኮፒ ያለው ስለሆነ ሀ/ የመጀመሪያው ኮፒ ለሂሳብ ክፍል ለ/ ሁለተኛው ለገንዘብ ወጪ ክፍል ሐ/ ሦስተኛው ዋናው ለዕቃ ገቢ ክፍል ይላካ :: ገንዘብ ከመሣሪያ ሰነድ ጋር ተያይዞ በወጪ መዝገብ ለገንዘብና ኢኮኖሚ ትብብር ሚኒስቴር ለሒሳብ ማቅረቢያ ይላካል ተያያዘ :: ያዙው ለአስረካቢ ያጣቃ :: ሦስተኛው በማይነቀል ሆኖ ከካርዱ ጋር እንደሆነ ለገባው ማስረጃ ዕቃ ግምጃ ቤት ይቀመጣል :: የዋጋው ድምር በሚለው ውስጥ በብርና ወይም በሌላ ምክንያት የተገኘ ዕቃ ወይም ንብረት የሆነ እንደሆነ ዋጋው ኤክስፐርት ተገምቶ በዋጋው ምትክ ውስጥ ይገባል ::</p>
+                                    </div>
+                                    <p className="text-right text-[10px] mt-6 font-bold tracking-wider print:text-[8px] print:mt-2">አርቲስቲክ ማተሚያ ድርጅት 000988/10</p>
                                 </div>
-                                <p className="text-right text-[10px] mt-6 font-bold tracking-wider print:text-[8px] print:mt-2">አርቲስቲክ ማተሚያ ድርጅት 000988/10</p>
                             </div>
                         </div>
                     </div>
-                </div>
-            ); })()}
+                );
+            })()}
         </div>
     );
 }

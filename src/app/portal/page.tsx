@@ -34,7 +34,9 @@ export default function PortalPage() {
         approved: 0,
         rejected: 0,
         totalPersonnel: 0,
-        materialsInStore: 0,
+        totalInventory: 0,
+        totalQuantity: 0,
+        totalValue: 0,
         materialsOutFromStore: 0,
     });
     const [recentRequests, setRecentRequests] = useState<any[]>([]);
@@ -76,10 +78,30 @@ export default function PortalPage() {
 
                 // Fetch materials in store
                 const materialsSnap = await getDocs(collection(db, 'materials'));
-                let inStore = 0;
-                materialsSnap.forEach(doc => {
-                    const qty = Number(doc.data().quantity) || 0;
-                    if (qty > 0) inStore++;
+                let totalInventoryCount = 0;
+                let totalQty = 0;
+                let totalVal = 0;
+                materialsSnap.forEach(d => {
+                    const data = d.data();
+                    
+                    if (data.items && Array.isArray(data.items)) {
+                        data.items.forEach((item: any) => {
+                            const qty = Number(item.quantity) || 0;
+                            const birr = Number(item.unitPriceBirr) || 0;
+                            const cents = Number(item.unitPriceCents) || 0;
+                            const price = birr + (cents / 100);
+                            
+                            totalVal += qty * price;
+                            totalQty += qty;
+                            totalInventoryCount++;
+                        });
+                    } else {
+                        const qty = Number(data.quantity) || 0;
+                        const price = Number(data.unitPrice) || 0;
+                        totalVal += qty * price;
+                        totalQty += qty;
+                        totalInventoryCount++;
+                    }
                 });
 
                 // Count unique users + total materials out from store (accepted or issued in User-Report)
@@ -97,7 +119,9 @@ export default function PortalPage() {
                     approved: b.approved,
                     rejected: b.rejected,
                     totalPersonnel: uniqueHolders.size,
-                    materialsInStore: inStore,
+                    totalInventory: totalInventoryCount,
+                    totalQuantity: totalQty,
+                    totalValue: totalVal,
                     materialsOutFromStore: totalOut,
                 });
 
@@ -169,6 +193,27 @@ export default function PortalPage() {
                         <StatCard
                             label="Total Requests"
                             value={stats.totalRequests}
+                            icon={FiActivity}
+                            color="text-blue-600"
+                            bg="bg-blue-50"
+                        />
+                        <StatCard
+                            label="Materials Registered"
+                            value={stats.totalInventory}
+                            icon={FiPackage}
+                            color="text-indigo-600"
+                            bg="bg-indigo-50"
+                        />
+                        <StatCard
+                            label="Registered Quantity"
+                            value={stats.totalQuantity}
+                            icon={FiBox}
+                            color="text-emerald-600"
+                            bg="bg-emerald-50"
+                        />
+                        <StatCard
+                            label="Total Value (ETB)"
+                            value={stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) as any}
                             icon={FiActivity}
                             color="text-blue-600"
                             bg="bg-blue-50"

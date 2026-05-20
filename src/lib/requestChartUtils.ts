@@ -16,6 +16,7 @@ export type DashboardBucketCounts = {
   pending: number;
   approved: number;
   rejected: number;
+  in_progress?: number;
   total: number;
 };
 
@@ -30,7 +31,7 @@ function strStatus(status: unknown): string {
 export function categorizeDashboardStatus(
   status: unknown,
   mode: DashboardStatsMode
-): 'pending' | 'approved' | 'rejected' {
+): 'pending' | 'approved' | 'rejected' | 'in_progress' {
   const s = strStatus(status);
   if (s.includes('rejected')) return 'rejected';
 
@@ -55,16 +56,17 @@ export function categorizeDashboardStatus(
     case 'academic':
     case 'academic_coordinator':
       if (s === 'completed') return 'approved';
+      if (s === 'approved_by_head') return 'pending';
       if (s.includes('approved')) return 'approved';
-      return 'pending';
+      return 'in_progress';
     case 'md':
       if (['approved_by_md', 'completed', 'received', 'issued'].includes(s)) return 'approved';
-      if (['approved_by_coordinator'].includes(s)) return 'pending';
-      return 'pending';
+      if (['approved_by_coordinator', 'pending_managing_director', 'approved_by_student_service_leader'].includes(s)) return 'pending';
+      return 'in_progress';
     case 'team_leader':
       if (s.includes('approved') || s === 'completed' || s === 'received' || s === 'issued') return 'approved';
       if (s.includes('forwarded_to_team_leader') || s === 'pending_procurement') return 'pending';
-      return 'pending';
+      return 'in_progress';
     default:
       return 'pending';
   }
@@ -77,42 +79,47 @@ export function countDashboardBuckets(
   let pending = 0;
   let approved = 0;
   let rejected = 0;
+  let in_progress = 0;
   for (const d of docs) {
     const b = categorizeDashboardStatus(d.status, mode);
     if (b === 'pending') pending++;
     else if (b === 'approved') approved++;
-    else rejected++;
+    else if (b === 'rejected') rejected++;
+    else in_progress++;
   }
   return {
     pending,
     approved,
     rejected,
+    in_progress,
     total: docs.length,
   };
 }
 
 export type PieSlice = { name: string; value: number; fill: string };
 
-const PIE_ORDER = ['pending', 'approved', 'rejected'] as const;
+const PIE_ORDER = ['pending', 'in_progress', 'approved', 'rejected'] as const;
 
 export function dashboardBucketsToPieData(
   counts: DashboardBucketCounts,
   variant: 'light' | 'dark'
 ): PieSlice[] {
-  // Distinct colors: amber for pending, emerald for approved, rose for rejected
+  // Distinct colors: amber for pending, purple for in progress, emerald for approved, rose for rejected
   const colors =
     variant === 'dark'
-      ? { pending: '#fbbf24', approved: '#34d399', rejected: '#fb7185' }
-      : { pending: '#f59e0b', approved: '#10b981', rejected: '#f43f5e' };
+      ? { pending: '#fbbf24', in_progress: '#a78bfa', approved: '#34d399', rejected: '#fb7185' }
+      : { pending: '#f59e0b', in_progress: '#8b5cf6', approved: '#10b981', rejected: '#f43f5e' };
 
   const labels: Record<(typeof PIE_ORDER)[number], string> = {
-    pending: 'Pending requests',
+    pending: 'Pending Action',
+    in_progress: 'In Progress (Others)',
     approved: 'Approved',
     rejected: 'Rejected',
   };
 
   const map: Record<(typeof PIE_ORDER)[number], number> = {
     pending: counts.pending,
+    in_progress: counts.in_progress ?? 0,
     approved: counts.approved,
     rejected: counts.rejected,
   };
@@ -135,6 +142,7 @@ export function buildLastNMonthsStackedData(
     key: string;
     name: string;
     pending: number;
+    in_progress: number;
     approved: number;
     rejected: number;
   }[] = [];
@@ -146,6 +154,7 @@ export function buildLastNMonthsStackedData(
       key,
       name: d.toLocaleString('default', { month: 'short' }),
       pending: 0,
+      in_progress: 0,
       approved: 0,
       rejected: 0,
     });
@@ -160,14 +169,16 @@ export function buildLastNMonthsStackedData(
     const cat = categorizeDashboardStatus(doc.status, mode);
     if (cat === 'pending') b.pending++;
     else if (cat === 'approved') b.approved++;
-    else b.rejected++;
+    else if (cat === 'rejected') b.rejected++;
+    else b.in_progress++;
   }
 
-  return buckets.map(({ name, pending, approved, rejected }) => ({
+  return buckets.map(({ name, pending, in_progress, approved, rejected }) => ({
     name,
     pending,
+    in_progress,
     approved,
     rejected,
-    total: pending + approved + rejected,
+    total: pending + in_progress + approved + rejected,
   }));
 }

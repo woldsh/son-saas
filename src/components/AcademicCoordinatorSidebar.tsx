@@ -35,6 +35,7 @@ import {
     ArrowDownLeft,
     Route,
     LayoutDashboard,
+    Boxes,
     Clock,
     Video,
     Bell,
@@ -118,7 +119,7 @@ export default function AcademicCoordinatorSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RefreshCw, hasDivider: true },

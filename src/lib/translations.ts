@@ -77,7 +77,7 @@ export const translations = {
         manage_account: "Manage Account",
         profile: "Profile",
         password: "Password",
-        properties: "Properties",
+        properties: "My Assets List",
         meeting: "Start Meeting",
         join_meeting: "Join Meeting",
         history: "History",
@@ -113,7 +113,7 @@ export const translations = {
         finance_employee: "Finance Employee",
         personal_account: "Personal Account",
         approvals: "Approval",
-        verification_code: "Verification Code",
+        verification_code: "Confirm Receipt",
 
         // Sidebar Specific
         view_ac_report: "View AC Report",
@@ -146,6 +146,7 @@ export const translations = {
         feedback: "Feedback",
         my_assets: "My Assets",
         my_assets_dashboard_sub: "Accepted items in your custody",
+        available_materials: "Available Materials",
         total_feedback: "Total feedback",
         total_feedback_sub: "AC & MD rejections and quantity notes on your requests",
         my_custody_list: "My Assets List",
@@ -805,7 +806,7 @@ export const translations = {
         finance_employee: "የፋይናንስ ሰራተኛ",
         personal_account: "የግል መለያ",
         approvals: "ማጽደቂያ",
-        verification_code: "የማረጋገጫ ኮድ",
+        verification_code: "ደረሰኝ ያረጋግጡ",
 
         // Sidebar Specific
         view_ac_report: "የAC ሪፖርት እይ",
@@ -837,7 +838,8 @@ export const translations = {
         my_requisition_history: "የጥያቄ ታሪክ",
         feedback: "አስተያየት",
         my_assets: "የእኔ ንብረቶች",
-        my_assets_dashboard_sub: "የተቀበሉ በእርስዎ ቁጥጥር ሥር ያሉ እቃዎች",
+        my_assets_dashboard_sub: "በእርስዎ ጥበቃ ስር ያሉ የተቀበሏቸው ንብረቶች",
+        available_materials: "የሚገኙ ንብረቶች",
         total_feedback: "ጠቅላላ አስተያየት",
         total_feedback_sub: "በጥያቄዎችዎ ላይ ከአካዳሚክ አስተባባሪ እና ማኔጂንግ ዳይሬክተር ያለ አስተያየት (እና ማስተካከያ)",
         my_custody_list: "የእኔ ንብረቶች ዝርዝር",

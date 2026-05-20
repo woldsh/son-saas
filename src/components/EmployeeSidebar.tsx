@@ -29,7 +29,8 @@ import {
     ArrowDownLeft,
     Route,
     LayoutDashboard,
-    Clock
+    Clock,
+    Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -65,12 +66,13 @@ export default function EmployeeSidebar() {
                 { label: t('feedback'), href: `${basePath}/feedback`, icon: MessageSquare },
             ]
         },
+
         {
             label: t('my_assets'),
             icon: Package,
             subItems: [
-                { label: t('my_custody_list'), href: `/workspace/properties`, icon: User },
-
+                { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials/personal`, icon: Boxes },
             ]
         },
         { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RefreshCw, hasDivider: true },
@@ -131,9 +133,16 @@ export default function EmployeeSidebar() {
                         {menuItems.map((item, index) => {
                             const isDropdown = !!item.subItems;
                             const isDropdownOpen = openDropdown === item.label;
-                            const isActive = item.href === basePath
-                                ? pathname === basePath
-                                : pathname?.startsWith(item.href || '');
+                            let isActive = false;
+                            if (!isDropdown) {
+                                if (item.href === basePath) {
+                                    isActive = pathname === basePath;
+                                } else if (item.href?.endsWith('available-materials')) {
+                                    isActive = pathname === item.href;
+                                } else {
+                                    isActive = pathname?.startsWith(item.href || '') || false;
+                                }
+                            }
 
                             const Icon = item.icon;
 

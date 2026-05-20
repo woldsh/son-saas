@@ -7,13 +7,13 @@ import { useSidebar } from '../contexts/SidebarContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, type DocumentData, type DocumentSnapshot } from 'firebase/firestore';
 import {
     LayoutDashboard,
+    Boxes,
     ClipboardList,
     CheckSquare,
     FileBarChart,
-    Store,
     FileText,
     ClipboardCheck,
     MessageSquare,
@@ -23,10 +23,8 @@ import {
     Route,
     User,
     AlertCircle,
-    Wrench,
     Settings,
     ArrowRightLeft,
-    Truck,
     RotateCcw,
     BarChart2,
     Layers,
@@ -34,7 +32,8 @@ import {
     ChevronDown,
     ChevronUp,
     ShieldCheck,
-    Timer
+    Timer,
+    type LucideIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRequestNotification } from '../hooks/useRequestNotification'
@@ -42,6 +41,23 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { useStockAlerts } from '../hooks/useStockAlerts';
 import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
+
+type SidebarMenuItem = {
+    label: string;
+    href?: string;
+    icon: LucideIcon;
+    badge?: number;
+    subItems?: SidebarMenuItem[];
+    hasDivider?: boolean;
+    isHeader?: false;
+};
+
+type SidebarHeaderItem = {
+    isHeader: true;
+    label: string;
+};
+
+type SidebarItem = SidebarMenuItem | SidebarHeaderItem;
 
 export default function ProcurementTeamLeaderSidebar() {
     const pathname = usePathname();
@@ -58,11 +74,12 @@ export default function ProcurementTeamLeaderSidebar() {
 
     useEffect(() => {
         if (!db || !userRole) return;
-        const unsubscribe = onSnapshot(doc(db!, "meeting_sessions", "current_executive_meeting"), (docSnap: any) => {
+        const unsubscribe = onSnapshot(doc(db!, "meeting_sessions", "current_executive_meeting"), (docSnap: DocumentSnapshot<DocumentData>) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const role = userRole.toLowerCase();
-                const isInvited = data.invitedRoles.includes(role) || data.isPublic;
+                const invitedRoles = Array.isArray(data.invitedRoles) ? data.invitedRoles as string[] : [];
+                const isInvited = invitedRoles.includes(role) || data.isPublic === true;
                 setMeetingInvite(isInvited);
             } else {
                 setMeetingInvite(false);
@@ -79,7 +96,7 @@ export default function ProcurementTeamLeaderSidebar() {
         setOpenDropdown(openDropdown === label ? null : label);
     };
 
-    const menuItems = [
+    const menuItems: SidebarItem[] = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
         {
             label: t('approvals') || "Approval",
@@ -87,8 +104,6 @@ export default function ProcurementTeamLeaderSidebar() {
             badge: requestCount,
             subItems: [
                 { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
-                { label: t('view_material_transfer_request'), href: `${basePath}/view-material-transfer-request`, icon: History },
-                { label: t('stock_handover') || 'Stock Handover Requests', href: `${basePath}/stock-handover-requests`, icon: ClipboardCheck },
             ],
             hasDivider: true
         },
@@ -101,8 +116,8 @@ export default function ProcurementTeamLeaderSidebar() {
                 { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
                 { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileBarChart },
                 { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
+                { label: 'Audit Trail', href: `${basePath}/audit-logs`, icon: History },
                 { label: 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
-                { label: t('gate_pass'), href: `${basePath}/gate-pass`, icon: FileText },
                 { label: 'Material Transfer Order', href: `${basePath}/material-transfer-order`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
@@ -134,7 +149,7 @@ export default function ProcurementTeamLeaderSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {
@@ -187,7 +202,7 @@ export default function ProcurementTeamLeaderSidebar() {
 
                     {/* Navigation Items */}
                     <nav className="flex-1 overflow-y-auto px-3.5 py-2 custom-scrollbar space-y-0.5">
-                        {menuItems.map((item: any, index) => {
+                        {menuItems.map((item, index) => {
                             if (item.isHeader) {
                                 return (
                                     <div key={index} className="px-4 py-4 md:py-5 first:pt-2">
@@ -218,7 +233,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                                 <span className="text-[15px] whitespace-nowrap flex-1 text-left">
                                                     {item.label}
                                                 </span>
-                                                {item.badge > 0 && !isDropdownOpen && (
+                                                {(item.badge ?? 0) > 0 && !isDropdownOpen && (
                                                     <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-500/20 mr-2">
                                                         {item.badge}
                                                     </span>
@@ -240,7 +255,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                                         className="overflow-hidden"
                                                     >
                                                         <div className="mt-1 space-y-0.5 pl-4">
-                                                            {item.subItems?.map((subItem: any, subIndex: number) => {
+                                                            {item.subItems?.map((subItem, subIndex) => {
                                                                 const isNestedDropdown = !!subItem.subItems;
                                                                 const isNestedOpen = openNestedDropdown === subItem.label;
                                                                 const SubIcon = subItem.icon;
@@ -257,7 +272,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                                                             >
                                                                                 <SubIcon size={18} strokeWidth={1.5} className={isNestedOpen ? 'text-blue-600' : 'text-slate-400'} />
                                                                                 <span className="text-[14px] flex-1 text-left">{subItem.label}</span>
-                                                                                {subItem.badge > 0 && (
+                                                                                {(subItem.badge ?? 0) > 0 && (
                                                                                     <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-500/20 mr-2">
                                                                                         {subItem.badge}
                                                                                     </span>
@@ -274,19 +289,19 @@ export default function ProcurementTeamLeaderSidebar() {
                                                                                         className="overflow-hidden"
                                                                                     >
                                                                                         <div className="mt-1 space-y-0.5 pl-6">
-                                                                                            {subItem.subItems.map((nestedItem: any, nestedIndex: number) => {
+                                                                                            {(subItem.subItems ?? []).map((nestedItem, nestedIndex) => {
                                                                                                 const NestedIcon = nestedItem.icon;
                                                                                                 const isNestedActive = pathname === nestedItem.href;
                                                                                                 return (
                                                                                                     <Link
                                                                                                         key={`nested-${nestedIndex}`}
-                                                                                                        href={nestedItem.href}
+                                                                                                        href={nestedItem.href || '#'}
                                                                                                         onClick={handleLinkClick}
                                                                                                         className={`flex items-center gap-3.5 px-6 py-2.5 rounded-[12px] transition-all duration-200 ${isNestedActive ? 'bg-blue-50/40 text-blue-700 font-medium' : 'text-slate-500 hover:bg-gray-100/40 hover:text-slate-800'}`}
                                                                                                     >
                                                                                                         <NestedIcon size={16} strokeWidth={1.5} className={isNestedActive ? 'text-blue-600' : 'text-slate-400'} />
                                                                                                         <span className="text-[13px] flex-1 text-left">{nestedItem.label}</span>
-                                                                                                        {nestedItem.badge > 0 && (
+                                                                                                        {(nestedItem.badge ?? 0) > 0 && (
                                                                                                             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-rose-500 text-white text-[10px] font-black rounded-full shadow-lg shadow-rose-500/20 ml-auto">
                                                                                                                 {nestedItem.badge}
                                                                                                             </span>
@@ -307,7 +322,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                                                 return (
                                                                     <Link
                                                                         key={subIndex}
-                                                                        href={subItem.href}
+                                                                        href={subItem.href || '#'}
                                                                         onClick={handleLinkClick}
                                                                         className={`flex items-center gap-3.5 px-6 py-3 rounded-[12px] transition-all duration-200 ${isSubActive
                                                                             ? 'bg-blue-50/40 text-blue-700 font-medium'
@@ -318,7 +333,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                                                         <span className="text-[14px]">
                                                                             {subItem.label}
                                                                         </span>
-                                                                        {subItem.badge > 0 && (
+                                                                        {(subItem.badge ?? 0) > 0 && (
                                                                             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-500/20 ml-auto">
                                                                                 {subItem.badge}
                                                                             </span>
@@ -344,7 +359,7 @@ export default function ProcurementTeamLeaderSidebar() {
                                             <span className="text-[15px] whitespace-nowrap flex-1">
                                                 {item.label}
                                             </span>
-                                            {item.badge > 0 && (
+                                            {(item.badge ?? 0) > 0 && (
                                                 <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg shadow-blue-500/20">
                                                     {item.badge}
                                                 </span>

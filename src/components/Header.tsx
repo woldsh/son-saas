@@ -233,7 +233,7 @@ export default function Header({ title, subtitle, isDark }: HeaderProps) {
                                                     <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center group-hover:border-indigo-100 transition-all shadow-sm">
                                                         <FiBox className="text-lg text-slate-400 group-hover:text-indigo-500" />
                                                     </div>
-                                                    <span className="font-bold text-sm tracking-tight">{t('properties') || 'My Properties'}</span>
+                                                    <span className="font-bold text-sm tracking-tight">{t('properties') || 'My Assets List'}</span>
                                                 </Link>
                                                 <Link
                                                     href={`${basePath}/manage-account`}

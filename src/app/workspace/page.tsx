@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProcurementTeamLeaderDashboardContent from '@/components/ProcurementTeamLeaderDashboardContent';
+import StockClerkDashboardContent from '@/components/StockClerkDashboardContent';
+import StoreKeeperDashboardContent from '@/components/StoreKeeperDashboardContent';
 
 interface RecentRequest {
     id: string;
@@ -158,6 +160,22 @@ export default function WorkspacePage() {
         return (
             <ProtectedRoute>
                 <ProcurementTeamLeaderDashboardContent />
+            </ProtectedRoute>
+        );
+    }
+
+    if (userRole?.includes('stock_clerk')) {
+        return (
+            <ProtectedRoute>
+                <StockClerkDashboardContent />
+            </ProtectedRoute>
+        );
+    }
+
+    if (userRole?.includes('store_keeper')) {
+        return (
+            <ProtectedRoute>
+                <StoreKeeperDashboardContent />
             </ProtectedRoute>
         );
     }
@@ -332,38 +350,6 @@ export default function WorkspacePage() {
                                     </div>
                                 </Link>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Store Keeper Specific View */}
-                    {userRole?.includes('store_keeper') && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Link href="/workspace/requests" className="bg-white border-2 border-transparent hover:border-blue-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-blue-500/10 transition-all group">
-                                <div className="flex items-start gap-6">
-                                    <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                                        <ClipboardList className="w-8 h-8" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-blue-600 transition-colors">Verify Handouts</h3>
-                                        <p className="text-slate-500 text-sm leading-relaxed">
-                                            Process material requests that have been approved by the clerk. Finalize the issuance and generate the official Model 22.
-                                        </p>
-                                    </div>
-                                </div>
-                            </Link>
-                            <Link href="/workspace/materials-list" className="bg-white border-2 border-transparent hover:border-emerald-100 p-8 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-emerald-500/10 transition-all group">
-                                <div className="flex items-start gap-6">
-                                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                                        <Box className="w-8 h-8" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-black text-2xl text-slate-900 tracking-tight mb-2 group-hover:text-emerald-600 transition-colors">Store Inventory</h3>
-                                        <p className="text-slate-500 text-sm leading-relaxed">
-                                            View the full list of materials currently in your store. Check quantities, bin locations, and monitor low stock levels.
-                                        </p>
-                                    </div>
-                                </div>
-                            </Link>
                         </div>
                     )}
 

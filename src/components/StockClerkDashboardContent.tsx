@@ -1,32 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, query, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import {
     FiClipboard,
     FiClock,
     FiCheckCircle,
-    FiXCircle,
     FiActivity,
-    FiPackage,
-    FiFileText,
-    FiBox,
     FiTrendingUp,
     FiTrendingDown,
     FiAlertCircle,
     FiUsers,
+    FiFilePlus
 } from 'react-icons/fi';
-import RequestDashboardCharts from '@/components/RequestDashboardCharts';
-import {
-    buildLastNMonthsStackedData,
-    countDashboardBuckets,
-    dashboardBucketsToPieData,
-} from '@/lib/requestChartUtils';
 
-export default function ProcurementTeamLeaderDashboardContent() {
+
+export default function StockClerkDashboardContent() {
     const { user } = useAuth();
     const [userName, setUserName] = useState('');
     const [stats, setStats] = useState({
@@ -43,68 +35,82 @@ export default function ProcurementTeamLeaderDashboardContent() {
         consumables: 0,
         totalPersonnel: 0,
         materialsOutFromStore: 0,
+        processedToday: 0,
     });
-    const [recentRequests, setRecentRequests] = useState<any[]>([]);
-    const [allRequests, setAllRequests] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
-
-    const bucketCounts = useMemo(
-        () => countDashboardBuckets(allRequests as { status?: unknown }[], 'team_leader'),
-        [allRequests]
-    );
-    const pieData = useMemo(() => [
-        { name: 'Pending Requests', value: bucketCounts.pending, fill: '#f59e0b' },
-        { name: 'Approved', value: bucketCounts.approved, fill: '#10b981' },
-        { name: 'Rejected', value: bucketCounts.rejected, fill: '#f43f5e' },
-        { name: 'Total Requests', value: bucketCounts.total, fill: '#3b82f6' },
-    ].filter(d => d.value > 0), [bucketCounts]);
-
-    const stackedBarData = useMemo(
-        () => buildLastNMonthsStackedData(allRequests, 'team_leader', 6),
-        [allRequests]
-    );
 
     useEffect(() => {
         const fetchData = async () => {
             if (!user || !db) return;
             try {
+                let currentUserRole = '';
                 // Fetch user doc for name
                 const userDoc = await getDoc(doc(db, 'users', user.uid));
                 if (userDoc.exists()) {
-                    setUserName(userDoc.data().displayName || 'Team Leader');
+                    const uData = userDoc.data();
+                    setUserName(uData.displayName || 'Stock Clerk');
+                    currentUserRole = uData.userRole || '';
                 }
 
-                // Fetch all requests
+                // Fetch all requests to calculate pending for clerk
                 const requestsRef = collection(db, 'Request_materials');
-                const q = query(requestsRef, orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                const b = countDashboardBuckets(docs as { status?: unknown }[], 'team_leader');
+                const snapshot = await getDocs(requestsRef);
+                let clerkPending = 0;
+                
+                snapshot.docs.forEach(docSnap => {
+                    const d = docSnap.data();
+                    
+                    if (d.status !== 'approved_by_procurement_team_leader' && d.status !== 'approved_by_md') {
+                        return;
+                    }
+
+                    const hasMatchingType = d.items?.some((item: any) => {
+                        const itemType = item.materialType?.toLowerCase() || '';
+                        if (currentUserRole.includes('fixed')) {
+                            return itemType.includes('fixed') || itemType === 'fixed_asset';
+                        } else if (currentUserRole.includes('consumable')) {
+                            return itemType.includes('consumable') || itemType === 'consumable';
+                        }
+                        return true;
+                    });
+                    
+                    if (hasMatchingType) {
+                        clerkPending++;
+                    }
+                });
 
                 // Fetch materials in store for health and value metrics
                 const materialsSnap = await getDocs(collection(db, 'materials'));
                 let lowCount = 0;
                 let outOfStockCount = 0;
                 let totalVal = 0;
+                let totalQuantity = 0;
                 let fixedAssetsCount = 0;
                 let consumablesCount = 0;
 
                 let totalInventoryCount = 0;
-                let totalQuantityCount = 0;
 
                 materialsSnap.forEach(d => {
                     const data = d.data();
+                    
+                    // Filter by domain (fixed vs consumable)
+                    if (currentUserRole.includes('fixed') && data.materialType !== 'fixed_asset') return;
+                    if (currentUserRole.includes('consumable') && data.materialType !== 'consumable') return;
+                    
+                    // Filter by clerk who registered it
+                    if (data.registeredBy !== user.uid) return;
+                    
                     if (data.items && Array.isArray(data.items)) {
                         data.items.forEach((item: any) => {
                             const qty = Number(item.quantity) || 0;
                             const birr = Number(item.unitPriceBirr) || 0;
                             const cents = Number(item.unitPriceCents) || 0;
                             const price = birr + (cents / 100);
-
+                            
                             totalVal += qty * price;
+                            totalQuantity += qty;
                             totalInventoryCount++;
-                            totalQuantityCount += qty;
-
+                            
                             if (qty === 0) outOfStockCount++;
                             else if (qty <= 10) lowCount++;
                         });
@@ -112,13 +118,13 @@ export default function ProcurementTeamLeaderDashboardContent() {
                         const qty = Number(data.quantity) || 0;
                         const price = Number(data.unitPrice) || 0;
                         totalVal += qty * price;
+                        totalQuantity += qty;
                         totalInventoryCount++;
-                        totalQuantityCount += qty;
-
+                        
                         if (qty === 0) outOfStockCount++;
                         else if (qty <= 10) lowCount++;
                     }
-
+                    
                     if (data.materialType === 'fixed_asset') fixedAssetsCount++;
                     else consumablesCount++;
                 });
@@ -132,26 +138,39 @@ export default function ProcurementTeamLeaderDashboardContent() {
                 const uniqueHolders = new Set(outDocs.map(d => d.data().requesterId).filter(Boolean));
                 const totalOut = outDocs.reduce((sum, d) => sum + (Number(d.data().quantity) || 1), 0);
 
+                // Today's completed
+                const sendToUsersSnap = await getDocs(collection(db, 'Send_to_Users'));
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                let todayCount = 0;
+                sendToUsersSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const ts = data.handout_date || data.createdAt;
+                    if (ts) {
+                        const dObj = typeof ts === 'string' ? new Date(ts) : ts.toDate?.() || ts;
+                        if (dObj && dObj >= today) todayCount++;
+                    }
+                });
+
                 setStats({
-                    totalRequests: b.total,
-                    pending: b.pending,
-                    approved: b.approved,
-                    rejected: b.rejected,
+                    totalRequests: snapshot.size,
+                    pending: clerkPending,
+                    approved: 0,
+                    rejected: 0,
                     totalValue: totalVal,
                     lowStock: lowCount,
                     outOfStock: outOfStockCount,
                     totalInventory: totalInventoryCount,
-                    totalQuantity: totalQuantityCount,
+                    totalQuantity: totalQuantity,
                     fixedAssets: fixedAssetsCount,
                     consumables: consumablesCount,
                     totalPersonnel: uniqueHolders.size,
                     materialsOutFromStore: totalOut,
+                    processedToday: todayCount,
                 });
 
-                setAllRequests(docs);
-                setRecentRequests(docs.slice(0, 5));
+
             } catch (error) {
-                console.error("Error fetching PTL dashboard data:", error);
+                console.error("Error fetching Stock Clerk dashboard data:", error);
             } finally {
                 setLoading(false);
             }
@@ -194,32 +213,42 @@ export default function ProcurementTeamLeaderDashboardContent() {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard
-                        label="Pending Approvals"
+                        label="Pending Action"
                         value={stats.pending}
                         icon={FiClock}
-                        color="text-amber-600"
-                        bg="bg-amber-50"
-                    />
-                    <StatCard
-                        label="Approved"
-                        value={stats.approved}
-                        icon={FiCheckCircle}
-                        color="text-emerald-600"
-                        bg="bg-emerald-50"
-                    />
-                    <StatCard
-                        label="Rejected"
-                        value={stats.rejected}
-                        icon={FiXCircle}
-                        color="text-red-600"
-                        bg="bg-red-50"
-                    />
-                    <StatCard
-                        label="Total Requests"
-                        value={stats.totalRequests}
-                        icon={FiActivity}
                         color="text-blue-600"
                         bg="bg-blue-50"
+                        hint="Needs Review"
+                    />
+                    <StatCard
+                        label="Completed"
+                        value={stats.processedToday}
+                        icon={FiCheckCircle}
+                        color="text-blue-600"
+                        bg="bg-blue-50"
+                        hint="Daily Throughput"
+                    />
+                    <StatCard
+                        label="Critical Stock"
+                        value={stats.lowStock}
+                        icon={FiAlertCircle}
+                        color="text-amber-600"
+                        bg="bg-amber-50"
+                        hint="Below Threshold"
+                    />
+                    <StatCard
+                        label="Materials Registered"
+                        value={stats.totalInventory}
+                        icon={FiActivity}
+                        color="text-indigo-600"
+                        bg="bg-indigo-50"
+                    />
+                    <StatCard
+                        label="Registered Quantity"
+                        value={stats.totalQuantity.toLocaleString()}
+                        icon={FiTrendingUp}
+                        color="text-emerald-600"
+                        bg="bg-emerald-50"
                     />
                     <StatCard
                         label="Users With Materials"
@@ -238,44 +267,13 @@ export default function ProcurementTeamLeaderDashboardContent() {
                         hint="Total quantity issued & out of store"
                     />
                     <StatCard
-                        label="Materials Registered"
-                        value={stats.totalInventory}
-                        icon={FiActivity}
-                        color="text-indigo-600"
-                        bg="bg-indigo-50"
-                    />
-                    <StatCard
-                        label="Registered Quantity"
-                        value={stats.totalQuantity.toLocaleString()}
-                        icon={FiTrendingUp}
-                        color="text-emerald-600"
-                        bg="bg-emerald-50"
-                    />
-                    <StatCard
                         label="Total Value (ETB)"
                         value={stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         icon={FiTrendingUp}
-                        color="text-emerald-600"
-                        bg="bg-emerald-50"
-                    />
-                    <StatCard
-                        label="Critical Stock"
-                        value={stats.lowStock}
-                        icon={FiAlertCircle}
-                        color="text-red-600"
-                        bg="bg-red-50"
-                        hint="Items low on stock"
+                        color="text-blue-600"
+                        bg="bg-blue-50"
                     />
                 </div>
-
-                <RequestDashboardCharts
-                    variant="light"
-                    pieData={pieData}
-                    stackedBarData={stackedBarData}
-                    totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
-                    pieTitle="Request Overview"
-                    barTitle="Last 6 months"
-                />
 
                 {/* Quick Actions */}
                 <div className="space-y-4">
@@ -283,83 +281,25 @@ export default function ProcurementTeamLeaderDashboardContent() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <ActionCard
                             href="/workspace/approve-requests"
-                            title="Review Requests"
-                            description="Approve or reject pending requisitions."
+                            title="Approve Requests"
+                            description="Review and approve material requisitions from departments."
                             icon={FiClipboard}
-                            color="text-blue-600"
-                        />
-                        <ActionCard
-                            href="/workspace/analytics"
-                            title="Analytics & Health"
-                            description="View stock health and usage trends."
-                            icon={FiActivity}
                             color="text-indigo-600"
                         />
                         <ActionCard
-                            href="/workspace/report-data"
-                            title="View Reports"
-                            description="Access comprehensive operational reports."
-                            icon={FiFileText}
+                            href="/workspace/register-material"
+                            title="Register Material"
+                            description="Add new materials or batches to the system inventory."
+                            icon={FiFilePlus}
                             color="text-emerald-600"
                         />
-                    </div>
-                </div>
-
-                {/* Recent Requests */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-slate-800">Recent Requests</h2>
-                        <Link href="/workspace/approve-requests" className="text-sm text-blue-600 hover:underline">
-                            View All
-                        </Link>
-                    </div>
-
-                    <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
-                        {recentRequests.length === 0 ? (
-                            <div className="p-8 text-center text-slate-500">
-                                No recent requests found.
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-500 border-b">
-                                        <tr>
-                                            <th className="px-6 py-3 font-medium">Date</th>
-                                            <th className="px-6 py-3 font-medium">Requester</th>
-                                            <th className="px-6 py-3 font-medium">Department</th>
-                                            <th className="px-6 py-3 font-medium">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {recentRequests.map(req => {
-                                            let dateStr = 'Unknown';
-                                            if (req.createdAt?.toDate) {
-                                                dateStr = req.createdAt.toDate().toLocaleDateString();
-                                            } else if (typeof req.createdAt === 'string') {
-                                                dateStr = new Date(req.createdAt).toLocaleDateString();
-                                            } else if (req.issued_date?.toDate) {
-                                                dateStr = req.issued_date.toDate().toLocaleDateString();
-                                            }
-
-                                            return (
-                                                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap">{dateStr}</td>
-                                                    <td className="px-6 py-4 font-medium text-slate-900">
-                                                        {req.requesterName || req.displayName || 'Unknown'}
-                                                    </td>
-                                                    <td className="px-6 py-4">{req.department || req.requester_department || '-'}</td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(req.status)}`}>
-                                                            {(req.status || 'pending').replace(/_/g, ' ')}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
+                        <ActionCard
+                            href="/workspace/low-stock"
+                            title="Stock Alerts"
+                            description="Monitor low stock, out of stock, and expiry notifications."
+                            icon={FiAlertCircle}
+                            color="text-amber-600"
+                        />
                     </div>
                 </div>
             </div>

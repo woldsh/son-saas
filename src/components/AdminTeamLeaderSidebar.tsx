@@ -30,7 +30,8 @@ import {
     ShieldCheck,
     ChevronDown,
     ChevronUp,
-    MessageSquare
+    MessageSquare,
+    Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SidebarResizeHandle from './SidebarResizeHandle';
@@ -38,7 +39,7 @@ import SidebarCollapseButton from './SidebarCollapseButton';
 
 export default function AdminTeamLeaderSidebar() {
     const pathname = usePathname();
-    const { userRole } = useAuth();
+    const { userRole, department } = useAuth();
     const isLeaderRole = userRole?.toLowerCase().replace(/\s+/g, '_').endsWith('_leader') || false;
     const basePath = isLeaderRole ? '/admin-staff/team-leader' : '/admin-panel';
     const { isOpen, closeSidebar, sidebarWidth, isCollapsed } = useSidebar();
@@ -55,6 +56,14 @@ export default function AdminTeamLeaderSidebar() {
         setOpenDropdown(openDropdown === label ? null : label);
     };
 
+    // Derive department from userRole if department field is empty
+    // e.g. "hrm_leader" -> "hrm", "computer_science_leader" -> "computer science"
+    const displayDepartment = department || (() => {
+        const normalized = userRole?.toLowerCase().replace(/\s+/g, '_') || '';
+        const cleaned = normalized.replace(/_(leader|head|team_leader)$/, '').replace(/_/g, ' ').trim();
+        return cleaned || '';
+    })();
+
     const menuItems = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
         {
@@ -64,8 +73,8 @@ export default function AdminTeamLeaderSidebar() {
             subItems: [
                 { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
             ],
-            hasDivider: true
         },
+        { label: `${t('available_materials')} ${displayDepartment ? `for ${displayDepartment.toUpperCase()}` : ''}`, href: `${basePath}/available-materials`, icon: Boxes, hasDivider: true },
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
         {
@@ -84,7 +93,7 @@ export default function AdminTeamLeaderSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials/personal`, icon: Boxes },
             ]
         },
         {
@@ -152,7 +161,18 @@ export default function AdminTeamLeaderSidebar() {
 
                             const isDropdown = !!item.subItems;
                             const isDropdownOpen = openDropdown === item.label;
-                            const isActive = !isDropdown && (item.href === basePath ? pathname === basePath : pathname?.startsWith(item.href || ''));
+                            
+                            // Prevent top-level 'available-materials' from matching 'available-materials/personal'
+                            let isActive = false;
+                            if (!isDropdown) {
+                                if (item.href === basePath) {
+                                    isActive = pathname === basePath;
+                                } else if (item.href?.endsWith('available-materials')) {
+                                    isActive = pathname === item.href;
+                                } else {
+                                    isActive = pathname?.startsWith(item.href || '') || false;
+                                }
+                            }
                             const Icon = item.icon;
 
                             return (
@@ -241,7 +261,7 @@ export default function AdminTeamLeaderSidebar() {
                             );
                         })}
                     </nav>
-                    
+
 
                 </div>
             </div>

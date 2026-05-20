@@ -19,6 +19,7 @@ import type { PieSlice } from '@/lib/requestChartUtils';
 export type StackedMonthRow = {
   name: string;
   pending: number;
+  in_progress?: number;
   approved: number;
   rejected: number;
   total: number;
@@ -49,6 +50,7 @@ export default function RequestDashboardCharts({
   const centerStrong = isDark ? '#f8fafc' : '#0f172a';
 
   const pendingFill = isDark ? '#fbbf24' : '#f59e0b';
+  const inProgressFill = isDark ? '#a78bfa' : '#8b5cf6';
   const approvedFill = isDark ? '#34d399' : '#10b981';
   const rejectedFill = isDark ? '#fb7185' : '#f43f5e';
 
@@ -246,7 +248,8 @@ export default function RequestDashboardCharts({
                     <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{value}</span>
                   )}
                 />
-                <Bar dataKey="pending" stackId="req" name="Pending Requests" fill={pendingFill} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="pending" stackId="req" name="Pending Action" fill={pendingFill} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="in_progress" stackId="req" name="In Progress" fill={inProgressFill} radius={[0, 0, 0, 0]} />
                 <Bar dataKey="approved" stackId="req" name="Approved" fill={approvedFill} radius={[0, 0, 0, 0]} />
                 <Bar
                   dataKey="rejected"

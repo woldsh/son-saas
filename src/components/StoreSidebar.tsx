@@ -16,6 +16,7 @@ import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     LayoutDashboard,
+    Boxes,
     CheckSquare,
     ClipboardList,
     FileText,
@@ -155,7 +156,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             icon: Briefcase,
             subItems: [
                 { label: t('my_custody_list') || 'My Custody List', href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {
@@ -163,7 +164,6 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             icon: Send,
             subItems: [
                 { label: t('material_transfer'), href: `${basePath}/return-goods`, icon: RotateCcw },
-                { label: t('stock_handover') || 'Stock Handover', href: `${basePath}/stock-handover`, icon: ClipboardCheck },
             ],
             hasDivider: true
         },

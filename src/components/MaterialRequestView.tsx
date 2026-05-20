@@ -386,6 +386,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         setProcessingId(request.id);
 
         try {
+
             const requestRef = doc(db!, 'Request_materials', request.id);
 
             if (effectiveRole === 'dormitory_leader' || effectiveRole === 'cafeteria_leader' || effectiveRole === 'sports_leader' || effectiveRole === 'hrm_leader' || effectiveRole === 'finance_leader' || effectiveRole === 'dynamic_leader') {
@@ -930,6 +931,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         setIsBulkProcessing(true);
 
         try {
+
+
             const batch = writeBatch(db!);
 
             // 1. Fetch all necessary approver IDs concurrently to minimize waits

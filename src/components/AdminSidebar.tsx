@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
@@ -15,10 +14,26 @@ import {
     Users,
     Settings,
     Shield,
+    History,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    type LucideIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+type SidebarSubItem = {
+    label: string;
+    href: string;
+    icon: LucideIcon;
+};
+
+type SidebarItem = {
+    label: string;
+    href?: string;
+    icon: LucideIcon;
+    subItems?: SidebarSubItem[];
+    hasDivider?: boolean;
+};
 
 export default function AdminSidebar() {
     const pathname = usePathname();
@@ -37,10 +52,11 @@ export default function AdminSidebar() {
         setOpenDropdown(openDropdown === label ? null : label);
     };
 
-    const menuItems = [
+    const menuItems: SidebarItem[] = [
         { label: t('dashboard'), href: '/admin', icon: LayoutDashboard },
         { label: t('enroll_personnel'), href: '/admin/enroll-personnel', icon: UserPlus },
         { label: t('manage_employee'), href: '/admin/manage-directory', icon: Users },
+        { label: 'Audit Trail', href: '/admin/audit-logs', icon: History },
         { label: t('manage_account'), href: '/admin/manage-account', icon: Settings },
     ];
 
@@ -96,7 +112,7 @@ export default function AdminSidebar() {
                     {/* Navigation Links */}
                     <nav className="flex-1 overflow-y-auto py-1 px-4 space-y-0.5 custom-scrollbar">
                         {menuItems.map((item, index) => {
-                            const isDropdown = !!(item as any).subItems;
+                            const isDropdown = !!item.subItems;
                             const isDropdownOpen = openDropdown === item.label;
                             const isActive = pathname === item.href;
 
@@ -134,7 +150,7 @@ export default function AdminSidebar() {
                                                         className="overflow-hidden"
                                                     >
                                                         <div className="mt-1 space-y-0.5 pl-4">
-                                                            {(item as any).subItems?.map((subItem: any, subIndex: number) => {
+                                                            {item.subItems?.map((subItem, subIndex) => {
                                                                 const SubIcon = subItem.icon;
                                                                 const isSubActive = pathname === subItem.href;
 
@@ -176,7 +192,7 @@ export default function AdminSidebar() {
                                         </Link>
                                     )}
 
-                                    {(item as any).hasDivider && (
+                                    {item.hasDivider && (
                                         <div className="h-px bg-gray-200/60 my-3 mx-2"></div>
                                     )}
                                 </div>
@@ -200,5 +216,3 @@ export default function AdminSidebar() {
         </>
     );
 }
-
-

@@ -10,6 +10,7 @@ import { useRequestNotification } from '../hooks/useRequestNotification'
 import { useIsMobile } from '../hooks/useIsMobile';;
 import {
     LayoutDashboard,
+    Boxes,
     BarChart3,
     Layers,
     ClipboardList,
@@ -93,7 +94,7 @@ export default function ManagingDirectorSidebar() {
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {

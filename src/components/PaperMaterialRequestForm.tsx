@@ -24,7 +24,7 @@ interface PaperMaterialRequestFormProps {
 export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperMaterialRequestFormProps) {
     const { user, userRole, department } = useAuth();
     const [mounted, setMounted] = useState(false);
-    
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -252,8 +252,11 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             rulesSnap.docs.forEach(doc => {
                 const data = doc.data();
                 if (data.materialName) {
+                    const normName = data.materialName.trim().toLowerCase();
+                    cooldownRules[normName] = data;
                     cooldownRules[data.materialName] = data;
                 }
+                cooldownRules[doc.id] = data;
             });
 
             // 1. Fetch user's active requests
@@ -281,9 +284,17 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                     return;
                 }
 
-                const rule = cooldownRules[materialName];
+                const rule = cooldownRules[materialName] || cooldownRules[materialName.trim().toLowerCase()];
 
                 if (rule) {
+                    // Check maxRequestedQuantity limit
+                    const reqQty = Number(item.quantity) || 0;
+                    if (rule.maxRequestedQuantity && rule.maxRequestedQuantity > 0 && reqQty > rule.maxRequestedQuantity) {
+                        setCooldownAlert(`⏳ "${materialName}" has a maximum requested quantity limit of ${rule.maxRequestedQuantity}. You cannot request ${reqQty} (እባክዎ ከ ${rule.maxRequestedQuantity} በታች ይጠይቁ)።`);
+                        setIsSubmitting(false);
+                        return;
+                    }
+
                     // Check past issuances
                     const matchingReports = userReports.filter(rep => rep.materialName === materialName);
                     for (const rep of matchingReports) {
@@ -364,7 +375,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             if (!approversSnap.empty) {
                 // If multiple, try to match department
                 let bestMatch = approversSnap.docs[0];
-                if (dept && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && !isStoreStaff) { 
+                if (dept && !isTeamLeaderSubmitting && !isMDSubmitting && !isACSubmitting && !isStoreStaff) {
                     const deptMatch = approversSnap.docs.find(d => d.data().department === dept);
                     if (deptMatch) bestMatch = deptMatch;
                 }

@@ -16,6 +16,7 @@ import {
     FiPackage,
     FiFileText,
     FiBox,
+    FiTrendingUp,
     FiTrendingDown,
 } from 'react-icons/fi';
 import RequestDashboardCharts from '@/components/RequestDashboardCharts';
@@ -34,7 +35,9 @@ export default function AcademicCoordinatorDashboardContent({ userName }: { user
         approved: 0,
         rejected: 0,
         totalPersonnel: 0,
-        materialsInStore: 0,
+        totalInventory: 0,
+        totalQuantity: 0,
+        totalValue: 0,
         materialsOutFromStore: 0,
     });
     const [recentRequests, setRecentRequests] = useState<any[]>([]);
@@ -70,23 +73,33 @@ export default function AcademicCoordinatorDashboardContent({ userName }: { user
 
                 // Fetch materials in store
                 const materialsSnap = await getDocs(collection(db, 'materials'));
-                let inStore = 0;
-                materialsSnap.forEach(doc => {
-                    const qty = Number(doc.data().quantity) || 0;
-                    if (qty > 0) inStore++;
+                let totalInventoryCount = 0;
+                let totalQty = 0;
+                let totalVal = 0;
+                materialsSnap.forEach(d => {
+                    const data = d.data();
+
+                    if (data.items && Array.isArray(data.items)) {
+                        data.items.forEach((item: any) => {
+                            const qty = Number(item.quantity) || 0;
+                            const birr = Number(item.unitPriceBirr) || 0;
+                            const cents = Number(item.unitPriceCents) || 0;
+                            const price = birr + (cents / 100);
+
+                            totalVal += qty * price;
+                            totalQty += qty;
+                            totalInventoryCount++;
+                        });
+                    } else {
+                        const qty = Number(data.quantity) || 0;
+                        const price = Number(data.unitPrice) || 0;
+                        totalVal += qty * price;
+                        totalQty += qty;
+                        totalInventoryCount++;
+                    }
                 });
 
-                setStats({
-                    totalRequests: b.total,
-                    pending: b.pending,
-                    approved: b.approved,
-                    rejected: b.rejected,
-                    totalPersonnel: 0,  // unused
-                    materialsInStore: inStore,
-                    materialsOutFromStore: 0,
-                });
-
-                // Count unique users + total materials out from store (accepted or issued in User-Report)
+                // Count unique users + total materials out from store
                 const userReportSnap = await getDocs(collection(db, 'User-Report'));
                 const outDocs = userReportSnap.docs.filter(d => {
                     const s = d.data().status;
@@ -94,7 +107,19 @@ export default function AcademicCoordinatorDashboardContent({ userName }: { user
                 });
                 const uniqueHolders = new Set(outDocs.map(d => d.data().requesterId).filter(Boolean));
                 const totalOut = outDocs.reduce((sum, d) => sum + (Number(d.data().quantity) || 1), 0);
-                setStats(prev => ({ ...prev, totalPersonnel: uniqueHolders.size, materialsOutFromStore: totalOut }));
+
+                setStats({
+                    totalRequests: b.total,
+                    pending: b.pending,
+                    approved: b.approved,
+                    rejected: b.rejected,
+                    totalPersonnel: uniqueHolders.size,
+                    totalInventory: totalInventoryCount,
+                    totalQuantity: totalQty,
+                    totalValue: totalVal,
+                    materialsOutFromStore: totalOut,
+                });
+
                 setRecentRequests(docs.slice(0, 5));
                 setAllRequests(docs);
             } catch (error) {
@@ -108,12 +133,12 @@ export default function AcademicCoordinatorDashboardContent({ userName }: { user
 
     if (loading) {
         return (
-            <div className="p-8">
-                <div className="animate-pulse space-y-4">
+            <div className="p-8 min-h-[60vh]">
+                <div className="max-w-7xl mx-auto animate-pulse space-y-8">
                     <div className="h-8 bg-slate-200 rounded w-1/3"></div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="h-24 bg-slate-200 rounded" />
+                        {Array.from({ length: 9 }).map((_, i) => (
+                            <div key={i} className="h-24 bg-slate-200 rounded-xl" />
                         ))}
                     </div>
                 </div>
@@ -122,148 +147,187 @@ export default function AcademicCoordinatorDashboardContent({ userName }: { user
     }
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">
-                    Welcome back, {userName.split(' ')[0]}
-                </h1>
-                <p className="text-slate-500 text-sm mt-1">
-                    Academic Coordinator Dashboard
-                </p>
-            </div>
+        <div className="min-h-screen bg-slate-50/50">
+            <div className="p-6 max-w-7xl mx-auto space-y-8">
+                {/* Header */}
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">
+                        Welcome back, {userName.split(' ')[0]}
+                    </h1>
+                    <p className="text-slate-500 text-sm mt-1">
+                        Academic Coordinator Dashboard
+                    </p>
+                </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <StatCard
-                    label="Pending Approvals"
-                    value={stats.pending}
-                    icon={FiClock}
-                    color="text-amber-600"
-                    bg="bg-amber-50"
-                />
-                <StatCard
-                    label="Approved"
-                    value={stats.approved}
-                    icon={FiCheckCircle}
-                    color="text-emerald-600"
-                    bg="bg-emerald-50"
-                />
-                <StatCard
-                    label="Rejected"
-                    value={stats.rejected}
-                    icon={FiXCircle}
-                    color="text-red-600"
-                    bg="bg-red-50"
-                />
-                <StatCard
-                    label="Total Requests"
-                    value={stats.totalRequests}
-                    icon={FiActivity}
-                    color="text-blue-600"
-                    bg="bg-blue-50"
-                />
-
-                <StatCard
-                    label="Users With Materials"
-                    value={stats.totalPersonnel}
-                    icon={FiUsers}
-                    color="text-sky-600"
-                    bg="bg-sky-50"
-                    hint="Unique users holding accepted items"
-                />
-                <StatCard
-                    label="Materials Out from Store"
-                    value={stats.materialsOutFromStore}
-                    icon={FiTrendingDown}
-                    color="text-rose-600"
-                    bg="bg-rose-50"
-                    hint="Total quantity issued & out of store"
-                />
-            </div>
-
-            <RequestDashboardCharts
-                variant="light"
-                pieData={pieData}
-                stackedBarData={stackedBarData}
-                totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
-                pieTitle="Request Overview"
-                barTitle="Last 6 months"
-            />
-
-            {/* Quick Actions */}
-            <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-800">Quick Actions</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <ActionCard
-                        href="/dashboard/approve-requests"
-                        title="Review Requests"
-                        description="Approve or reject pending material requests."
-                        icon={FiClipboard}
-                        color="text-blue-600"
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <StatCard
+                        label="Pending Approvals"
+                        value={stats.pending}
+                        icon={FiClock}
+                        color="text-amber-600"
+                        bg="bg-amber-50"
                     />
-                    <ActionCard
-                        href="/dashboard/full-inventory"
-                        title="Material List"
-                        description="View all store materials."
-                        icon={FiBox}
-                        color="text-indigo-600"
+                    <StatCard
+                        label="Approved"
+                        value={stats.approved}
+                        icon={FiCheckCircle}
+                        color="text-emerald-600"
+                        bg="bg-emerald-50"
                     />
-                    <ActionCard
-                        href="/dashboard/analytics"
-                        title="Analytics"
-                        description="View performance & usage data."
+                    <StatCard
+                        label="Rejected"
+                        value={stats.rejected}
+                        icon={FiXCircle}
+                        color="text-red-600"
+                        bg="bg-red-50"
+                    />
+                    <StatCard
+                        label="Total Requests"
+                        value={stats.totalRequests}
                         icon={FiActivity}
                         color="text-blue-600"
+                        bg="bg-blue-50"
                     />
-                    <ActionCard
-                        href="/dashboard/reports"
-                        title="AC Report"
-                        description="Access coordinator reports."
-                        icon={FiFileText}
+                    <StatCard
+                        label="Materials Registered"
+                        value={stats.totalInventory}
+                        icon={FiPackage}
+                        color="text-indigo-600"
+                        bg="bg-indigo-50"
+                    />
+                    <StatCard
+                        label="Registered Quantity"
+                        value={stats.totalQuantity}
+                        icon={FiBox}
                         color="text-emerald-600"
+                        bg="bg-emerald-50"
+                    />
+                    <StatCard
+                        label="Total Value (ETB)"
+                        value={stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) as any}
+                        icon={FiTrendingUp}
+                        color="text-blue-600"
+                        bg="bg-blue-50"
+                    />
+                    <StatCard
+                        label="Users With Materials"
+                        value={stats.totalPersonnel}
+                        icon={FiUsers}
+                        color="text-sky-600"
+                        bg="bg-sky-50"
+                        hint="Unique users holding accepted items"
+                    />
+                    <StatCard
+                        label="Materials Out from Store"
+                        value={stats.materialsOutFromStore}
+                        icon={FiTrendingDown}
+                        color="text-rose-600"
+                        bg="bg-rose-50"
+                        hint="Total quantity issued & out of store"
                     />
                 </div>
-            </div>
 
-            {/* Recent Requests */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-slate-800">Recent Requests</h2>
-                    <Link href="/dashboard/approve-requests" className="text-sm text-blue-600 hover:underline">
-                        View All
-                    </Link>
+                <RequestDashboardCharts
+                    variant="light"
+                    pieData={pieData}
+                    stackedBarData={stackedBarData}
+                    totalRequests={pieData.reduce((sum, d) => sum + d.value, 0)}
+                    pieTitle="Request Overview"
+                    barTitle="Last 6 months"
+                />
+
+                {/* Quick Actions */}
+                <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-slate-800">Quick Actions</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <ActionCard
+                            href="/dashboard/approve-requests"
+                            title="Review Requests"
+                            description="Approve or reject pending material requests."
+                            icon={FiClipboard}
+                            color="text-blue-600"
+                        />
+                        <ActionCard
+                            href="/dashboard/full-inventory"
+                            title="Material List"
+                            description="View all store materials."
+                            icon={FiBox}
+                            color="text-indigo-600"
+                        />
+                        <ActionCard
+                            href="/dashboard/analytics"
+                            title="Analytics"
+                            description="View performance & usage data."
+                            icon={FiActivity}
+                            color="text-blue-600"
+                        />
+                        <ActionCard
+                            href="/dashboard/reports"
+                            title="AC Report"
+                            description="Access coordinator reports."
+                            icon={FiFileText}
+                            color="text-emerald-600"
+                        />
+                    </div>
                 </div>
 
-                <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
-                    {recentRequests.length === 0 ? (
-                        <div className="p-8 text-center text-slate-500">
-                            No requests found.
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {recentRequests.map((req) => (
-                                <div key={req.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`p-2 rounded-full ${getStatusColor(req.status)}`}>
-                                            <FiActivity />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-slate-800">
-                                                Request #{req.id.slice(-6).toUpperCase()}
-                                            </p>
-                                            <p className="text-xs text-slate-500">
-                                                {req.requesterName || 'Unknown'} • {req.createdAt?.seconds ? new Date(req.createdAt.seconds * 1000).toLocaleDateString() : 'Just now'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getStatusBadge(req.status)}`}>
-                                        {String(req.status || '').replace(/_/g, ' ')}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                {/* Recent Requests */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-slate-800">Recent Requests</h2>
+                        <Link href="/dashboard/approve-requests" className="text-sm text-blue-600 hover:underline">
+                            View All
+                        </Link>
+                    </div>
+
+                    <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+                        {recentRequests.length === 0 ? (
+                            <div className="p-8 text-center text-slate-500">
+                                No requests found.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-slate-600">
+                                    <thead className="bg-slate-50 text-slate-500 border-b">
+                                        <tr>
+                                            <th className="px-6 py-3 font-medium">Date</th>
+                                            <th className="px-6 py-3 font-medium">Requester</th>
+                                            <th className="px-6 py-3 font-medium">Department</th>
+                                            <th className="px-6 py-3 font-medium">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {recentRequests.map(req => {
+                                            let dateStr = 'Unknown';
+                                            if (req.createdAt?.toDate) {
+                                                dateStr = req.createdAt.toDate().toLocaleDateString();
+                                            } else if (req.createdAt?.seconds) {
+                                                dateStr = new Date(req.createdAt.seconds * 1000).toLocaleDateString();
+                                            } else if (typeof req.createdAt === 'string') {
+                                                dateStr = new Date(req.createdAt).toLocaleDateString();
+                                            }
+
+                                            return (
+                                                <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">{dateStr}</td>
+                                                    <td className="px-6 py-4 font-medium text-slate-900">
+                                                        {req.requesterName || req.displayName || 'Unknown'}
+                                                    </td>
+                                                    <td className="px-6 py-4">{req.department || req.requester_department || '-'}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(req.status)}`}>
+                                                            {(req.status || 'pending').replace(/_/g, ' ')}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -281,7 +345,7 @@ function StatCard({
     hint,
 }: {
     label: string;
-    value: number;
+    value: number | string;
     icon: ComponentType<{ size?: number }>;
     color: string;
     bg: string;
@@ -329,14 +393,10 @@ function ActionCard({ href, title, description, icon: Icon, color }: any) {
     );
 }
 
-function getStatusColor(status: string) {
-    if (['approved', 'completed', 'received', 'issued'].includes(status)) return 'bg-emerald-100 text-emerald-600';
-    if (['rejected'].includes(status)) return 'bg-red-100 text-red-600';
-    return 'bg-amber-100 text-amber-600';
-}
-
 function getStatusBadge(status: string) {
-    if (['approved', 'completed', 'received', 'issued'].includes(status)) return 'bg-emerald-100 text-emerald-700';
-    if (['rejected'].includes(status)) return 'bg-red-100 text-red-700';
+    if (!status) return 'bg-amber-100 text-amber-700';
+    const s = status.toLowerCase();
+    if (['approved', 'completed', 'received', 'issued', 'approved_by_md'].includes(s) || s.includes('approved')) return 'bg-emerald-100 text-emerald-700';
+    if (['rejected'].includes(s) || s.includes('rejected')) return 'bg-red-100 text-red-700';
     return 'bg-amber-100 text-amber-700';
 }

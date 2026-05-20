@@ -39,7 +39,8 @@ import {
     LayoutDashboard,
     Clock,
     Video,
-    Bell
+    Bell,
+    Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -89,8 +90,8 @@ export default function DepartmentHeadSidebar() {
             subItems: [
                 { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
             ],
-            hasDivider: true
         },
+        { label: `${t('available_materials')} ${department ? `for ${department.toUpperCase()}` : ''}`, href: `${basePath}/available-materials`, icon: Boxes, hasDivider: true },
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
 
@@ -106,11 +107,11 @@ export default function DepartmentHeadSidebar() {
             ]
         },
         {
-            label: t('my_assets'),
+            label: t('assets_label'),
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials/personal`, icon: Boxes },
             ]
         },
         {
@@ -121,6 +122,7 @@ export default function DepartmentHeadSidebar() {
             ],
             hasDivider: true
         },
+        { label: t('manage_account'), href: `${basePath}/manage-account`, icon: Settings },
     ];
 
     return (
@@ -209,9 +211,16 @@ export default function DepartmentHeadSidebar() {
 
                             const isDropdown = !!item.subItems;
                             const isDropdownOpen = openDropdown === item.label;
-                            const isActive = item.href === basePath
-                                ? pathname === basePath
-                                : pathname?.startsWith(item.href || '#');
+                            let isActive = false;
+                            if (!isDropdown) {
+                                if (item.href === basePath) {
+                                    isActive = pathname === basePath;
+                                } else if (item.href?.endsWith('available-materials')) {
+                                    isActive = pathname === item.href;
+                                } else {
+                                    isActive = pathname?.startsWith(item.href || '#') || false;
+                                }
+                            }
 
                             const Icon = item.icon as any;
 

@@ -16,6 +16,7 @@ import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarCollapseButton from './SidebarCollapseButton';
 import {
     LayoutDashboard,
+    Boxes,
     CheckSquare,
     ClipboardList,
     FileText,
@@ -132,7 +133,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-
+                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {

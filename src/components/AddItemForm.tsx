@@ -15,6 +15,9 @@ import {
     FaCheckCircle,
     FaSpinner
 } from 'react-icons/fa';
+import { generateAssetCode } from '@/utils/assetIdentity';
+import { buildAuditActor, writeAuditLog } from '@/utils/auditTrail';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AddItemFormProps {
     type: 'fixed_asset' | 'consumable';
@@ -22,6 +25,7 @@ interface AddItemFormProps {
 
 export default function AddItemForm({ type }: AddItemFormProps) {
     const isFixed = type === 'fixed_asset';
+    const { user, userRole } = useAuth();
 
     const [formData, setFormData] = useState({
         materialName: '',
@@ -123,7 +127,7 @@ export default function AddItemForm({ type }: AddItemFormProps) {
         const finalUnit = formData.unit === 'Other' ? formData.otherUnit : formData.unit;
         const finalCondition = formData.condition === 'Other' ? formData.otherCondition : formData.condition;
 
-        const submissionData: any = {
+        const submissionData: Record<string, unknown> = {
             ...formData,
             category: finalCategory,
             unit: finalUnit,
@@ -139,6 +143,8 @@ export default function AddItemForm({ type }: AddItemFormProps) {
         if (isFixed) {
             submissionData.warrantyDate = formData.dateField;
             submissionData.AC_decition = 'non'; // Requirement for fixed assets
+            submissionData.assetCode = formData.materialCode || generateAssetCode();
+            submissionData.assetStatus = 'available';
         } else {
             submissionData.expiryDate = formData.dateField;
         }
@@ -151,7 +157,28 @@ export default function AddItemForm({ type }: AddItemFormProps) {
 
         try {
             if (!db) throw new Error("Firebase not initialized");
-            await addDoc(collection(db!, "materials"), submissionData);
+            const materialRef = await addDoc(collection(db!, "materials"), submissionData);
+            await writeAuditLog(db, {
+                actor: buildAuditActor(user, userRole),
+                action: isFixed ? 'fixed_asset_registered' : 'consumable_registered',
+                targetType: 'material',
+                targetId: materialRef.id,
+                targetName: formData.materialName,
+                newValue: {
+                    materialName: formData.materialName,
+                    materialCode: formData.materialCode,
+                    assetCode: submissionData.assetCode || null,
+                    materialType: type,
+                    quantity: formData.quantity,
+                    unit: finalUnit,
+                    unitPrice: formData.unitPrice,
+                    totalPrice,
+                    condition: finalCondition,
+                    storeLocation: formData.storeLocation,
+                    shelfNumber: formData.shelfNumber,
+                },
+                note: `${isFixed ? 'Fixed asset' : 'Consumable item'} registered in inventory`,
+            });
             setSubmitStatus({
                 type: 'success',
                 message: `${isFixed ? 'Fixed Asset' : 'Consumable'} Registered Successfully!`

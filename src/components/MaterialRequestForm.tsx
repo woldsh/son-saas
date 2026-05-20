@@ -163,7 +163,11 @@ export default function MaterialRequestForm() {
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [submitting, setSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [cooldownRules, setCooldownRules] = useState<Record<string, { cooldownDays: number; cooldownLabel: string }>>({});
+    const [cooldownRules, setCooldownRules] = useState<Record<string, {
+        cooldownDays: number;
+        cooldownLabel: string;
+        maxRequestedQuantity?: number;
+    }>>({});
     const [cooldownAlert, setCooldownAlert] = useState<string | null>(null);
 
     // Derived department logic (fallback to role-based if department is missing)
@@ -193,10 +197,18 @@ export default function MaterialRequestForm() {
     useEffect(() => {
         if (!db) return;
         const unsubscribe = onSnapshot(collection(db!, 'request_cooldown_rules'), (snapshot) => {
-            const rules: Record<string, { cooldownDays: number; cooldownLabel: string }> = {};
+            const rules: Record<string, {
+                cooldownDays: number;
+                cooldownLabel: string;
+                maxRequestedQuantity?: number;
+            }> = {};
             snapshot.docs.forEach(d => {
                 const data = d.data();
-                rules[d.id] = { cooldownDays: data.cooldownDays, cooldownLabel: data.cooldownLabel };
+                rules[d.id] = {
+                    cooldownDays: data.cooldownDays,
+                    cooldownLabel: data.cooldownLabel,
+                    maxRequestedQuantity: data.maxRequestedQuantity
+                };
             });
             setCooldownRules(rules);
         });
@@ -216,6 +228,17 @@ export default function MaterialRequestForm() {
     const addToCart = async (material: Material) => {
         // Check cooldown rule for this material
         const rule = cooldownRules[material.id];
+
+        // Validate maxRequestedQuantity limit
+        const existingItem = cart.find(item => item.id === material.id);
+        const currentQty = existingItem ? existingItem.requestedQuantity : 0;
+        const nextQty = currentQty + 1;
+        if (rule && rule.maxRequestedQuantity && rule.maxRequestedQuantity > 0 && nextQty > rule.maxRequestedQuantity) {
+            setCooldownAlert(
+                `⏳ "${material.materialName}" has a maximum requested quantity limit of ${rule.maxRequestedQuantity}. You cannot request more than this amount.`
+            );
+            return;
+        }
         if (user && db) {
             try {
                 // 1. Check if the user already has a pending/active request for this material (Applies to ALL materials)
@@ -308,6 +331,13 @@ export default function MaterialRequestForm() {
                 const newQty = item.requestedQuantity + delta;
                 const material = materials.find(m => m.id === id);
                 if (newQty > 0 && material && newQty <= material.quantity) {
+                    const rule = cooldownRules[id];
+                    if (rule && rule.maxRequestedQuantity && rule.maxRequestedQuantity > 0 && newQty > rule.maxRequestedQuantity) {
+                        setCooldownAlert(
+                            `⏳ "${item.materialName}" has a maximum requested quantity limit of ${rule.maxRequestedQuantity}. You cannot request more than this amount.`
+                        );
+                        return item;
+                    }
                     return { ...item, requestedQuantity: newQty };
                 }
             }
@@ -324,6 +354,15 @@ export default function MaterialRequestForm() {
         setSubmitting(true);
 
         try {
+            // Check maxRequestedQuantity on checkout
+            for (const item of cart) {
+                const rule = cooldownRules[item.id];
+                if (rule && rule.maxRequestedQuantity && rule.maxRequestedQuantity > 0 && item.requestedQuantity > rule.maxRequestedQuantity) {
+                    alert(`"${item.materialName}" exceeds the maximum requested quantity limit of ${rule.maxRequestedQuantity}. Please adjust your quantity.`);
+                    setSubmitting(false);
+                    return;
+                }
+            }
             let department = userData.department;
             if (!department && userData.userRole) {
                 department = userData.userRole

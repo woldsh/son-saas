@@ -64,7 +64,6 @@ export default function ManagingDirectorSidebar() {
             badge: requestCount,
             subItems: [
                 { label: t('view_requests'), href: `${basePath}/approve-requests`, icon: ClipboardList, badge: requestCount },
-                { label: t('view_ac_report'), href: `${basePath}/reports`, icon: FileText },
             ],
             hasDivider: true
         },
@@ -74,9 +73,9 @@ export default function ManagingDirectorSidebar() {
             subItems: [
                 { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
                 { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
+                { label: t('employee_report') || 'Employee Report', href: `${basePath}/employee-report`, icon: FileText },
             ]
         },
-
         { isHeader: true, label: t('personal_account') || "Personal Account" },
         {
             label: t('requisitions'),

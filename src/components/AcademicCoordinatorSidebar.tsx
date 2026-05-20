@@ -42,7 +42,8 @@ import {
     GraduationCap,
     BarChart3,
     Layers,
-    CheckSquare
+    CheckSquare,
+    FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -97,6 +98,7 @@ export default function AcademicCoordinatorSidebar() {
             icon: Package,
             subItems: [
                 { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: t('employee_report') || 'Employee Report', href: `/portal/employee-report`, icon: FileText },
                 { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
             ]
         },

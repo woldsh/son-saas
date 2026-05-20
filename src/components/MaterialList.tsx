@@ -594,16 +594,6 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                                     </div>
                                 </div>
 
-                                {isFixedAsset(selectedMaterial) && (
-                                    <div className="mb-6 print:mb-2 border border-dashed border-black/40 px-4 py-3 flex justify-between items-center">
-                                        <div>
-                                            <p className="text-[12px] font-bold">Asset QR Profile Code</p>
-                                            <p className="text-[11px] italic">Scan this code to open the role-based asset profile.</p>
-                                        </div>
-                                        <p className="text-[14px] font-bold tracking-wider">{getAssetCode(selectedMaterial)}</p>
-                                    </div>
-                                )}
-
                                 {/* Row 2: Emblem + Gov Text | Numbered lines */}
                                 <div className="flex justify-between gap-8 mb-6 print:mb-2">
                                     <div className="w-[450px] flex flex-col items-center justify-start mt-[-40px] shrink-0 print:mt-[-20px]">

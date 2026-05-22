@@ -25,6 +25,7 @@ import {
     Clipboard,
     Users,
     BarChart,
+    BarChart2,
     FilePlus,
     History,
     Route,
@@ -95,14 +96,15 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
         },
 
         {
-            label: "Stock Management",
+            label: t('stock_management'),
             icon: Package,
             subItems: [
-                { label: 'Register Material', href: `${basePath}/register-material`, icon: FilePlus },
-                { label: t('materials_list') || 'Materials List', href: `${basePath}/materials-list`, icon: Layers },
-                { label: 'Stock Record Card', href: `${basePath}/stock-record-card`, icon: ClipboardList },
+                { label: t('register_material'), href: `${basePath}/register-material`, icon: FilePlus },
+                { label: t('materials_list'), href: `${basePath}/materials-list`, icon: Layers },
+                { label: t('stock_record_card'), href: `${basePath}/stock-record-card`, icon: ClipboardList },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
+                { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
                 { label: t('material_transfer_report') || "Material Transfer Report", href: `${basePath}/material-transfer-report`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
@@ -134,7 +136,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
             icon: Package,
             subItems: [
                 { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
-                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
+                { label: t('available_materials_for_me'), href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {
@@ -195,7 +197,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                                 <div className="flex items-center gap-1.5 mt-1.5">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_6px_rgba(59,130,246,0.4)] animate-pulse"></div>
                                     <p className="text-[9px] font-black text-blue-600 uppercase tracking-[0.15em]">
-                                        ONLINE
+                                        {t('online_status')}
                                     </p>
                                 </div>
                             </div>

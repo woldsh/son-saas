@@ -98,8 +98,9 @@ export default function AcademicCoordinatorSidebar() {
             icon: Package,
             subItems: [
                 { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileText },
                 { label: t('employee_report') || 'Employee Report', href: `/portal/employee-report`, icon: FileText },
-                { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
+                { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
             ]
         },
 

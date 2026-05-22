@@ -698,7 +698,12 @@ export const translations = {
         analytics: "Analytics",
         request_cooldown: "Request Cooldown",
         material_transfer_order: "Material Transfer Order",
-        audit_log_sidebar: "Audit Log"
+        audit_log_sidebar: "Audit Log",
+        register_material: "Register Material",
+        stock_record_card: "Stock Record Card",
+        bin_card: "Bin Card",
+        available_materials_for_me: "Available Materials for me",
+        online_status: "ONLINE"
     },
     am: {
         // Nav
@@ -1399,6 +1404,11 @@ export const translations = {
         analytics: "ትንታኔ",
         request_cooldown: "የጥያቄ ማቀዝቀዣ ጊዜ",
         material_transfer_order: "የንብረት ዝውውር ትዕዛዝ",
-        audit_log_sidebar: "የኦዲት መዝገብ"
+        audit_log_sidebar: "የኦዲት መዝገብ",
+        register_material: "ንብረት መዝግብ",
+        stock_record_card: "የስቶክ መዝገብ ካርድ",
+        bin_card: "ቢን ካርድ",
+        available_materials_for_me: "ለእኔ የሚገኙ ንብረቶች",
+        online_status: "በመስመር ላይ"
     }
 };

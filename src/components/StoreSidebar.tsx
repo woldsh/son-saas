@@ -25,6 +25,7 @@ import {
     Clipboard,
     Users,
     BarChart,
+    BarChart2,
     FilePlus,
     History,
     Route,
@@ -120,14 +121,14 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             hasDivider: false
         },
         {
-            label: "Stock Management",
+            label: t('stock_management'),
             icon: Package,
             subItems: [
                 { label: t('materials_list'), href: `${basePath}/materials-list`, icon: Layers },
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
-                { label: 'Bin Card', href: `${basePath}/bin-card`, icon: Clipboard },
-                { label: t('material_transfer_report') || "Material Transfer Report", href: `${basePath}/material-transfer-report`, icon: FileText },
+                { label: t('bin_card'), href: `${basePath}/bin-card`, icon: Clipboard },
+                { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
@@ -156,8 +157,8 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
             label: t('my_assets') || "My Assets",
             icon: Briefcase,
             subItems: [
-                { label: t('my_custody_list') || 'My Custody List', href: `${basePath}/properties`, icon: User },
-                { label: `${t('available_materials')} for me`, href: `${basePath}/available-materials`, icon: Boxes },
+                { label: t('my_custody_list'), href: `${basePath}/properties`, icon: User },
+                { label: t('available_materials_for_me'), href: `${basePath}/available-materials`, icon: Boxes },
             ]
         },
         {
@@ -218,7 +219,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                                 <div className="flex items-center gap-1.5 mt-1.5">
                                     <div className={`w-2 h-2 ${isFixed ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.4)]'} rounded-full animate-pulse`}></div>
                                     <p className={`text-[9px] font-black ${isFixed ? 'text-emerald-600' : 'text-blue-600'} uppercase tracking-[0.15em]`}>
-                                        ONLINE
+                                        {t('online_status')}
                                     </p>
                                 </div>
                             </div>

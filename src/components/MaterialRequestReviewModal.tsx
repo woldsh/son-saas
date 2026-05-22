@@ -45,21 +45,21 @@ export default function MaterialRequestReviewModal({
 
     if (!mounted) return null;
 
-    const formattedDate = request.createdAt?.toDate?.() ? 
-        request.createdAt.toDate().toLocaleDateString('en-US', { 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+    const formattedDate = request.createdAt?.toDate?.() ?
+        request.createdAt.toDate().toLocaleDateString('en-US', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
         }) : 'Recent';
 
     return createPortal(
-        <div 
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 overflow-hidden" 
+        <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 overflow-hidden"
             onClick={onClose}
         >
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            
-            <div 
+
+            <div
                 className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300"
                 onClick={e => e.stopPropagation()}
             >
@@ -78,7 +78,7 @@ export default function MaterialRequestReviewModal({
                             </p>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-3 bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-2xl transition-all border border-slate-100 shadow-sm"
                     >
@@ -89,7 +89,7 @@ export default function MaterialRequestReviewModal({
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        
+
                         {/* Left Side: Info & History */}
                         <div className="lg:col-span-1 space-y-6">
                             <div>
@@ -169,14 +169,14 @@ export default function MaterialRequestReviewModal({
 
                 {/* Footer Actions */}
                 <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-                    <button 
+                    <button
                         onClick={onReject}
                         disabled={isProcessing}
                         className="px-8 py-3.5 bg-white text-slate-400 hover:text-red-500 rounded-[1.25rem] font-black text-xs uppercase tracking-widest transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50"
                     >
                         Reject
                     </button>
-                    <button 
+                    <button
                         onClick={onApprove}
                         disabled={isProcessing}
                         className="px-12 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[1.25rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-wait"
@@ -203,5 +203,5 @@ export default function MaterialRequestReviewModal({
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
             `}</style>
         </div>
-    , document.body);
+        , document.body);
 }

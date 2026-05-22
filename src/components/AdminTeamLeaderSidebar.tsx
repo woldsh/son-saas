@@ -64,7 +64,7 @@ export default function AdminTeamLeaderSidebar() {
         return cleaned || '';
     })();
 
-    const menuItems = [
+    const menuItems: any[] = [
         { label: t('dashboard'), href: basePath, icon: LayoutDashboard },
         {
             label: t('approvals') || "Approval",
@@ -75,6 +75,11 @@ export default function AdminTeamLeaderSidebar() {
             ],
         },
         { label: `${t('available_materials')} ${displayDepartment ? `for ${displayDepartment.toUpperCase()}` : ''}`, href: `${basePath}/available-materials`, icon: Boxes, hasDivider: true },
+
+        ...((userRole?.toLowerCase().includes('finance') || department?.toLowerCase().includes('finance')) ? [
+            { isHeader: true as const, label: t('operations_label') || "Finance Operations" },
+            { label: "Model 19 & 22", href: `${basePath}/report-data`, icon: FileBarChart, hasDivider: true },
+        ] : []),
 
         { isHeader: true, label: t('personal_account') || "Personal Account" },
         {
@@ -106,7 +111,6 @@ export default function AdminTeamLeaderSidebar() {
         },
         { label: t('manage_account'), href: `${basePath}/manage-account`, icon: Settings },
 
-        { isHeader: true, label: t('operations_label') || "Operations" },
     ];
 
     return (

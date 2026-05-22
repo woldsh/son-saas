@@ -468,13 +468,15 @@ export default function TransferApprovalsView() {
 
                                     {/* Approve / Reject Action Area */}
                                     <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-center gap-4 print:hidden">
-                                        <button
-                                            onClick={() => handleReject(order.id)}
-                                            disabled={processingIds.has(order.id)}
-                                            className={`px-8 py-3 border rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${processingIds.has(order.id) ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
-                                        >
-                                            <FiX /> Reject
-                                        </button>
+                                        {(effectiveRole === 'managing_director' || effectiveRole === 'academic_coordinator') && (
+                                            <button
+                                                onClick={() => handleReject(order.id)}
+                                                disabled={processingIds.has(order.id)}
+                                                className={`px-8 py-3 border rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${processingIds.has(order.id) ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
+                                            >
+                                                <FiX /> Reject
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleApprove(order)}
                                             disabled={processingIds.has(order.id)}

@@ -30,15 +30,16 @@ interface ProcessedItem {
 interface ClerkWorkReportProps {
     stockType?: 'fixed' | 'consumable' | 'all';
     roleType?: 'clerk' | 'keeper' | 'team_leader';
+    paperOnly?: boolean;
 }
 
-export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' }: ClerkWorkReportProps) {
+export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk', paperOnly = false }: ClerkWorkReportProps) {
     const { user } = useAuth();
     const [items, setItems] = useState<ProcessedItem[]>([]);
     const [registeredItems, setRegisteredItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [reportView, setReportView] = useState<'issued' | 'registered' | 'stock'>('issued');
-    const [viewFormat, setViewFormat] = useState<'table' | 'paper'>('table');
+    const [reportView, setReportView] = useState<'issued' | 'registered' | 'stock'>(paperOnly ? 'registered' : 'issued');
+    const [viewFormat, setViewFormat] = useState<'table' | 'paper'>(paperOnly ? 'paper' : 'table');
     const [stockInside, setStockInside] = useState<any[]>([]);
     const [stockOutside, setStockOutside] = useState<any[]>([]);
     const [rawMaterialDocs, setRawMaterialDocs] = useState<any[]>([]);
@@ -131,6 +132,14 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                 });
                 setSignaturesMap(sigsMap);
 
+                // Fetch Users to resolve names from UIDs
+                const usersSnap = await getDocs(collection(db!, 'users'));
+                const usersMap: Record<string, string> = {};
+                usersSnap.docs.forEach(doc => {
+                    const data = doc.data();
+                    usersMap[doc.id] = data.name || data.displayName || (data.firstName ? `${data.firstName} ${data.lastName || ''}`.trim() : null) || 'Unknown User';
+                });
+
                 // Fetch Materials (for Registration and Store Inventory)
                 const materialsRef = collection(db!, 'materials');
                 const materialsSnap = await getDocs(materialsRef);
@@ -177,7 +186,7 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                             processedDate: dateObj.toLocaleDateString('en-GB'),
                             rawDate: dateObj,
                             department: d.department || 'General',
-                            registeredBy: d.registeredBy
+                            registeredBy: d.registeredByName || usersMap[d.registeredBy] || d.registeredBy
                         };
 
                         // Add to Registration view only if I registered it (or team leader)
@@ -206,6 +215,13 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
 
         fetchData();
     }, [stockType, user?.uid, roleType]);
+
+    useEffect(() => {
+        if (paperOnly) {
+            setViewFormat('paper');
+            if (reportView === 'stock') setReportView('registered');
+        }
+    }, [paperOnly, reportView]);
 
     // Combined filter logic
     const filtered = useMemo(() => {
@@ -441,27 +457,33 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
                 <div>
                     <div className="flex items-center gap-3 mb-1">
-                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">{roleType === 'team_leader' ? 'System Work Report' : 'Work Report'}</h2>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                            {paperOnly ? 'Paper Reports' : (roleType === 'team_leader' ? 'System Work Report' : 'Work Report')}
+                        </h2>
                         <div className="flex bg-slate-100 p-1 rounded-lg">
-                            <button
-                                onClick={() => { setReportView('issued'); setViewFormat('table'); }}
-                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'issued' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Issuance
-                            </button>
-                            <button
-                                onClick={() => { setReportView('registered'); setViewFormat('table'); }}
-                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'registered' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Registration
-                            </button>
-                            <button
-                                onClick={() => { setReportView('stock'); setViewFormat('table'); }}
-                                className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'stock' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                Store Status
-                            </button>
-                            <div className="w-px bg-slate-300 mx-1"></div>
+                            {!paperOnly && (
+                                <>
+                                    <button
+                                        onClick={() => { setReportView('issued'); setViewFormat('table'); }}
+                                        className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'issued' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Issuance
+                                    </button>
+                                    <button
+                                        onClick={() => { setReportView('registered'); setViewFormat('table'); }}
+                                        className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'registered' && viewFormat === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Registration
+                                    </button>
+                                    <button
+                                        onClick={() => { setReportView('stock'); setViewFormat('table'); }}
+                                        className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${reportView === 'stock' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Store Status
+                                    </button>
+                                    <div className="w-px bg-slate-300 mx-1"></div>
+                                </>
+                            )}
                             <button
                                 onClick={() => { setReportView('registered'); setViewFormat('paper'); }}
                                 className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all flex items-center gap-1 ${reportView === 'registered' && viewFormat === 'paper' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -606,7 +628,7 @@ export default function ClerkWorkReport({ stockType = 'all', roleType = 'clerk' 
                                                 receiptNo={receiptNo}
                                                 department={itemsGrp[0]?.department}
                                                 registeredByName={itemsGrp[0]?.registeredBy}
-                                                createdAt={itemsGrp[0]?.processedDate}
+                                                createdAt={itemsGrp[0]?.rawDate?.toISOString() || itemsGrp[0]?.processedDate}
                                                 expenditureRegistryNo={rawDoc.expenditureRegistryNo}
                                                 incomingGoodsEntryNo={rawDoc.incomingGoodsEntryNo}
                                                 classificationOfStock={rawDoc.classificationOfStock}

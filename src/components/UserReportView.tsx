@@ -9,7 +9,7 @@ import {
     onSnapshot,
     orderBy,
     doc,
-    
+
     serverTimestamp,
     where,
     getDoc
@@ -408,12 +408,7 @@ export default function UserReportView() {
                                         </>
                                     )}
                                 </button>
-                                <button
-                                    onClick={() => handleReject(request)}
-                                    className="px-8 py-5 bg-white border-2 border-slate-100 text-slate-400 rounded-[1.5rem] font-black uppercase text-xs tracking-widest hover:border-red-500 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-3 group/reject"
-                                >
-                                    <FiXCircle className="text-2xl group-hover/reject:rotate-90 transition-transform duration-500" />
-                                </button>
+                                {/* Reject button removed based on requirements */}
                             </div>
                         </div>
                     ))}

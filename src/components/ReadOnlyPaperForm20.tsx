@@ -91,7 +91,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
 
     // Canvas setup
     useEffect(() => {
-        if (!isSigningMode) return;
+        if (!isSigningMode || signatureData) return;
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -107,7 +107,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
         }
-    }, [isSigningMode]);
+    }, [isSigningMode, signatureData]);
 
     const getPos = (e: React.MouseEvent | React.TouchEvent, c: HTMLCanvasElement) => {
         const r = c.getBoundingClientRect();
@@ -134,12 +134,7 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
         if (c) setSignatureData(c.toDataURL());
     };
     const clearSig = () => {
-        const c = canvasRef.current; if (!c) return;
-        const ctx = c.getContext('2d'); if (!ctx) return;
-        ctx.clearRect(0, 0, c.width, c.height);
         setSignatureData(null);
-        ctx.strokeStyle = '#0033aa'; ctx.lineWidth = 2;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     };
 
     const handlePrint = () => {
@@ -451,16 +446,18 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
 
                 {/* APPROVAL ACTIONS */}
                 <div style={{ marginTop: 60, display: 'flex', gap: 16, justifyContent: 'center', borderTop: '1px dashed #cbd5e1', paddingTop: 32 }} className="print-hide">
-                    <button
-                        onClick={onReject}
-                        style={{
-                            padding: '12px 32px', borderRadius: 8,
-                            background: '#fff', border: '2px solid #ef4444',
-                            color: '#ef4444', fontWeight: 700, cursor: 'pointer',
-                            fontSize: 14, textTransform: 'uppercase'
-                        }}>
-                        Reject
-                    </button>
+                    {(isAcademicCoordinator || isManagingDirector) && (
+                        <button
+                            onClick={onReject}
+                            style={{
+                                padding: '12px 32px', borderRadius: 8,
+                                background: '#fff', border: '2px solid #ef4444',
+                                color: '#ef4444', fontWeight: 700, cursor: 'pointer',
+                                fontSize: 14, textTransform: 'uppercase'
+                            }}>
+                            Reject
+                        </button>
+                    )}
                     <button
                         onClick={isStockClerk ? onProcessModel22 : handleApproveWithSignature}
                         disabled={isProcessing || (canAdjust && isQuantityChanged && !adjustmentNote.trim())}

@@ -9,8 +9,8 @@ import {
     onSnapshot,
     orderBy,
     doc,
-    
-    
+
+
     serverTimestamp,
     where,
     getDocs,
@@ -1338,6 +1338,8 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         );
     }
 
+    const canReject = effectiveRole === 'managing_director' || effectiveRole === 'academic_coordinator';
+
     const themeColor = effectiveRole === 'academic_coordinator' ? 'amber' :
         effectiveRole === 'managing_director' ? 'indigo' :
             effectiveRole === 'dormitory_leader' ? 'blue' :
@@ -1494,9 +1496,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             <button onClick={handleBulkApprove} disabled={isBulkProcessing} className="font-bold hover:text-emerald-400 transition-colors flex items-center gap-1">
                                 <FiCheckCircle /> Approve
                             </button>
-                            <button onClick={handleBulkReject} disabled={isBulkProcessing} className="font-bold hover:text-red-400 transition-colors flex items-center gap-1">
-                                <FiXCircle /> Reject
-                            </button>
+                            {canReject && (
+                                <button onClick={handleBulkReject} disabled={isBulkProcessing} className="font-bold hover:text-red-400 transition-colors flex items-center gap-1">
+                                    <FiXCircle /> Reject
+                                </button>
+                            )}
                             <button onClick={() => setSelectedRequests([])} className="text-slate-400 hover:text-white">
                                 <FiXCircle />
                             </button>
@@ -1726,9 +1730,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                             Process Request <FiArrowRight />
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
-                                                        <FiXCircle size={16} />
-                                                    </button>
+                                                    {canReject && (
+                                                        <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
+                                                            <FiXCircle size={16} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -1833,9 +1839,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     >
                                                         {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
                                                     </button>
-                                                    <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
-                                                        <FiXCircle size={16} />
-                                                    </button>
+                                                    {canReject && (
+                                                        <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
+                                                            <FiXCircle size={16} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}

@@ -17,6 +17,8 @@ import {
     FiDollarSign, FiTarget, FiZap, FiCrosshair, FiDatabase
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // ────────────────────────────────────────────────
 // Types
@@ -71,6 +73,12 @@ interface AnalyticsData {
 
     // Budget
     budgetByDept: any[];
+
+    // Advanced Features
+    deadStockItems: any[];
+    deadStockValue: number;
+    financialSpent: number;
+    financialSaved: number;
 }
 
 type DateRange = '7d' | '30d' | '90d' | 'all';
@@ -553,12 +561,73 @@ export default function AnalyticsDashboardContent() {
                 }
 
                 if (runOutDate) {
+                    // AI Reorder Logic
+                    const leadTimeDays = 14; // Average 2 weeks delivery
+                    const safetyStockDays = 7;
+                    const reorderPoint = baseVelocity * (leadTimeDays + safetyStockDays);
+                    const reorderQuantity = Math.max(Math.ceil(reorderPoint * 1.5), 10); // Order 1.5x of point, min 10
+
                     predictiveAlerts.push({
                         itemName: name, currentStock: d.currentStock,
                         velocity: parseFloat(baseVelocity.toFixed(1)),
                         runOutDate, intersectsEvent: intersectingEvent,
-                        daysRemaining: Math.floor((runOutDate.getTime() - nowTime) / 86400000)
+                        daysRemaining: Math.floor((runOutDate.getTime() - nowTime) / 86400000),
+                        reorderQuantity
                     });
+                }
+            });
+
+            // ── Dead Stock Analysis ──
+            const requestedItemNames = new Set<string>();
+            allRequestsWithDates.forEach((r: any) => {
+                if (r.items && Array.isArray(r.items)) {
+                    r.items.forEach((item: any) => requestedItemNames.add((item.materialName || item.description || '').trim()));
+                } else if (r.materialName) {
+                    requestedItemNames.add(r.materialName.trim());
+                }
+            });
+
+            let deadStockValue = 0;
+            const deadStockItems: any[] = [];
+            allMaterials.forEach(m => {
+                if (m.quantity > 0 && !requestedItemNames.has(m.materialName)) {
+                    const val = (m.quantity * m.unitPrice) || 0;
+                    deadStockValue += val;
+                    deadStockItems.push({ 
+                        name: m.materialName, 
+                        quantity: m.quantity, 
+                        value: val, 
+                        daysStagnant: m.createdAt ? Math.floor((now.getTime() - m.createdAt.getTime()) / 86400000) : '>90' 
+                    });
+                }
+            });
+            deadStockItems.sort((a, b) => b.value - a.value);
+
+            // ── Spent vs Saved ──
+            let financialSpent = 0;
+            let financialSaved = 0;
+
+            currentPeriod.forEach((r: any) => {
+                const s = (r.status || '').toLowerCase();
+                let reqValue = 0;
+                if (r.items && Array.isArray(r.items)) {
+                    r.items.forEach((item: any) => {
+                        const name = (item.materialName || item.description || '').trim();
+                        const qty = Number(item.quantity) || 1;
+                        const price = Number(item.unitPrice) || priceMap[name] || 0;
+                        reqValue += qty * price;
+                    });
+                } else if (r.materialName) {
+                    const name = r.materialName.trim();
+                    const qty = Number(r.quantity) || 1;
+                    const price = Number(r.unitPrice) || priceMap[name] || 0;
+                    reqValue += qty * price;
+                }
+
+                if (s === 'completed' || s === 'delivered' || s.includes('handout')) {
+                    financialSpent += reqValue;
+                } else if (s.includes('rejected')) {
+                    financialSaved += reqValue;
                 }
             });
 
@@ -578,7 +647,9 @@ export default function AnalyticsDashboardContent() {
                 topRequested: topRequested.map(t => ({ ...t, pct: Math.round((t.count / maxTop) * 100) })),
                 topRequesters, hourlyHeatmap, monthlyComparison,
                 predictiveData, predictiveAlerts, predictiveLabels,
-                recentActivity, budgetByDept
+                recentActivity, budgetByDept,
+                deadStockItems, deadStockValue,
+                financialSpent, financialSaved
             });
             setLoading(false);
             setLastRefresh(new Date());
@@ -621,13 +692,73 @@ export default function AnalyticsDashboardContent() {
         { id: 'overview', label: 'Overview', icon: FiGrid },
         { id: 'inventory', label: 'Inventory', icon: FiPackage },
         { id: 'requests', label: 'Requests', icon: FiShoppingCart },
-        { id: 'predictive', label: 'AI Forecast', icon: FiCrosshair },
+        { id: 'predictive', label: 'Forecast', icon: FiCrosshair },
     ];
+
+    const handleGeneratePDF = () => {
+        if (!data) return;
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.width;
+        
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Analytics Command Center Report', 14, 22);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+        doc.text(`Timeframe: ${dateRange === 'all' ? 'All Time' : dateRange.toUpperCase()}`, 14, 35);
+        
+        // KPI Summary
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42);
+        doc.text('Executive Summary', 14, 48);
+        
+        autoTable(doc, {
+            startY: 52,
+            head: [['Metric', 'Value']],
+            body: [
+                ['Total Requests', data.totalRequests.toString()],
+                ['Fulfillment Rate', `${data.fulfillmentRate}%`],
+                ['Avg Processing Time', `${data.avgProcessingTimeHours} hours`],
+                ['Total Inventory Value', `ETB ${data.totalValue.toLocaleString()}`],
+                ['Financial Spend', `ETB ${data.financialSpent.toLocaleString()}`],
+                ['Budget Saved', `ETB ${data.financialSaved.toLocaleString()}`]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255] },
+            styles: { fontSize: 10 }
+        });
+
+        // Dead Stock
+        if (data.deadStockItems && data.deadStockItems.length > 0) {
+            const finalY = (doc as any).lastAutoTable.finalY || 100;
+            doc.setFontSize(14);
+            doc.text('Dead Stock Analysis', 14, finalY + 15);
+            
+            autoTable(doc, {
+                startY: finalY + 20,
+                head: [['Material Name', 'Quantity', 'Stagnant Days', 'Tied-up Value (ETB)']],
+                body: data.deadStockItems.slice(0, 15).map(item => [
+                    item.name,
+                    item.quantity.toString(),
+                    item.daysStagnant.toString(),
+                    item.value.toLocaleString()
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [244, 63, 94], textColor: [255, 255, 255] },
+                styles: { fontSize: 9 }
+            });
+        }
+
+        doc.save(`Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
 
     return (
         <div id="printable-page" className="min-h-full bg-slate-50 pb-12 selection:bg-indigo-100">
             {/* ═══ PREMIUM HEADER ═══ */}
-            <div className="bg-slate-900 border-b border-slate-800 px-6 lg:px-10 pt-8 pb-20 relative overflow-hidden">
+            <div className="bg-white border-b border-slate-200 px-6 lg:px-10 pt-8 pb-20 relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-32 -mt-32 w-80 h-80 rounded-full bg-indigo-500/8 blur-3xl" />
                 <div className="absolute bottom-0 left-1/3 w-60 h-60 rounded-full bg-cyan-500/8 blur-3xl" />
                 <div className="absolute bottom-0 right-1/4 w-40 h-40 rounded-full bg-purple-500/8 blur-3xl" />
@@ -638,12 +769,12 @@ export default function AnalyticsDashboardContent() {
                             <FiActivity className="text-2xl text-white" />
                             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-cyan-500 border-2 border-slate-900" />
+                                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-cyan-500 border-2 border-white" />
                             </span>
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black text-white tracking-tight">Analytics Command Center</h1>
-                            <p className="text-sm text-slate-400 mt-1">
+                            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Analytics Command Center</h1>
+                            <p className="text-sm text-slate-500 mt-1">
                                 Real-time intelligence • Last synced {formatTimeAgo(lastRefresh)}
                             </p>
                         </div>
@@ -653,35 +784,35 @@ export default function AnalyticsDashboardContent() {
                         {/* Auto-Refresh Toggle */}
                         <button
                             onClick={() => setAutoRefresh(!autoRefresh)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${autoRefresh ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'}`}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${autoRefresh ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50'}`}
                         >
                             <FiRefreshCw className={autoRefresh ? 'animate-spin' : ''} />
                             {autoRefresh ? 'Live' : 'Auto'}
                         </button>
 
                         {/* Manual Refresh */}
-                        <button onClick={fetchData} className="p-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors">
+                        <button onClick={fetchData} className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors">
                             <FiRefreshCw />
                         </button>
 
                         {/* Date Range */}
-                        <div className="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+                        <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
                             {(['7d', '30d', '90d', 'all'] as DateRange[]).map(range => (
                                 <button
                                     key={range}
                                     onClick={() => setDateRange(range)}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${dateRange === range ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${dateRange === range ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}`}
                                 >
                                     {range === 'all' ? 'ALL' : range.toUpperCase()}
                                 </button>
                             ))}
                         </div>
 
-                        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-lg hover:bg-slate-700 transition-colors">
-                            <FiDownload /> Export
+                        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-50 transition-colors">
+                            <FiDownload /> Export CSV
                         </button>
-                        <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white text-xs font-bold rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all shadow-md shadow-indigo-500/20">
-                            <FiPrinter /> Report
+                        <button onClick={handleGeneratePDF} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white text-xs font-bold rounded-lg hover:from-indigo-500 hover:to-indigo-400 transition-all shadow-md shadow-indigo-500/20">
+                            <FiPrinter /> PDF Report
                         </button>
                     </div>
                 </div>
@@ -1059,6 +1190,35 @@ function InventoryTab({ data }: { data: AnalyticsData }) {
                     </div>
                 </ChartCard>
             )}
+
+            {/* Dead Stock Analysis */}
+            {data.deadStockItems.length > 0 && (
+                <ChartCard title="Dead Stock Analysis" subtitle={`Items with zero movement (Tied-up Capital: ETB ${data.deadStockValue.toLocaleString()})`}>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-slate-600">
+                            <thead>
+                                <tr className="border-b border-slate-200 text-xs text-slate-400 font-bold uppercase tracking-wider">
+                                    <th className="py-3 font-medium">Material Name</th>
+                                    <th className="py-3 font-medium text-right">Quantity</th>
+                                    <th className="py-3 font-medium text-right">Value (ETB)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {data.deadStockItems.slice(0, 8).map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                        <td className="py-3 font-semibold text-slate-800">{item.name}</td>
+                                        <td className="py-3 text-right">{item.quantity}</td>
+                                        <td className="py-3 text-right font-semibold text-rose-600">{item.value.toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {data.deadStockItems.length > 8 && (
+                            <p className="text-center text-xs text-slate-400 mt-4">+ {data.deadStockItems.length - 8} more stagnant items</p>
+                        )}
+                    </div>
+                </ChartCard>
+            )}
         </div>
     );
 }
@@ -1070,6 +1230,25 @@ function InventoryTab({ data }: { data: AnalyticsData }) {
 function RequestsTab({ data }: { data: AnalyticsData }) {
     return (
         <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl border border-emerald-400 p-6 text-white shadow-lg shadow-emerald-500/20">
+                    <div className="flex items-center gap-3 mb-2 opacity-80">
+                        <FiDollarSign className="text-xl" />
+                        <span className="text-sm font-bold tracking-wide uppercase">Financial Spend</span>
+                    </div>
+                    <p className="text-4xl font-black tracking-tight">ETB {data.financialSpent.toLocaleString()}</p>
+                    <p className="text-xs mt-2 opacity-70">Value of all fulfilled requests</p>
+                </div>
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl border border-indigo-400 p-6 text-white shadow-lg shadow-indigo-500/20">
+                    <div className="flex items-center gap-3 mb-2 opacity-80">
+                        <FiTarget className="text-xl" />
+                        <span className="text-sm font-bold tracking-wide uppercase">Budget Saved</span>
+                    </div>
+                    <p className="text-4xl font-black tracking-tight">ETB {data.financialSaved.toLocaleString()}</p>
+                    <p className="text-xs mt-2 opacity-70">Value of rejected/denied requests</p>
+                </div>
+            </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
                     <FiClock className="text-amber-600 text-xl mb-3" />
@@ -1178,9 +1357,9 @@ function PredictiveTab({ data }: { data: AnalyticsData }) {
                             <FiAlertTriangle className="text-rose-400" /> Critical Alerts
                         </h3>
                         {data.predictiveAlerts.length > 0 ? (
-                            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
                                 {data.predictiveAlerts.sort((a: any, b: any) => a.daysRemaining - b.daysRemaining).map((alert: any, i: number) => (
-                                    <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 relative overflow-hidden">
+                                    <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4 relative overflow-hidden group hover:border-slate-600 transition-colors">
                                         {alert.daysRemaining < 15 && <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />}
                                         <div className="flex justify-between items-start mb-2">
                                             <span className="font-bold text-slate-200 text-sm truncate max-w-[140px]">{alert.itemName}</span>
@@ -1188,10 +1367,14 @@ function PredictiveTab({ data }: { data: AnalyticsData }) {
                                                 {alert.daysRemaining}d
                                             </span>
                                         </div>
-                                        <div className="text-[10px] text-slate-400 space-y-1">
+                                        <div className="text-[10px] text-slate-400 space-y-1 mb-3">
                                             <p>Stock: <b className="text-slate-300">{alert.currentStock}</b> • Velocity: <b className="text-slate-300">{alert.velocity}/day</b></p>
                                             <p>Run out: <b className="text-slate-300">{new Date(alert.runOutDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</b></p>
                                             {alert.intersectsEvent && <p className="text-cyan-400 font-semibold mt-1">⚡ Depletes during {alert.intersectsEvent}</p>}
+                                        </div>
+                                        <div className="pt-2 border-t border-slate-700/50 flex justify-between items-center">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">AI Recommendation</span>
+                                            <span className="text-xs font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Order {alert.reorderQuantity} units</span>
                                         </div>
                                     </div>
                                 ))}

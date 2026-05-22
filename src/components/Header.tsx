@@ -225,16 +225,18 @@ export default function Header({ title, subtitle, isDark }: HeaderProps) {
 
                                             {/* Navigation List */}
                                             <div className="p-2">
-                                                <Link
-                                                    href={`${basePath}/properties`}
-                                                    onClick={() => setIsProfileOpen(false)}
-                                                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-all duration-200 group"
-                                                >
-                                                    <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center group-hover:border-indigo-100 transition-all shadow-sm">
-                                                        <FiBox className="text-lg text-slate-400 group-hover:text-indigo-500" />
-                                                    </div>
-                                                    <span className="font-bold text-sm tracking-tight">{t('properties') || 'My Assets List'}</span>
-                                                </Link>
+                                                {basePath !== '/admin' && (
+                                                    <Link
+                                                        href={`${basePath}/properties`}
+                                                        onClick={() => setIsProfileOpen(false)}
+                                                        className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-all duration-200 group"
+                                                    >
+                                                        <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center group-hover:border-indigo-100 transition-all shadow-sm">
+                                                            <FiBox className="text-lg text-slate-400 group-hover:text-indigo-500" />
+                                                        </div>
+                                                        <span className="font-bold text-sm tracking-tight">{t('properties') || 'My Assets List'}</span>
+                                                    </Link>
+                                                )}
                                                 <Link
                                                     href={`${basePath}/manage-account`}
                                                     onClick={() => setIsProfileOpen(false)}

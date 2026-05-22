@@ -15,6 +15,7 @@ import {
     Settings,
     Shield,
     History,
+    FileBarChart,
     ChevronDown,
     ChevronUp,
     type LucideIcon

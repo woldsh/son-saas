@@ -1,9 +1,10 @@
 'use client';
+import { addDocWithAudit, updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, addDoc, serverTimestamp, onSnapshot, where, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs,  serverTimestamp, onSnapshot, where, doc} from 'firebase/firestore';
 import { FiPrinter, FiSend, FiUser, FiCheckCircle, FiClock, FiUsers, FiClipboard, FiXCircle } from 'react-icons/fi';
 import { Loader2, ShieldCheck, CheckCircle2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,16 +32,16 @@ export default function StockHandoverPage() {
     const { user, userRole } = useAuth();
     const [materials, setMaterials] = useState<Material[]>([]);
     const [itemStates, setItemStates] = useState<Record<string, HandoverItemState>>({});
-    
+
     // Digital Workflow Fields
     const [reason, setReason] = useState('');
-    
+
     // Paper Form Fields
     const [publicBody, setPublicBody] = useState('');
     const [storesNo, setStoresNo] = useState('');
     const [stockClassification, setStockClassification] = useState('');
     const [handoverDate, setHandoverDate] = useState(new Date().toISOString().split('T')[0]);
-    
+
     // Receiver search
     const [receiverName, setReceiverName] = useState('');
     const [receiverEmail, setReceiverEmail] = useState('');
@@ -73,7 +74,7 @@ export default function StockHandoverPage() {
         setAdvancingId(handoverId);
         try {
             const ref = doc(db!, 'Stock_Handovers', handoverId);
-            await updateDoc(ref, { status: nextStatus });
+            await updateDocWithAudit(ref, { status: nextStatus });
         } catch (err) {
             console.error('Error advancing status:', err);
         } finally {
@@ -87,7 +88,7 @@ export default function StockHandoverPage() {
         const fetchMaterials = async () => {
             try {
                 const typeFilter = userRole.includes('consumable') ? 'consumable' : 'fixed_asset';
-                
+
                 // Set default stock classification if empty
                 if (!stockClassification) {
                     setStockClassification(typeFilter === 'consumable' ? 'Consumables' : 'Fixed Assets');
@@ -95,7 +96,7 @@ export default function StockHandoverPage() {
 
                 const materialsRef = collection(db!, 'materials');
                 const snapshot = await getDocs(materialsRef);
-                
+
                 const materialList: Material[] = [];
                 snapshot.docs.forEach(doc => {
                     const d = doc.data();
@@ -137,7 +138,7 @@ export default function StockHandoverPage() {
 
                 const aggregatedList = Array.from(aggregatedMap.values()).sort((a, b) => a.materialName.localeCompare(b.materialName));
                 setMaterials(aggregatedList);
-                
+
                 // Initialize item states
                 const initialStates: Record<string, HandoverItemState> = {};
                 aggregatedList.forEach(m => {
@@ -246,7 +247,7 @@ export default function StockHandoverPage() {
                 ...itemStates[m.id]
             }));
 
-            await addDoc(collection(db!, 'Stock_Handovers'), {
+            await addDocWithAudit(collection(db!, 'Stock_Handovers'), {
                 handoverKeeperId: user.uid,
                 handoverKeeperName: user.displayName || 'Unknown',
                 handoverKeeperEmail: user.email,
@@ -265,7 +266,7 @@ export default function StockHandoverPage() {
 
             setSubmitted(true);
             setTimeout(() => setSubmitted(false), 5000);
-            
+
             // Reset workflow fields
             setReceiverName('');
             setReceiverEmail('');
@@ -292,7 +293,7 @@ export default function StockHandoverPage() {
 
     return (
         <div className="min-h-screen bg-[#eaeff5] py-8 px-4 sm:px-6 lg:px-8 font-serif flex flex-col items-center">
-            
+
             {/* DIGITAL WORKFLOW CONTROLS - Hidden when printing */}
             <div className="w-full max-w-[210mm] bg-white rounded-xl shadow-md p-6 mb-8 print:hidden flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between border-t-4 border-blue-600 font-sans">
                 <div className="flex-1 w-full space-y-3">
@@ -302,7 +303,7 @@ export default function StockHandoverPage() {
                     <p className="text-sm text-slate-600">Please provide the reason for handover. This will be submitted to the Property Management Team Leader for review (Step 2).</p>
                     <div className="pt-2">
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Reason for Handover *</label>
-                        <select 
+                        <select
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             className="w-full md:w-2/3 border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 font-medium"
@@ -319,7 +320,7 @@ export default function StockHandoverPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 w-full sm:w-auto">
-                    <button 
+                    <button
                         onClick={() => window.print()}
                         className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-bold hover:bg-slate-200 transition-colors"
                     >
@@ -328,11 +329,10 @@ export default function StockHandoverPage() {
                     <button
                         onClick={handleSubmit}
                         disabled={submitting || materials.length === 0 || !receiverName || !reason}
-                        className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${
-                            submitting || materials.length === 0 || !receiverName || !reason
-                            ? 'bg-blue-300 text-white cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30'
-                        }`}
+                        className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all ${submitting || materials.length === 0 || !receiverName || !reason
+                                ? 'bg-blue-300 text-white cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30'
+                            }`}
                     >
                         {submitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting...</> : <><FiSend /> Submit Request</>}
                     </button>
@@ -359,12 +359,12 @@ export default function StockHandoverPage() {
 
             {/* EXACT PHYSICAL PAPER FORM REPLICA */}
             <div className="w-full max-w-[210mm] bg-white min-h-[297mm] shadow-[0_0_15px_rgba(0,0,0,0.1)] mx-auto p-8 sm:p-12 text-black print:p-0 print:shadow-none print:m-0 print:w-full overflow-hidden">
-                
+
                 {/* Headers */}
                 <div className="text-center w-full mb-10">
                     <h1 className="font-bold text-[14px] leading-tight">የገንዘብና ኢኮኖሚ ልማት ሚኒስቴር</h1>
                     <h1 className="font-bold text-[14px] leading-tight mt-1">MINISTRY OF FINANACE & ECONOMIC DEVELOPMENT</h1>
-                    
+
                     <h2 className="font-bold text-[15px] mt-6 leading-tight">የዕቃ ቆጠራ</h2>
                     <h2 className="font-bold text-[15px] mt-1 leading-tight tracking-wider">STOCK TAKING SHEET</h2>
 
@@ -381,7 +381,7 @@ export default function StockHandoverPage() {
                     {/* Handing Over */}
                     <div className="text-center w-[250px]">
                         <p className="font-bold text-[14px] underline mb-3">የአስረካቢ</p>
-                        
+
                         <div className="flex flex-col items-center">
                             <div className="flex items-end text-[13px]">
                                 <span>የዕቃ ግ/ቤት ኃላፊ ሥም</span>
@@ -404,12 +404,12 @@ export default function StockHandoverPage() {
                     {/* Receiving */}
                     <div className="text-center w-[250px] relative group">
                         <p className="font-bold text-[14px] underline mb-3">የተረካቢ</p>
-                        
+
                         <div className="flex flex-col items-center relative">
                             <div className="flex items-end text-[13px]">
                                 <span>የዕቃ ግ/ቤት ኃላፊ ሥም</span>
-                                <input 
-                                    className="border-b border-black border-dashed ml-2 w-[120px] h-[20px] outline-none text-center font-bold bg-transparent placeholder:text-gray-300 print:placeholder:text-transparent" 
+                                <input
+                                    className="border-b border-black border-dashed ml-2 w-[120px] h-[20px] outline-none text-center font-bold bg-transparent placeholder:text-gray-300 print:placeholder:text-transparent"
                                     value={receiverName}
                                     onChange={(e) => {
                                         setReceiverName(e.target.value);
@@ -468,19 +468,19 @@ export default function StockHandoverPage() {
                             <p className="font-bold leading-none">የመሥሪያ ቤቱ ሥም</p>
                             <p className="font-bold leading-tight mt-0.5">Public Body:</p>
                         </div>
-                        <input 
+                        <input
                             className="flex-1 border-b-[1.5px] border-black outline-none bg-transparent ml-2 font-bold px-2"
                             value={publicBody}
                             onChange={(e) => setPublicBody(e.target.value)}
                         />
                     </div>
-                    
+
                     <div className="flex items-end text-[13px]">
                         <div className="w-[120px]">
                             <p className="font-bold leading-none">የዕቃ ግ/ቤት መለያ</p>
                             <p className="font-bold leading-tight mt-0.5">Stores No.</p>
                         </div>
-                        <input 
+                        <input
                             className="w-[300px] border-b-[1.5px] border-black outline-none bg-transparent ml-2 font-bold px-2"
                             value={storesNo}
                             onChange={(e) => setStoresNo(e.target.value)}
@@ -492,7 +492,7 @@ export default function StockHandoverPage() {
                             <p className="font-bold leading-none">የዕቃ ምድብ</p>
                             <p className="font-bold leading-tight mt-0.5">Stock classification</p>
                         </div>
-                        <input 
+                        <input
                             className="flex-1 border-b-[1.5px] border-black outline-none bg-transparent ml-2 font-bold px-2"
                             value={stockClassification}
                             onChange={(e) => setStockClassification(e.target.value)}
@@ -504,7 +504,7 @@ export default function StockHandoverPage() {
                             <p className="font-bold leading-none">ቀን</p>
                             <p className="font-bold leading-tight mt-0.5">Date</p>
                         </div>
-                        <input 
+                        <input
                             type="date"
                             className="w-[200px] border-b-[1.5px] border-black outline-none bg-transparent ml-2 font-bold px-2 font-sans"
                             value={handoverDate}
@@ -568,8 +568,8 @@ export default function StockHandoverPage() {
                                         <td className="border border-black p-1 text-left font-bold">{m.materialName}</td>
                                         <td className="border border-black p-1">{m.materialCode}</td>
                                         <td className="border border-black p-0 h-full">
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 className="w-full h-full min-h-[24px] text-center outline-none bg-transparent font-bold font-sans hover:bg-gray-100 focus:bg-gray-100"
                                                 value={state.physicalCount}
                                                 onChange={(e) => handleItemStateChange(m.id, 'physicalCount', e.target.value === '' ? '' : Number(e.target.value))}
@@ -580,16 +580,16 @@ export default function StockHandoverPage() {
                                             {state.discrepancy !== '' && state.discrepancy !== 0 ? (state.discrepancy > 0 ? `+${state.discrepancy}` : state.discrepancy) : '-'}
                                         </td>
                                         <td className="border border-black p-0 h-full">
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 className="w-full h-full min-h-[24px] text-center outline-none bg-transparent font-sans text-[10px] hover:bg-gray-100 focus:bg-gray-100"
                                                 value={state.condition}
                                                 onChange={(e) => handleItemStateChange(m.id, 'condition', e.target.value)}
                                             />
                                         </td>
                                         <td className="border border-black p-0 h-full">
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 className="w-full h-full min-h-[24px] text-center outline-none bg-transparent font-sans text-[10px] hover:bg-gray-100 focus:bg-gray-100"
                                                 value={state.lastDateOfMovement}
                                                 onChange={(e) => handleItemStateChange(m.id, 'lastDateOfMovement', e.target.value)}
@@ -655,17 +655,14 @@ export default function StockHandoverPage() {
                                                 const isCurrent = i === currentIdx;
                                                 return (
                                                     <div key={step.key} className="flex items-center">
-                                                        <div className={`flex flex-col items-center min-w-[80px] ${
-                                                            isCurrent ? 'scale-105' : ''
-                                                        }`}>
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                                                                isDone ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'
-                                                            } ${isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 bg-blue-100 text-blue-600' : ''}`}>
+                                                        <div className={`flex flex-col items-center min-w-[80px] ${isCurrent ? 'scale-105' : ''
+                                                            }`}>
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${isDone ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'
+                                                                } ${isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 bg-blue-100 text-blue-600' : ''}`}>
                                                                 <StepIcon className="w-4 h-4" />
                                                             </div>
-                                                            <p className={`text-[9px] mt-1 text-center leading-tight font-bold ${
-                                                                isDone ? 'text-green-700' : 'text-slate-400'
-                                                            } ${isCurrent ? 'text-blue-700' : ''}`}>{step.amLabel}</p>
+                                                            <p className={`text-[9px] mt-1 text-center leading-tight font-bold ${isDone ? 'text-green-700' : 'text-slate-400'
+                                                                } ${isCurrent ? 'text-blue-700' : ''}`}>{step.amLabel}</p>
                                                         </div>
                                                         {i < STEPS.length - 1 && (
                                                             <div className={`w-6 h-[2px] mt-[-12px] ${i < currentIdx ? 'bg-green-400' : 'bg-slate-200'}`} />
@@ -684,11 +681,10 @@ export default function StockHandoverPage() {
                                             <button
                                                 onClick={() => advanceStatus(h.id, h.status)}
                                                 disabled={advancingId === h.id}
-                                                className={`w-full py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-                                                    advancingId === h.id
-                                                    ? 'bg-slate-100 text-slate-400'
-                                                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
-                                                }`}
+                                                className={`w-full py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${advancingId === h.id
+                                                        ? 'bg-slate-100 text-slate-400'
+                                                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                                                    }`}
                                             >
                                                 {advancingId === h.id ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />

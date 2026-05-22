@@ -1,9 +1,10 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { db } from '../lib/firebase';
-import { collection, query, onSnapshot, getDocs, where, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, getDocs, where} from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import {
     FiSearch, FiEye, FiBox, FiX, FiPackage, FiPrinter, FiExternalLink
@@ -265,7 +266,7 @@ export default function MaterialList({ typeFilter }: MaterialListProps) {
                     const correctQty = Math.max(0, originalQty - totalIssued);
                     const currentQty = Number(data.quantity) || 0;
                     if (currentQty !== correctQty) {
-                        await updateDoc(matDoc.ref, { quantity: correctQty, originalQuantity: originalQty });
+                        await updateDocWithAudit(matDoc.ref, { quantity: correctQty, originalQuantity: originalQty });
                     }
                 }
             } catch (err) {

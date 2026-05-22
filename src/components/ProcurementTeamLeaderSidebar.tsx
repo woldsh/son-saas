@@ -107,18 +107,18 @@ export default function ProcurementTeamLeaderSidebar() {
             ],
             hasDivider: true
         },
-        { isHeader: true, label: "Stock Management" },
+        { isHeader: true, label: t('stock_management') || "Stock Management" },
         {
-            label: "Stock Management",
+            label: t('stock_management') || "Stock Management",
             icon: BarChart2,
             subItems: [
-                { label: 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
-                { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
+                { label: t('materials_list') || 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
                 { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileBarChart },
                 { label: t('employee_data') || 'Employee Data', href: `${basePath}/employee-data`, icon: User },
-                { label: 'Audit Trail', href: `${basePath}/audit-logs`, icon: History },
-                { label: 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
-                { label: 'Material Transfer Order', href: `${basePath}/material-transfer-order`, icon: FileText },
+                { label: t('material_transfer_report') || "Material Transfer Report", href: `${basePath}/material-transfer-report`, icon: FileText },
+                { label: t('request_cooldown') || 'Request Cooldown', href: `${basePath}/request-cooldown`, icon: Timer },
+                { label: t('material_transfer_order') || 'Material Transfer Order', href: `${basePath}/material-transfer-order`, icon: FileText },
+                { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,
@@ -127,11 +127,11 @@ export default function ProcurementTeamLeaderSidebar() {
                         { label: t('low_stock'), href: `${basePath}/low-stock`, icon: AlertCircle, badge: stockAlerts.lowStock },
                         { label: t('out_of_stock'), href: `${basePath}/out-of-stock`, icon: AlertCircle, badge: stockAlerts.outOfStock },
                     ]
-                }
+                },
+                { label: t('audit_log_sidebar') || 'Audit Log', href: `${basePath}/audit-logs`, icon: History }
             ],
             hasDivider: true
         },
-
         { isHeader: true, label: t('personal_account') || "Personal Account" },
         {
             label: t('requisitions'),
@@ -374,7 +374,7 @@ export default function ProcurementTeamLeaderSidebar() {
                             );
                         })}
                     </nav>
-                    
+
 
                     {/* Meeting Invite Notification */}
                     <div className="px-4 py-4 mt-auto">

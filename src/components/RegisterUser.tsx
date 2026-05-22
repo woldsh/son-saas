@@ -1,9 +1,10 @@
 'use client';
+import { updateDocWithAudit, setDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db, auth } from '../lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc,  getDoc,  arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -390,9 +391,9 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           const settingsRef = doc(db, 'settings', 'admin_configurations');
           const settingsSnap = await getDoc(settingsRef);
           if (!settingsSnap.exists()) {
-            await setDoc(settingsRef, { departments: [customAdminDept] });
+            await setDocWithAudit(settingsRef, { departments: [customAdminDept] });
           } else {
-            await updateDoc(settingsRef, { departments: arrayUnion(customAdminDept) });
+            await updateDocWithAudit(settingsRef, { departments: arrayUnion(customAdminDept) });
           }
         } catch (settingsErr) {
           console.error("Failed to save new admin department setting", settingsErr);
@@ -404,9 +405,9 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           const settingsRef = doc(db, 'settings', 'academic_configurations');
           const settingsSnap = await getDoc(settingsRef);
           if (!settingsSnap.exists()) {
-            await setDoc(settingsRef, { departments: [customDepartment] });
+            await setDocWithAudit(settingsRef, { departments: [customDepartment] });
           } else {
-            await updateDoc(settingsRef, { departments: arrayUnion(customDepartment) });
+            await updateDocWithAudit(settingsRef, { departments: arrayUnion(customDepartment) });
           }
         } catch (settingsErr) {
           console.error("Failed to save new academic department setting", settingsErr);

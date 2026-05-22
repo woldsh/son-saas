@@ -1,8 +1,9 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection,  doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { FaCheckCircle, FaTimes, FaSpinner, FaPlus, FaPrint, FaCamera, FaImage } from 'react-icons/fa';
 
@@ -292,7 +293,7 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
                 ...row,
                 originalQuantity: row.quantity // Keep track of the initial amount
             }));
-            await addDoc(collection(db, 'materials'), {
+            await addDocWithAudit(collection(db, 'materials'), {
                 ...headerData,
                 materialType: isFixed ? 'fixed_asset' : 'consumable',
                 formType: 'receipt_for_articles',

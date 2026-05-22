@@ -147,7 +147,7 @@ export default function AuditLogView() {
                         </div>
                         <div>
                             <p className="text-xs font-black uppercase tracking-widest text-blue-600">Governance Audit</p>
-                            <h1 className="text-2xl font-black tracking-tight text-slate-950">Audit Trail</h1>
+                            <h1 className="text-2xl font-black tracking-tight text-slate-950">Audit Log</h1>
                         </div>
                     </div>
                     <p className="mt-3 max-w-2xl text-sm font-medium text-slate-500">

@@ -1,11 +1,12 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDocs
+    collection, query, where, onSnapshot, doc,  serverTimestamp, getDocs
 } from 'firebase/firestore';
 import { FiInbox, FiCheck, FiX, FiClock } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,7 +42,7 @@ export default function PendingReturnReceipts() {
         try {
             const status = action === 'approve' ? 'approved_by_receiver' : 'rejected_by_receiver';
             
-            await updateDoc(doc(db, 'Material_transfers', transferId), {
+            await updateDocWithAudit(doc(db, 'Material_transfers', transferId), {
                 status,
                 receiverId: user.uid,
                 updatedAt: serverTimestamp(),
@@ -58,7 +59,7 @@ export default function PendingReturnReceipts() {
                 if (transferDoc && transferDoc.materials) {
                     for (const mat of transferDoc.materials) {
                         if (mat.userReportId) {
-                            await updateDoc(doc(db, 'User-Report', mat.userReportId), {
+                            await updateDocWithAudit(doc(db, 'User-Report', mat.userReportId), {
                                 status: 'accepted',
                                 updatedAt: serverTimestamp()
                             });

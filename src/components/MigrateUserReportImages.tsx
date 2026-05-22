@@ -1,4 +1,5 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState } from 'react';
 import { db } from '../lib/firebase';
@@ -6,8 +7,7 @@ import {
     collection,
     getDocs,
     doc,
-    getDoc,
-    updateDoc
+    getDoc
 } from 'firebase/firestore';
 
 export default function MigrateUserReportImages() {
@@ -65,7 +65,7 @@ export default function MigrateUserReportImages() {
 
                     if (matchingItem && matchingItem.image) {
                         // Update the User_reports with the image
-                        await updateDoc(doc(db!, 'User_reports', reportDoc.id), {
+                        await updateDocWithAudit(doc(db!, 'User_reports', reportDoc.id), {
                             materialImage: matchingItem.image
                         });
                         updated++;

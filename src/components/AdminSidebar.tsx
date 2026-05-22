@@ -56,7 +56,7 @@ export default function AdminSidebar() {
         { label: t('dashboard'), href: '/admin', icon: LayoutDashboard },
         { label: t('enroll_personnel'), href: '/admin/enroll-personnel', icon: UserPlus },
         { label: t('manage_employee'), href: '/admin/manage-directory', icon: Users },
-        { label: 'Audit Trail', href: '/admin/audit-logs', icon: History },
+        { label: 'Audit Log', href: '/admin/audit-logs', icon: History },
         { label: t('manage_account'), href: '/admin/manage-account', icon: Settings },
     ];
 

@@ -1,11 +1,12 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, onSnapshot
+    collection, query, where, getDocs,  serverTimestamp, orderBy, onSnapshot
 } from 'firebase/firestore';
 import {
     FiSend, FiCheckSquare, FiUser, FiMail,
@@ -129,7 +130,7 @@ export default function TransferInitiator() {
         if (!user || !db || selectedMaterials.length === 0 || !receiverName || !receiverEmail) return;
         setSubmitting(true);
         try {
-            await addDoc(collection(db!, 'Material_transfers'), {
+            await addDocWithAudit(collection(db!, 'Material_transfers'), {
                 senderId: user.uid,
                 senderName: user.displayName || 'Unknown',
                 senderEmail: user.email,

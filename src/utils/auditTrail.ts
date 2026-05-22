@@ -1,5 +1,6 @@
-import { addDoc, collection, serverTimestamp, type Firestore } from 'firebase/firestore';
+import { addDoc, updateDoc, setDoc, deleteDoc, collection, serverTimestamp, type Firestore, type CollectionReference, type DocumentReference, type WithFieldValue, type UpdateData, type SetOptions, type DocumentData } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export type AuditActor = {
     id: string;
@@ -47,4 +48,87 @@ export async function writeAuditLog(db: Firestore | null, input: AuditLogInput) 
         metadata: input.metadata || {},
         createdAt: serverTimestamp(),
     });
+}
+
+function getCurrentActor(): AuditActor {
+    const user = auth?.currentUser || null;
+    return buildAuditActor(user);
+}
+
+export async function addDocWithAudit<AppModelType, DbModelType extends DocumentData>(
+    reference: CollectionReference<AppModelType, DbModelType>,
+    data: WithFieldValue<AppModelType>
+) {
+    const docRef = await addDoc(reference, data);
+    try {
+        const db = reference.firestore;
+        await writeAuditLog(db, {
+            actor: getCurrentActor(),
+            action: 'CREATE',
+            targetType: reference.path,
+            targetId: docRef.id,
+            newValue: data as any,
+        });
+    } catch(e) { console.error('Audit log failed', e); }
+    return docRef;
+}
+
+export async function updateDocWithAudit<AppModelType, DbModelType extends DocumentData>(
+    reference: DocumentReference<AppModelType, DbModelType>,
+    data: UpdateData<DbModelType>
+) {
+    await updateDoc(reference, data);
+    try {
+        const db = reference.firestore;
+        const pathParts = reference.path.split('/');
+        const targetType = pathParts.length > 1 ? pathParts[pathParts.length - 2] : reference.path;
+        await writeAuditLog(db, {
+            actor: getCurrentActor(),
+            action: 'UPDATE',
+            targetType: targetType,
+            targetId: reference.id,
+            newValue: data as any,
+        });
+    } catch(e) { console.error('Audit log failed', e); }
+}
+
+export async function setDocWithAudit<AppModelType, DbModelType extends DocumentData>(
+    reference: DocumentReference<AppModelType, DbModelType>,
+    data: WithFieldValue<AppModelType>,
+    options?: SetOptions
+) {
+    if (options) {
+        await setDoc(reference, data, options);
+    } else {
+        await setDoc(reference, data);
+    }
+    try {
+        const db = reference.firestore;
+        const pathParts = reference.path.split('/');
+        const targetType = pathParts.length > 1 ? pathParts[pathParts.length - 2] : reference.path;
+        await writeAuditLog(db, {
+            actor: getCurrentActor(),
+            action: 'SET',
+            targetType: targetType,
+            targetId: reference.id,
+            newValue: data as any,
+        });
+    } catch(e) { console.error('Audit log failed', e); }
+}
+
+export async function deleteDocWithAudit<AppModelType, DbModelType extends DocumentData>(
+    reference: DocumentReference<AppModelType, DbModelType>
+) {
+    await deleteDoc(reference);
+    try {
+        const db = reference.firestore;
+        const pathParts = reference.path.split('/');
+        const targetType = pathParts.length > 1 ? pathParts[pathParts.length - 2] : reference.path;
+        await writeAuditLog(db, {
+            actor: getCurrentActor(),
+            action: 'DELETE',
+            targetType: targetType,
+            targetId: reference.id,
+        });
+    } catch(e) { console.error('Audit log failed', e); }
 }

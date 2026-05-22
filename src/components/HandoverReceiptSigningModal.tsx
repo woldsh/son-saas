@@ -1,9 +1,10 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc,  serverTimestamp } from 'firebase/firestore';
 import { FiX, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 import HandoverReceiptForm from './HandoverReceiptForm';
@@ -82,13 +83,13 @@ export default function HandoverReceiptSigningModal({ order, role = 'receiver', 
         try {
             const docRef = doc(db, 'Transfer_Orders', order.id);
             if (role === 'receiver') {
-                await updateDoc(docRef, {
+                await updateDocWithAudit(docRef, {
                     receiverAcknowledged: true,
                     receiverAcknowledgedAt: serverTimestamp(),
                     receiverSignatureData: signatureData
                 });
             } else {
-                await updateDoc(docRef, {
+                await updateDocWithAudit(docRef, {
                     status: 'completed',
                     completedAt: serverTimestamp(),
                     delivererSignatureData: signatureData

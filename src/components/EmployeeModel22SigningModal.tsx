@@ -1,9 +1,10 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../lib/firebase';
-import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc,  collection, getDocs } from 'firebase/firestore';
 import { FiX, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import { FaPrint } from 'react-icons/fa';
 
@@ -128,7 +129,7 @@ export default function EmployeeModel22SigningModal({ record, onClose, onSigned 
         if (!db) return;
         setIsSubmitting(true);
         try {
-            await updateDoc(doc(db!, 'Send_to_Users', record.id), {
+            await updateDocWithAudit(doc(db!, 'Send_to_Users', record.id), {
                 status: 'shared_with_store',
                 recipientSignature: signatureData,
                 sharedAt: new Date().toISOString()

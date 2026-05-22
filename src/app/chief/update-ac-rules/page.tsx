@@ -1,11 +1,12 @@
 'use client';
+import { setDocWithAudit, deleteDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 
 import ChiefSidebar from '@/components/ChiefSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs,  doc, serverTimestamp, getDoc} from 'firebase/firestore';
 import {
     FaShieldAlt,
     FaSearch,
@@ -121,7 +122,7 @@ export default function UpdateACRulesPage() {
 
         try {
             if (!db) throw new Error("Firebase not initialized");
-            await setDoc(doc(db!, 'AC_rules', selectedMaterial.id), {
+            await setDocWithAudit(doc(db!, 'AC_rules', selectedMaterial.id), {
                 materialId: selectedMaterial.id,
                 materialName: selectedMaterial.materialName,
                 materialCode: selectedMaterial.materialCode,
@@ -154,7 +155,7 @@ export default function UpdateACRulesPage() {
 
         try {
             if (!db) throw new Error("Firebase not initialized");
-            await deleteDoc(doc(db!, 'AC_rules', selectedMaterial.id));
+            await deleteDocWithAudit(doc(db!, 'AC_rules', selectedMaterial.id));
 
             // Remove from local list
             setMaterials(prev => prev.filter(m => m.id !== selectedMaterial.id));

@@ -1,8 +1,9 @@
 'use client';
+import { deleteDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, where, getDocs, writeBatch, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where, getDocs, writeBatch, doc} from 'firebase/firestore';
 import { FiSearch, FiUser, FiPackage, FiCheckCircle, FiClock, FiActivity, FiCopy, FiCheck, FiArrowRight } from 'react-icons/fi';
 import ClerkModel22Form from './ClerkModel22Form';
 import KeeperModel22SigningModal from './KeeperModel22SigningModal';
@@ -145,7 +146,7 @@ export default function StoreRequestVerification({ storeType }: StoreRequestVeri
             setTimeout(async () => {
                 try {
                     if (db) {
-                        await deleteDoc(doc(db!, 'Send_to_Users', record.id));
+                        await deleteDocWithAudit(doc(db!, 'Send_to_Users', record.id));
                         console.log(`Document ${record.id} deleted automatically.`);
                     }
                 } catch (delError) {

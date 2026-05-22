@@ -1,4 +1,5 @@
 'use client';
+import { setDocWithAudit, deleteDocWithAudit } from '@/utils/auditTrail';
 
 
 import JitsiMeetingComponent from '../../../components/JitsiMeetingComponent';
@@ -6,7 +7,7 @@ import MeetingAgenda from '../../../components/MeetingAgenda';
 import MemberSelection from '../../../components/MemberSelection';
 import { useState, useEffect } from 'react';
 import { db } from '../../../lib/firebase';
-import { doc, setDoc, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc,  onSnapshot, serverTimestamp} from 'firebase/firestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { FaStop, FaLink, FaGlobe, FaLock } from 'react-icons/fa';
 import ProtectedRoute from '../../../components/ProtectedRoute';
@@ -47,7 +48,7 @@ export default function ChiefMeetingPage() {
             status: 'active'
         };
         try {
-            await setDoc(doc(db!, "meeting_sessions", "current_executive_meeting"), sessionData);
+            await setDocWithAudit(doc(db!, "meeting_sessions", "current_executive_meeting"), sessionData);
         } catch (error) {
             console.error("Error starting meeting session:", error);
             setIsStarting(false);
@@ -57,7 +58,7 @@ export default function ChiefMeetingPage() {
     const endMeeting = async () => {
         if (!db) return;
         try {
-            await deleteDoc(doc(db!, "meeting_sessions", "current_executive_meeting"));
+            await deleteDocWithAudit(doc(db!, "meeting_sessions", "current_executive_meeting"));
         } catch (error) {
             console.error("Error ending meeting:", error);
         }

@@ -1,7 +1,8 @@
 'use client';
+import { updateDocWithAudit, deleteDocWithAudit } from '@/utils/auditTrail';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, deleteDoc, doc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, getDocs,  doc,  orderBy, limit } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FiUsers, FiSearch, FiTrash2, FiAlertTriangle, FiCheckCircle, FiChevronRight, FiChevronLeft, FiFilter, FiUser, FiCheck, FiX, FiActivity, FiEdit2, FiBookOpen, FiUserCheck, FiDownload } from 'react-icons/fi';
@@ -73,7 +74,7 @@ export default function UserManagement() {
         try {
             if (!db) return;
             const userRef = doc(db, 'users', uid);
-            await updateDoc(userRef, { status: newStatus });
+            await updateDocWithAudit(userRef, { status: newStatus });
             setUsers(users.map(u => u.uid === uid ? { ...u, status: newStatus } : u));
             setNotification({ type: 'success', message: `${t('personnel_identity')} status updated to ${newStatus.toUpperCase()}.` });
             setTimeout(() => setNotification(null), 3000);
@@ -89,7 +90,7 @@ export default function UserManagement() {
         setDeletingId(uid);
         try {
             if (!db) return;
-            await deleteDoc(doc(db, 'users', uid));
+            await deleteDocWithAudit(doc(db, 'users', uid));
             setUsers(users.filter(u => u.uid !== uid));
             setNotification({ type: 'success', message: 'User deleted successfully from Firestore.' });
             setTimeout(() => setNotification(null), 3000);
@@ -152,7 +153,7 @@ export default function UserManagement() {
     const getComputedDepartment = (user: UserData): string => {
         // If department is explicitly set (like Academic Staff), return it
         if (user.department) return user.department;
-        
+
         // For Admin Staff, department is typically embedded in userRole
         if (user.mainRole === 'admin_staff' && user.userRole) {
             if (user.userRole.endsWith('_leader')) {
@@ -211,7 +212,7 @@ export default function UserManagement() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         setNotification({ type: 'success', message: 'CSV export downloaded successfully.' });
         setTimeout(() => setNotification(null), 3000);
     };
@@ -223,12 +224,12 @@ export default function UserManagement() {
         }
 
         const doc = new jsPDF();
-        
+
         // Header
         doc.setFontSize(18);
         doc.setTextColor(30, 27, 75); // Dark Indigo
         doc.text('DMU Burie Campus - Personnel Directory', 14, 22);
-        
+
         // Subheader
         doc.setFontSize(11);
         doc.setTextColor(100);
@@ -258,7 +259,7 @@ export default function UserManagement() {
         });
 
         doc.save(`DMU_Directory_Export_${new Date().toISOString().split('T')[0]}.pdf`);
-        
+
         setNotification({ type: 'success', message: 'PDF export downloaded successfully.' });
         setTimeout(() => setNotification(null), 3000);
     };
@@ -367,9 +368,9 @@ export default function UserManagement() {
                         <span className={`ml-0.5 px-1.5 py-px rounded-full text-[10px] ${filterType === filter.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                             {filter.id === 'all' ? users.filter(u => departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter).length :
                                 filter.id === 'executive' ? users.filter(u => (u.mainRole === 'managing_director' || u.mainRole === 'chief') && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
-                                filter.id === 'procurement' ? users.filter(u => u.mainRole === 'procurement_management' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
-                                filter.id === 'academic' ? users.filter(u => u.mainRole === 'academic_staff' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
-                                    users.filter(u => u.mainRole === 'admin_staff' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length}
+                                    filter.id === 'procurement' ? users.filter(u => u.mainRole === 'procurement_management' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
+                                        filter.id === 'academic' ? users.filter(u => u.mainRole === 'academic_staff' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length :
+                                            users.filter(u => u.mainRole === 'admin_staff' && (departmentFilter === 'all' || getComputedDepartment(u) === departmentFilter)).length}
                         </span>
                     </button>
                 ))}
@@ -525,11 +526,10 @@ export default function UserManagement() {
                                 <button
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
-                                    className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${
-                                        currentPage === page
+                                    className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${currentPage === page
                                             ? 'bg-blue-600 text-white'
                                             : 'text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     {page}
                                 </button>

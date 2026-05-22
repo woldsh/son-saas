@@ -1,8 +1,9 @@
 'use client';
+import { setDocWithAudit, deleteDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, setDoc, doc, deleteDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs,  doc,  serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useInventory, Material } from '@/contexts/InventoryContext';
 import {
     FaSearch, FaBoxOpen, FaSave, FaSpinner, FaCheckCircle,
@@ -117,7 +118,7 @@ export default function RequestCooldownPage() {
         const maxRequestedQtyToSave = enableQuantityLimits && maxRequestedQuantity !== '' ? Number(maxRequestedQuantity) : 0;
 
         try {
-            await setDoc(doc(db!, 'request_cooldown_rules', materialId), {
+            await setDocWithAudit(doc(db!, 'request_cooldown_rules', materialId), {
                 materialId,
                 materialName,
                 materialCode,
@@ -147,7 +148,7 @@ export default function RequestCooldownPage() {
         if (!db) return;
         if (!confirm(`"${rule.materialName}" cooldown rule ይሰረዝ?`)) return;
         try {
-            await deleteDoc(doc(db!, 'request_cooldown_rules', rule.materialId));
+            await deleteDocWithAudit(doc(db!, 'request_cooldown_rules', rule.materialId));
         } catch (err) {
             console.error("Error deleting rule:", err);
         }

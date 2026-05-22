@@ -1,6 +1,7 @@
+import { updateDocWithAudit } from '@/utils/auditTrail';
 import { NextResponse } from 'next/server';
 import { db } from '../../../lib/firebase';
-import { collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where} from 'firebase/firestore';
 
 export async function GET() {
     try {
@@ -64,7 +65,7 @@ export async function GET() {
 
                 if (currentQty !== correctQty) {
                     // Save the original quantity for reference, and set the correct current quantity
-                    await updateDoc(materialDoc.ref, { 
+                    await updateDocWithAudit(materialDoc.ref, { 
                         quantity: correctQty,
                         originalQuantity: originalQty  // Save original for future reference
                     });

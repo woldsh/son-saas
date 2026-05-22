@@ -1,6 +1,7 @@
+import { addDocWithAudit } from '@/utils/auditTrail';
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs,  serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useInventory, Material } from '../contexts/InventoryContext';
 import {
@@ -575,7 +576,7 @@ export default function MaterialRequestForm() {
                 }]
             };
 
-            await addDoc(collection(db!, 'Request_materials'), requestData);
+            await addDocWithAudit(collection(db!, 'Request_materials'), requestData);
             setStep(4);
             setCart([]);
             setShowSuccess(true);

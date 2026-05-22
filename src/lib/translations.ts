@@ -153,6 +153,7 @@ export const translations = {
         report_issue: "Report Issue",
         maintenance_history: "Maintenance History",
         material_transfer: "Material Transfer",
+        material_transfer_report: "Material Transfer Report",
         view_material_transfer_request: "View Material Transfer Request",
         requisition_history_title: "My Requisition History",
         requisition_history_subtitle: "Track all your submitted requisitions and their status",
@@ -692,7 +693,12 @@ export const translations = {
         feat_transfer_desc: "Support for asset transfers between departments.",
         feat_other_title: "AI Chat Support",
         feat_other_desc: "Intelligent assistant for system guidance.",
-        footer_powered_by: "Powered by DMU IT"
+        footer_powered_by: "Powered by DMU IT",
+        stock_management: "Stock Management",
+        analytics: "Analytics",
+        request_cooldown: "Request Cooldown",
+        material_transfer_order: "Material Transfer Order",
+        audit_log_sidebar: "Audit Log"
     },
     am: {
         // Nav
@@ -846,6 +852,7 @@ export const translations = {
         report_issue: "ችግር ሪፖርት አድርግ",
         maintenance_history: "የጥገና ታሪክ",
         material_transfer: "የቁሳቁስ ዝውውር",
+        material_transfer_report: "የቁሳቁስ ዝውውር ሪፖርት",
         view_material_transfer_request: "የቁሳቁስ ዝውውር ጥያቄን ይመልከቱ",
         requisition_history_title: "የእኔ የጥያቄ ታሪክ",
         requisition_history_subtitle: "ሁሉንም ያስገቧቸውን ጥያቄዎች እና ሁኔታቸውን ይከታተሉ",
@@ -1387,6 +1394,11 @@ export const translations = {
         feat_transfer_desc: "በክፍሎች መካከል ለሚደረግ የንብረት ዝውውር ድጋፍ::",
         feat_other_title: "የAI የውይይት ድጋፍ",
         feat_other_desc: "ለስርዓት መመሪያ ብልህ ረዳት::",
-        footer_powered_by: "በደ/ማ/ዩ IT የተገነባ"
+        footer_powered_by: "በደ/ማ/ዩ IT የተገነባ",
+        stock_management: "የክምችት አስተዳደር",
+        analytics: "ትንታኔ",
+        request_cooldown: "የጥያቄ ማቀዝቀዣ ጊዜ",
+        material_transfer_order: "የንብረት ዝውውር ትዕዛዝ",
+        audit_log_sidebar: "የኦዲት መዝገብ"
     }
 };

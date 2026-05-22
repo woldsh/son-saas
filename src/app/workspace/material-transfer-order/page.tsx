@@ -1,4 +1,5 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { Printer, Loader2, Search, UserCheck, CheckCircle, Send } from 'lucide-react';
@@ -6,7 +7,7 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, getDocs, addDoc, serverTimestamp, where, orderBy, onSnapshot, doc, getDoc
+    collection, query, getDocs,  serverTimestamp, where, orderBy, onSnapshot, doc, getDoc
 } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -206,7 +207,7 @@ export default function MaterialTransferOrderPage() {
                 };
             }));
 
-            await addDoc(collection(db!, 'Transfer_Orders'), {
+            await addDocWithAudit(collection(db!, 'Transfer_Orders'), {
                 recipientId,
                 recipientName: recipient,
                 recipientEmail,

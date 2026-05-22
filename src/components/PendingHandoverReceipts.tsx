@@ -1,11 +1,12 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp
+    collection, query, where, onSnapshot, doc,  serverTimestamp
 } from 'firebase/firestore';
 import { FiInbox, FiClock, FiCheck } from 'react-icons/fi';
 import { Loader2, Printer, CheckCircle } from 'lucide-react';
@@ -74,7 +75,7 @@ export default function PendingHandoverReceipts() {
     const handleAcknowledge = async (orderId: string, signatureData: string) => {
         if (!db) return;
         try {
-            await updateDoc(doc(db!, 'Transfer_Orders', orderId), {
+            await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
                 receiverAcknowledged: true,
                 receiverAcknowledgedAt: serverTimestamp(),
                 receiverSignatureData: signatureData

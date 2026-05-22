@@ -1,11 +1,12 @@
 'use client';
+import { addDocWithAudit, updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDocs, getDoc, addDoc
+    collection, query, where, onSnapshot, doc,  serverTimestamp, getDocs, getDoc
 } from 'firebase/firestore';
 import { FiCheckCircle, FiClock, FiCheck, FiX, FiRefreshCcw, FiFileText } from 'react-icons/fi';
 import { Printer } from 'lucide-react';
@@ -190,7 +191,7 @@ export default function TransferApprovalsView() {
                             const oldReportSnap = await getDoc(oldReportRef);
 
                             // 1. Mark deliverer's record as returned
-                            await updateDoc(oldReportRef, {
+                            await updateDocWithAudit(oldReportRef, {
                                 status: 'returned',
                                 returnedAt: serverTimestamp(),
                                 returnedToOrder: order.id
@@ -206,7 +207,7 @@ export default function TransferApprovalsView() {
                                     receiverDept = order.recipientRole.split('-')[1]?.trim() || '';
                                 }
 
-                                await addDoc(collection(db, 'User-Report'), {
+                                await addDocWithAudit(collection(db, 'User-Report'), {
                                     ...oldData,
                                     requestId: order.id,
                                     requesterId: order.itemReceiverId || order.recipientId || '',
@@ -242,7 +243,7 @@ export default function TransferApprovalsView() {
                 updates.completedAt = serverTimestamp();
             }
 
-            await updateDoc(doc(db!, 'Transfer_Orders', order.id), updates);
+            await updateDocWithAudit(doc(db!, 'Transfer_Orders', order.id), updates);
 
         } catch (e) {
             console.error('Error approving transfer:', e);
@@ -260,7 +261,7 @@ export default function TransferApprovalsView() {
         if (!db || processingIds.has(orderId)) return;
         setProcessingIds(prev => new Set(prev).add(orderId));
         try {
-            await updateDoc(doc(db!, 'Transfer_Orders', orderId), {
+            await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
                 status: 'rejected',
                 rejectedAt: serverTimestamp(),
                 rejectedBy: effectiveRole
@@ -496,31 +497,29 @@ export default function TransferApprovalsView() {
                                             >
                                                 &lt; Back
                                             </button>
-                                            
+
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(1);
                                                     document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
-                                                className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${
-                                                    activeFormPage === 1
-                                                        ? 'bg-slate-900 text-white border-slate-900'
-                                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                                }`}
+                                                className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${activeFormPage === 1
+                                                    ? 'bg-slate-900 text-white border-slate-900'
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 1
                                             </button>
-                                            
+
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(2);
                                                     document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
-                                                className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${
-                                                    activeFormPage === 2
-                                                        ? 'bg-slate-900 text-white border-slate-900'
-                                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                                                }`}
+                                                className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${activeFormPage === 2
+                                                    ? 'bg-slate-900 text-white border-slate-900'
+                                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 2
                                             </button>
@@ -559,11 +558,10 @@ export default function TransferApprovalsView() {
                             <button
                                 key={page}
                                 onClick={() => { setCurrentPage(page); setExpandedOrderId(null); }}
-                                className={`w-10 h-10 rounded-xl font-bold transition-all shadow-sm ${
-                                    currentPage === page 
-                                        ? 'bg-blue-600 text-white border border-blue-600' 
-                                        : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
-                                }`}
+                                className={`w-10 h-10 rounded-xl font-bold transition-all shadow-sm ${currentPage === page
+                                    ? 'bg-blue-600 text-white border border-blue-600'
+                                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                                    }`}
                             >
                                 {page}
                             </button>

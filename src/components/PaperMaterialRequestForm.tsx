@@ -1,10 +1,11 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection,  serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { FiPlus, FiRefreshCw, FiCheck, FiX, FiInfo } from 'react-icons/fi';
 
 interface RequestItem {
@@ -389,7 +390,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
             const finalApproverId = currentApproverId;
             const finalApproverName = currentApproverName;
 
-            await addDoc(collection(db, 'Request_materials'), {
+            await addDocWithAudit(collection(db, 'Request_materials'), {
                 requesterId: user.uid,
                 requesterName: requesterName || user.displayName,
                 department: dept,

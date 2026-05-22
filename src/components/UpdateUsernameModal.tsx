@@ -1,9 +1,10 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { FiX, FiUser, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
@@ -119,7 +120,7 @@ export default function UpdateUsernameModal({ isOpen, onClose }: UpdateUsernameM
             // Update in Firestore
             if (!db || !user) throw new Error('Not authenticated');
             const firestore = db;
-            await updateDoc(doc(firestore, 'users', user.uid), {
+            await updateDocWithAudit(doc(firestore, 'users', user.uid), {
                 username: cleanUsername,
             });
 

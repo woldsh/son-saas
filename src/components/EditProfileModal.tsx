@@ -1,11 +1,12 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FiX, FiUser, FiCheck, FiAlertCircle } from 'react-icons/fi';
 import { updateProfile } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc} from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
 interface EditProfileModalProps {
@@ -47,14 +48,14 @@ export default function EditProfileModal({ isOpen, onClose }: EditProfileModalPr
                 if (db) {
                     const userRef = doc(db, 'users', auth.currentUser.uid);
                     try {
-                        await updateDoc(userRef, { displayName });
+                        await updateDocWithAudit(userRef, { displayName });
                     } catch (e) {
                         console.log('User document might not exist', e);
                     }
 
                     const adminRef = doc(db, 'admins', auth.currentUser.uid);
                     try {
-                        await updateDoc(adminRef, { name: displayName, displayName });
+                        await updateDocWithAudit(adminRef, { name: displayName, displayName });
                     } catch (e) {
                         // Ignore
                     }

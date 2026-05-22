@@ -1,18 +1,17 @@
 'use client';
-import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, onSnapshot, doc,  serverTimestamp
+    collection, query, where, onSnapshot, getDocs
 } from 'firebase/firestore';
-import { FiInbox, FiClock, FiCheck } from 'react-icons/fi';
-import { Loader2, Printer } from 'lucide-react';
+import { FiFileText, FiCheckCircle } from 'react-icons/fi';
+import { Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import HandoverReceiptForm from '@/components/HandoverReceiptForm';
 import Image from 'next/image';
+import HandoverReceiptForm from './HandoverReceiptForm';
 
 interface TransferOrder {
     id: string;
@@ -22,9 +21,9 @@ interface TransferOrder {
     recipientRole: string;
     newPosition: string;
     itemReceiverName: string;
-    itemReceiverId: string;
+    itemReceiverId?: string;
     overseerName: string;
-    overseerId: string;
+    overseerId?: string;
     refNumber: string;
     date: string;
     ccName: string;
@@ -32,25 +31,81 @@ interface TransferOrder {
     createdBy: string;
     createdByName: string;
     createdAt: any;
-    completedAt?: any;
-    receiverAcknowledged?: boolean;
     receiverAcknowledgedAt?: any;
     items?: any[];
     delivererSignatureData?: string;
     receiverSignatureData?: string;
     overseerSignatureData?: string;
+    completedAt?: any;
+    receiverAcknowledged?: boolean;
     overseerAcknowledged?: boolean;
     overseerAcknowledgedAt?: any;
 }
 
-export default function PendingOverseerReceipts() {
-    const { user, userRole } = useAuth();
-    const { t } = useLanguage();
+export default function MaterialTransferReport() {
+    const { user } = useAuth();
+    const langCtx = useLanguage();
+    const t: any = langCtx.t;
     const [orders, setOrders] = useState<TransferOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-    const [currentSignature, setCurrentSignature] = useState<string | null>(null);
     const [activeFormPage, setActiveFormPage] = useState(1);
+
+    useEffect(() => {
+        if (!user || !db) { setLoading(false); return; }
+
+        // Fetch completed transfer orders
+        const qCompleted = query(
+            collection(db, 'Transfer_Orders'),
+            where('status', '==', 'completed')
+        );
+        
+        // Also could include orders that are past the handover phase
+        // but for now we look for 'completed'
+        
+        const unsub = onSnapshot(qCompleted, (snap) => {
+            const completedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as TransferOrder));
+            
+            // Sort by completedAt descending
+            completedOrders.sort((a, b) => {
+                const timeA = a.completedAt?.toMillis?.() || 0;
+                const timeB = b.completedAt?.toMillis?.() || 0;
+                return timeB - timeA;
+            });
+            
+            setOrders(completedOrders);
+            setLoading(false);
+        }, (err) => {
+            console.error("Error fetching completed transfer orders:", err);
+            setLoading(false);
+        });
+
+        return () => unsub();
+    }, [user]);
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    if (orders.length === 0) {
+        return (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                    <FiFileText className="text-2xl text-slate-400" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">No Transfer Reports Found</h3>
+                <p className="text-sm text-slate-500">There are no finalized material transfers yet.</p>
+            </div>
+        );
+    }
 
     const blankValue: React.CSSProperties = {
         borderBottom: '1.5px dashed #000', minHeight: '22px', padding: '0 4px',
@@ -58,114 +113,63 @@ export default function PendingOverseerReceipts() {
         display: 'inline-block', minWidth: '80px',
     };
 
-    useEffect(() => {
-        if (!user || !db) { setLoading(false); return; }
-
-        const q = query(
-            collection(db!, 'Transfer_Orders'),
-            where('status', 'in', ['pending_handover', 'completed'])
-        );
-
-        const unsub = onSnapshot(q, (snap) => {
-            const data = snap.docs
-                .map(d => ({ id: d.id, ...d.data() } as TransferOrder))
-                .filter(o => !o.overseerAcknowledged)
-                .filter(o => 
-                    o.overseerId === user.uid || 
-                    o.overseerName === user.displayName
-                );
-
-            setOrders(data);
-            if (data.length === 1) setExpandedOrderId(data[0].id);
-            setLoading(false);
-            setCurrentSignature(null);
-        }, () => setLoading(false));
-
-        return () => unsub();
-    }, [user]);
-
-    const handleAcknowledge = async (orderId: string, signatureData: string) => {
-        if (!db) return;
-        try {
-            await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
-                overseerAcknowledged: true,
-                overseerAcknowledgedAt: serverTimestamp(),
-                overseerSignatureData: signatureData
-            });
-            setOrders(prev => prev.filter(o => o.id !== orderId));
-            setCurrentSignature(null);
-        } catch (e) {
-            console.error('Error signing as overseer:', e);
-            throw e;
-        }
-    };
-
-    if (loading) return null;
-    if (orders.length === 0) return null;
-
     return (
         <div className="space-y-6">
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 px-2 print:hidden"
-            >
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shadow-sm border border-amber-200">
-                    <FiInbox className="text-xl" />
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-5 flex items-center gap-4 print:hidden">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                    <FiFileText className="text-xl" />
                 </div>
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900">Handover Receipts (Awaiting Your Signature)</h2>
-                    <p className="text-sm font-medium text-slate-500">You have {orders.length} receipt(s) to verify and sign as አረጋጋጭ.</p>
+                <div className="flex-1">
+                    <h2 className="text-lg font-bold text-slate-900">{t('material_transfer_report') || 'Material Transfer Report'}</h2>
+                    <p className="text-sm text-slate-600">View finalized material transfer formats.</p>
                 </div>
+                <span className="px-4 py-2 bg-emerald-200 text-emerald-900 rounded-full text-sm font-bold">{orders.length}</span>
             </motion.div>
 
             <AnimatePresence>
-                {orders.map((order, index) => {
+                {orders.map((order, idx) => {
                     const isExpanded = expandedOrderId === order.id;
+                    const formattedDate = order.completedAt?.toDate?.().toLocaleDateString() || order.date || '—';
 
                     return (
-                        <motion.div
-                            key={order.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
-                        >
+                        <motion.div key={order.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+
+                            {/* Collapsed header */}
                             <button
                                 onClick={() => {
                                     setExpandedOrderId(isExpanded ? null : order.id);
                                     setActiveFormPage(1);
-                                    setCurrentSignature(null);
                                 }}
                                 className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors print:hidden"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-sm">
-                                        {order.recipientName?.charAt(0)?.toUpperCase() || 'H'}
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">
+                                        {order.recipientName?.charAt(0)?.toUpperCase() || 'R'}
                                     </div>
                                     <div className="text-left">
-                                        <h3 className="font-bold text-slate-900 text-sm">
-                                            Handover: {order.recipientName} → {order.itemReceiverName}
-                                        </h3>
-                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                            Ref: {order.refNumber} • {order.date}
-                                        </p>
+                                        <p className="font-bold text-slate-900 text-sm">Transfer from {order.recipientName} to {order.itemReceiverName}</p>
+                                        <p className="text-xs text-slate-500">Ref: {order.refNumber || '—'} • Completed: {formattedDate}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-xs font-bold flex items-center gap-1.5">
-                                        <FiClock /> Needs Your Signature
+                                <div className="flex items-center gap-3">
+                                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold flex items-center gap-1">
+                                        <FiCheckCircle className="text-[10px]" /> Finalized
                                     </span>
+                                    <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
                                 </div>
                             </button>
 
+                            {/* Expanded content */}
                             {isExpanded && (
                                 <div className="border-t border-slate-200">
+                                    {/* Action buttons */}
                                     <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 border-b border-slate-200 print:hidden justify-end">
-                                        <button onClick={() => window.print()}
+                                        <button onClick={handlePrint}
                                             className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm">
-                                            <Printer className="w-4 h-4" /> Print
+                                            <Printer className="w-4 h-4" /> Print Report
                                         </button>
                                     </div>
 
@@ -264,7 +268,7 @@ export default function PendingOverseerReceipts() {
                                         </div>
                                     </div>
 
-                                    {/* ===== FORM 2: Handover Receipt ===== */}
+                                    {/* ===== FORM 2: Handover Receipt Form ===== */}
                                     <div className={`w-full overflow-x-auto bg-slate-100 print:bg-white custom-scrollbar print:border-t-0 print:mt-0 ${activeFormPage !== 2 ? 'hidden print:block' : 'border-t border-slate-200 mt-8'}`}>
                                         <div className="flex justify-center py-8 px-4 min-w-[210mm] print:py-0 print:px-0">
                                             <HandoverReceiptForm
@@ -273,7 +277,7 @@ export default function PendingOverseerReceipts() {
                                                 overseerName={order.overseerName}
                                                 recipientRole={order.recipientRole}
                                                 items={order.items || []}
-                                                delivererSigned={order.status === 'completed' || order.status === 'pending_receipt' || order.completedAt != null}
+                                                delivererSigned={!!order.completedAt || !!order.delivererSignatureData}
                                                 delivererSignatureDate={order.completedAt}
                                                 delivererSignatureData={order.delivererSignatureData}
                                                 receiverSigned={!!order.receiverAcknowledged}
@@ -282,26 +286,10 @@ export default function PendingOverseerReceipts() {
                                                 overseerSigned={!!order.overseerAcknowledged}
                                                 overseerSignatureDate={order.overseerAcknowledgedAt}
                                                 overseerSignatureData={order.overseerSignatureData}
-                                                interactiveRole={!order.overseerAcknowledged ? "overseer" : undefined}
-                                                onSignatureChange={setCurrentSignature}
+                                                interactiveRole={undefined}
+                                                onSignatureChange={() => {}}
                                             />
                                         </div>
-                                    </div>
-                                    
-                                    <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col items-center justify-center print:hidden">
-                                        {!currentSignature ? (
-                                            <div className="flex flex-col items-center gap-2 text-slate-500 animate-pulse">
-                                                <span className="text-xl">✍️</span>
-                                                <p className="text-sm font-semibold">Please sign on the አረጋጋጭ dotted line above...</p>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={async () => await handleAcknowledge(order.id, currentSignature)}
-                                                className="flex items-center gap-2 px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold transition-all shadow-sm active:scale-95"
-                                            >
-                                                <FiCheck className="text-xl" /> Confirm & Verify Handover
-                                            </button>
-                                        )}
                                     </div>
 
                                     {/* Form Pagination Controls */}
@@ -310,7 +298,6 @@ export default function PendingOverseerReceipts() {
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(1);
-                                                    document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
                                                 disabled={activeFormPage === 1}
                                                 className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
@@ -321,7 +308,6 @@ export default function PendingOverseerReceipts() {
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(1);
-                                                    document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
                                                 className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${
                                                     activeFormPage === 1
@@ -335,7 +321,6 @@ export default function PendingOverseerReceipts() {
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(2);
-                                                    document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
                                                 className={`w-10 h-10 flex items-center justify-center font-bold text-sm transition-colors border ${
                                                     activeFormPage === 2
@@ -349,7 +334,6 @@ export default function PendingOverseerReceipts() {
                                             <button
                                                 onClick={() => {
                                                     setActiveFormPage(2);
-                                                    document.getElementById(`order-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                 }}
                                                 disabled={activeFormPage === 2}
                                                 className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
@@ -364,11 +348,19 @@ export default function PendingOverseerReceipts() {
                     );
                 })}
             </AnimatePresence>
-            
+
             <style jsx global>{`
                 @media print {
                     body { background: white !important; padding: 0 !important; margin: 0 !important; }
-                    .print\\:hidden { display: none !important; }
+                    body * { visibility: hidden; }
+                    .transfer-order-print-area, .transfer-order-print-area *,
+                    .handover-receipt-print-area, .handover-receipt-print-area * { visibility: visible; }
+                    .transfer-order-print-area, .handover-receipt-print-area {
+                        position: relative; width: 100% !important;
+                        padding: 20mm !important; box-shadow: none !important; border: none !important;
+                        page-break-after: always;
+                    }
+                    @page { size: A4; margin: 0; }
                 }
             `}</style>
         </div>

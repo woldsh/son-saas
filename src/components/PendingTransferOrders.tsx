@@ -1,11 +1,12 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDoc, getDocs
+    collection, query, where, onSnapshot, doc,  serverTimestamp, getDoc, getDocs
 } from 'firebase/firestore';
 import { FiFileText, FiClock, FiCheck } from 'react-icons/fi';
 import { Loader2, CheckCircle, Printer } from 'lucide-react';
@@ -167,7 +168,7 @@ export default function PendingTransferOrders() {
                 }
             }
 
-            await updateDoc(doc(db!, 'Transfer_Orders', orderId), {
+            await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
                 status: status,
                 currentApproverRole: currentApproverRole,
                 currentApproverId: currentApproverId,
@@ -402,7 +403,7 @@ export default function PendingTransferOrders() {
                                                         onClick={async () => {
                                                             if (!db || !user) return;
                                                             try {
-                                                                await updateDoc(doc(db!, 'Transfer_Orders', order.id), {
+                                                                await updateDocWithAudit(doc(db!, 'Transfer_Orders', order.id), {
                                                                     receiverAcknowledged: true,
                                                                     receiverAcknowledgedAt: serverTimestamp(),
                                                                     receiverSignatureData: currentSignature

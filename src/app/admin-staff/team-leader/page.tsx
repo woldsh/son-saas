@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
@@ -67,15 +67,24 @@ export default function AdminTeamLeaderPage() {
                     staffCount = usersSnap.docs.length;
                 }
 
-                // 4. Materials assigned to team
+                // 4. Materials available for team
                 let materialsAssigned = 0;
                 if (dept) {
-                    const reportsQuery = query(collection(db as any, 'User-Report'), where('department', '==', dept));
-                    const reportsSnap = await getDocs(reportsQuery);
-                    reportsSnap.forEach(d => {
+                    const materialsSnap = await getDocs(collection(db as any, 'materials'));
+                    const normalizedUserDept = dept.toLowerCase().trim().replace(/_/g, ' ');
+                    
+                    materialsSnap.forEach(d => {
                         const data = d.data();
-                        if (data.status !== 'pending') {
-                            materialsAssigned += Number(data.quantity) || 1;
+                        const tDept = (data.targetDepartment || '').toLowerCase().trim().replace(/_/g, ' ');
+                        const tUser = data.targetUser || '';
+
+                        // Check if it belongs to this department and is NOT targeted to a specific individual
+                        if ((tDept === normalizedUserDept || (tDept.includes('computer') && normalizedUserDept.includes('cs')) || (tDept.includes('cs') && normalizedUserDept.includes('computer'))) && !tUser) {
+                            if (data.items && Array.isArray(data.items)) {
+                                materialsAssigned += data.items.length;
+                            } else if (data.materialName || data.description) {
+                                materialsAssigned += 1;
+                            }
                         }
                     });
                 }

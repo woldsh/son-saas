@@ -1,8 +1,9 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, orderBy, onSnapshot, where, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, where,  doc, getDoc } from 'firebase/firestore';
 import { FiSearch, FiCode, FiUser, FiPackage, FiCheckCircle, FiClock, FiSend } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
 import EmployeeModel22SigningModal from './EmployeeModel22SigningModal';
@@ -63,7 +64,7 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
     const handleConfirmSend = async (id: string) => {
         if (!db) return;
         try {
-            await updateDoc(doc(db!, 'Send_to_Users', id), {
+            await updateDocWithAudit(doc(db!, 'Send_to_Users', id), {
                 status: 'shared_with_store',
                 sharedAt: new Date().toISOString()
             });
@@ -85,7 +86,7 @@ export default function ClerkReportView({ materialTypeFilter }: ClerkReportViewP
 
             try {
                 const promises = unseenRecords.map(r =>
-                    updateDoc(doc(db!, 'Send_to_Users', r.id), { isSeen: true })
+                    updateDocWithAudit(doc(db!, 'Send_to_Users', r.id), { isSeen: true })
                 );
                 await Promise.all(promises);
             } catch (err) {

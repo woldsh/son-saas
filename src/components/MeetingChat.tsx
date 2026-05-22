@@ -1,7 +1,8 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot,  serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -100,7 +101,7 @@ export default function MeetingChat() {
                 createdAt: serverTimestamp()
             };
             console.log('Adding document to Firestore:', messageData);
-            await addDoc(collection(db!, "meeting_messages"), messageData);
+            await addDocWithAudit(collection(db!, "meeting_messages"), messageData);
             setNewMessage('');
             setSelectedFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';

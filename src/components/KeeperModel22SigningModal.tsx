@@ -1,9 +1,10 @@
 'use client';
+import { deleteDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../lib/firebase';
-import { doc, collection, getDocs, query, where, writeBatch, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, collection, getDocs, query, where, writeBatch,  getDoc } from 'firebase/firestore';
 import { FiX, FiRefreshCw, FiCheck } from 'react-icons/fi';
 import { FaPrint } from 'react-icons/fa';
 import { useAuth } from '@/contexts/AuthContext';
@@ -184,7 +185,7 @@ export default function KeeperModel22SigningModal({ record, onClose, onFinalized
             setTimeout(async () => {
                 try {
                     if (db) {
-                        await deleteDoc(doc(db!, 'Send_to_Users', record.id));
+                        await deleteDocWithAudit(doc(db!, 'Send_to_Users', record.id));
                     }
                 } catch (err) { console.error('Auto-delete failed:', err); }
             }, 86400000);

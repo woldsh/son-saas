@@ -1,8 +1,9 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, getDocs, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, doc} from 'firebase/firestore';
 import { FiBox, FiMapPin, FiGrid, FiMove, FiSearch, FiRefreshCw, FiCheck, FiX } from 'react-icons/fi';
 import Image from 'next/image';
 
@@ -102,7 +103,7 @@ export default function BinManagementContent() {
         try {
             const updatePromises = selectedItems.map(id => {
                 const itemRef = doc(db!, 'materials', id);
-                return updateDoc(itemRef, {
+                return updateDocWithAudit(itemRef, {
                     storeLocation: moveTarget.location,
                     shelfNumber: moveTarget.shelf
                 });

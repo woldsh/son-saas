@@ -1,9 +1,10 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection,  serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Send, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,7 +37,7 @@ export default function FeedbackForm() {
         setError('');
 
         try {
-            await addDoc(collection(db, 'system_feedback'), {
+            await addDocWithAudit(collection(db, 'system_feedback'), {
                 userId: user?.uid || 'unknown',
                 userName: user?.displayName || user?.email || 'Unknown User',
                 userRole: userRole || 'unknown',

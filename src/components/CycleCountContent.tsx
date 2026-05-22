@@ -1,8 +1,9 @@
 'use client';
+import { addDocWithAudit, updateDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, getDocs, orderBy, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, doc} from 'firebase/firestore';
 import { FiClipboard, FiCheckCircle, FiAlertCircle, FiRefreshCw, FiPlay, FiSave } from 'react-icons/fi';
 import Image from 'next/image';
 
@@ -102,7 +103,7 @@ export default function CycleCountContent() {
                 totalDiscrepancy: countSession.reduce((acc, item) => acc + Math.abs(item.difference || 0), 0)
             };
 
-            await addDoc(collection(db, 'cycle_counts'), sessionData);
+            await addDocWithAudit(collection(db, 'cycle_counts'), sessionData);
 
             // Optionally update inventory if requested (omitted for safety, just recording discrepancy)
 

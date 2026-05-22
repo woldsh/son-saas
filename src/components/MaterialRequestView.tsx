@@ -1,4 +1,5 @@
 'use client';
+import { addDocWithAudit, updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
@@ -8,8 +9,8 @@ import {
     onSnapshot,
     orderBy,
     doc,
-    addDoc,
-    updateDoc,
+    
+    
     serverTimestamp,
     where,
     getDocs,
@@ -400,7 +401,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const nextApproverId = nextSnapshot.empty ? `PENDING_${nextRole.toUpperCase()}_ASSIGNMENT` : nextSnapshot.docs[0].id;
                 const nextApproverName = nextSnapshot.empty ? nextRole.replace(/_/g, ' ') : nextSnapshot.docs[0].data().displayName;
 
-                await updateDoc(requestRef, {
+                await updateDocWithAudit(requestRef, {
                     status: nextStatus,
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
@@ -424,7 +425,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const nextApproverId = mdSnapshot.empty ? 'PENDING_MD_ASSIGNMENT' : mdSnapshot.docs[0].id;
                 const nextApproverName = mdSnapshot.empty ? 'Managing Director' : mdSnapshot.docs[0].data().displayName;
 
-                await updateDoc(requestRef, {
+                await updateDocWithAudit(requestRef, {
                     status: 'pending_managing_director',
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
@@ -476,7 +477,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     updateData.headSignature = signature;
                 }
 
-                await updateDoc(requestRef, updateData);
+                await updateDocWithAudit(requestRef, updateData);
                 setSuccessMessage({
                     text: `Request approved and forwarded to Academic Coordinator (${nextApproverName})`,
                     type: 'coordinator'
@@ -540,7 +541,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
                 }
 
-                await updateDoc(requestRef, {
+                await updateDocWithAudit(requestRef, {
                     status: nextStatus,
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
@@ -573,7 +574,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     const nextApproverId = mdSnapshot.empty ? 'PENDING_MD_ASSIGNMENT' : mdSnapshot.docs[0].id;
                     const nextApproverName = mdSnapshot.empty ? 'Managing Director' : mdSnapshot.docs[0].data().displayName;
 
-                    await updateDoc(requestRef, {
+                    await updateDocWithAudit(requestRef, {
                         status: 'pending_managing_director',
                         currentApproverId: nextApproverId,
                         currentApproverName: nextApproverName,
@@ -605,7 +606,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     const nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
                     const nextApproverName = clerkSnapshot.empty ? (isConsumable ? 'Consumable Stock Clerk' : 'Fixed Stock Clerk') : clerkSnapshot.docs[0].data().displayName;
 
-                    await updateDoc(requestRef, {
+                    await updateDocWithAudit(requestRef, {
                         status: 'approved_by_procurement_team_leader',
                         currentApproverId: nextApproverId,
                         currentApproverName: nextApproverName,
@@ -724,7 +725,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const nextApproverId = keeperSnapshot.empty ? 'PENDING_KEEPER_ASSIGNMENT' : keeperSnapshot.docs[0].id;
                 const nextApproverName = keeperSnapshot.empty ? keeperLabel : keeperSnapshot.docs[0].data().displayName;
 
-                await updateDoc(requestRef, {
+                await updateDocWithAudit(requestRef, {
                     status: 'approved_by_clerk',
                     currentApproverId: nextApproverId,
                     currentApproverName: nextApproverName,
@@ -757,14 +758,14 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         updatePayload.items = newItems;
                     }
 
-                    await updateDoc(matUpdate.ref, updatePayload);
+                    await updateDocWithAudit(matUpdate.ref, updatePayload);
                     console.log(`[Stock Out] ${matUpdate.name}: ${matUpdate.currentQty} → ${newQty} (-${matUpdate.deductQty})`);
                 }
 
                 // Create User-Report entries and send verification code to employee
                 try {
                     const userReportPromises = request.items.map(async (item) => {
-                        await addDoc(collection(db!, 'User-Report'), {
+                        await addDocWithAudit(collection(db!, 'User-Report'), {
                             requestId: request.id,
                             requesterId: request.requesterId,
                             requesterName: request.requesterName,
@@ -800,7 +801,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
                     // Generate verification code and Send_to_Users entry
                     const code = Math.floor(100000 + Math.random() * 900000).toString();
-                    await addDoc(collection(db!, 'Send_to_Users'), {
+                    await addDocWithAudit(collection(db!, 'Send_to_Users'), {
                         request_id: request.id,
                         requester_user_id: request.requesterId,
                         requester_name: request.requesterName,
@@ -847,7 +848,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const itemsWithACRule = finalItems.filter(item => item.AC_decition === 'need AC decision');
 
                 if (itemsWithACRule.length > 0) {
-                    await addDoc(collection(db!, 'Need_AC_decition'), {
+                    await addDocWithAudit(collection(db!, 'Need_AC_decition'), {
                         ...request,
                         items: finalItems,
                         originalRequestId: request.id,
@@ -857,7 +858,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         status: 'pending_chief_decision'
                     });
 
-                    await updateDoc(requestRef, {
+                    await updateDocWithAudit(requestRef, {
                         status: 'forwarded_to_chief',
                         currentApproverRole: 'chief_executive',
                         items: finalItems,
@@ -887,7 +888,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     const nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
                     const nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
 
-                    await updateDoc(requestRef, {
+                    await updateDocWithAudit(requestRef, {
                         status: 'pending_procurement',
                         currentApproverId: nextApproverId,
                         currentApproverName: nextApproverName,
@@ -1188,7 +1189,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             const requestRef = doc(db!, 'Request_materials', requestToReject.id);
             const statusLabel = 'rejected';
 
-            await updateDoc(requestRef, {
+            await updateDocWithAudit(requestRef, {
                 status: statusLabel,
                 isFeedbackSeen: false,
                 history: [
@@ -1225,7 +1226,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         try {
             // Step 1: Update Request_materials
             const requestRef = doc(db!, 'Request_materials', request.id);
-            await updateDoc(requestRef, {
+            await updateDocWithAudit(requestRef, {
                 status: 'approved_by_clerk',
                 currentApproverRole: 'store_keeper',
                 history: [
@@ -1280,7 +1281,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     const deductQty = Number(item.quantity) || 0;
                     const newQty = Math.max(0, currentQty - deductQty);
 
-                    await updateDoc(materialDoc.ref, { quantity: newQty });
+                    await updateDocWithAudit(materialDoc.ref, { quantity: newQty });
                     console.log(`[Stock Out] ${searchValue}: ${currentQty} → ${newQty} (-${deductQty})`);
                 } else {
                     console.warn(`[Stock Out] Material not found: ${searchValue}`);
@@ -1291,7 +1292,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             const code = generateVerificationCode();
 
             // Step 5: Save Data to Send_to_Users Collection
-            await addDoc(collection(db!, 'Send_to_Users'), {
+            await addDocWithAudit(collection(db!, 'Send_to_Users'), {
                 request_id: request.id,
                 requester_user_id: request.requesterId,
                 requester_name: request.requesterName,

@@ -1,4 +1,5 @@
 'use client';
+import { addDocWithAudit, updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
@@ -8,11 +9,10 @@ import {
     onSnapshot,
     orderBy,
     doc,
-    updateDoc,
+    
     serverTimestamp,
     where,
-    getDoc,
-    addDoc
+    getDoc
 } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -149,7 +149,7 @@ export default function UserReportView() {
             // Create a User_reports entry for each material item
             const userReportPromises = request.items.map(async (item) => {
                 if (!db) return;
-                await addDoc(collection(db!, 'User-Report'), {
+                await addDocWithAudit(collection(db!, 'User-Report'), {
                     requestId: request.id,
                     requesterId: request.requesterId,
                     requesterName: request.requesterName,
@@ -185,7 +185,7 @@ export default function UserReportView() {
             // Update Request_materials status
             if (!db) return;
             const requestRef = doc(db!, 'Request_materials', request.id);
-            await updateDoc(requestRef, {
+            await updateDocWithAudit(requestRef, {
                 status: 'approved_by_procurement_team_leader',
                 currentApproverRole: 'completed',
                 history: [
@@ -219,7 +219,7 @@ export default function UserReportView() {
             if (!db) return;
             const requestRef = doc(db!, 'Request_materials', request.id);
 
-            await updateDoc(requestRef, {
+            await updateDocWithAudit(requestRef, {
                 status: 'rejected_by_team_leader',
                 history: [
                     ...request.history,

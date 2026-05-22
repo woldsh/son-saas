@@ -1,11 +1,12 @@
 'use client';
+import { setDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 
 import ChiefSidebar from '@/components/ChiefSidebar';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, setDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs,  doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import {
     FaShieldAlt,
     FaSearch,
@@ -115,7 +116,7 @@ export default function SetACRulesPage() {
 
         try {
             if (!db) throw new Error("Firebase not initialized");
-            await setDoc(doc(db!, 'AC_rules', selectedMaterial.id), {
+            await setDocWithAudit(doc(db!, 'AC_rules', selectedMaterial.id), {
                 materialId: selectedMaterial.id,
                 materialName: selectedMaterial.materialName,
                 materialCode: selectedMaterial.materialCode,

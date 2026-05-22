@@ -127,6 +127,7 @@ export default function StoreSidebar({ storeType }: StoreSidebarProps) {
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
                 { label: t('employee_data'), href: `${basePath}/employee-data`, icon: Users },
                 { label: 'Bin Card', href: `${basePath}/bin-card`, icon: Clipboard },
+                { label: t('material_transfer_report') || "Material Transfer Report", href: `${basePath}/material-transfer-report`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,

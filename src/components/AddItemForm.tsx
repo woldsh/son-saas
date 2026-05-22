@@ -1,9 +1,10 @@
 'use client';
+import { addDocWithAudit } from '@/utils/auditTrail';
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { db } from '../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection} from 'firebase/firestore';
 import {
     FaBoxOpen,
     FaMoneyBillWave,
@@ -157,7 +158,7 @@ export default function AddItemForm({ type }: AddItemFormProps) {
 
         try {
             if (!db) throw new Error("Firebase not initialized");
-            const materialRef = await addDoc(collection(db!, "materials"), submissionData);
+            const materialRef = await addDocWithAudit(collection(db!, "materials"), submissionData);
             await writeAuditLog(db, {
                 actor: buildAuditActor(user, userRole),
                 action: isFixed ? 'fixed_asset_registered' : 'consumable_registered',

@@ -1,10 +1,11 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, onSnapshot, doc, updateDoc, serverTimestamp, where, getDocs
+    collection, query, onSnapshot, doc,  serverTimestamp, where, getDocs
 } from 'firebase/firestore';
 import {
     FiSearch, FiCheckCircle, FiXCircle, FiClock, FiUser, FiCalendar,
@@ -114,7 +115,7 @@ export default function StockHandoverRequestsPage() {
         setProcessingId(witnessTarget);
         try {
             const ref = doc(db!, 'Stock_Handovers', witnessTarget);
-            await updateDoc(ref, {
+            await updateDocWithAudit(ref, {
                 status: 'witness_assigned',
                 witnessId: selectedWitness.id,
                 witnessName: selectedWitness.displayName || '',
@@ -145,7 +146,7 @@ export default function StockHandoverRequestsPage() {
         setProcessingId(recordId);
         try {
             const ref = doc(db!, 'Stock_Handovers', recordId);
-            await updateDoc(ref, {
+            await updateDocWithAudit(ref, {
                 status: 'completed',
                 finalApprovedBy: user.uid,
                 finalApprovedByName: user.displayName,
@@ -166,7 +167,7 @@ export default function StockHandoverRequestsPage() {
         setProcessingId(recordId);
         try {
             const ref = doc(db!, 'Stock_Handovers', recordId);
-            await updateDoc(ref, {
+            await updateDocWithAudit(ref, {
                 status: 'rejected',
                 rejectedBy: user?.uid,
                 rejectedByName: user?.displayName,

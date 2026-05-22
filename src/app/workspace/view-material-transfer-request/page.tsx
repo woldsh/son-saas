@@ -1,11 +1,12 @@
 'use client';
+import { updateDocWithAudit } from '@/utils/auditTrail';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { db } from '@/lib/firebase';
 import {
-    collection, query, where, getDocs, updateDoc, doc, serverTimestamp, getDoc
+    collection, query, where, getDocs,  doc, serverTimestamp, getDoc
 } from 'firebase/firestore';
 import {
     FiCheckCircle, FiClock, FiUser, FiArrowRight,
@@ -84,7 +85,7 @@ export default function ViewMaterialTransferRequestPage() {
             for (const material of transfer.materials) {
                 if (material.userReportId) {
                     const userReportRef = doc(db, 'User-Report', material.userReportId);
-                    await updateDoc(userReportRef, {
+                    await updateDocWithAudit(userReportRef, {
                         requesterId: transfer.receiverId,
                         requesterName: transfer.receiverName,
                         department: receiverDepartment,
@@ -104,7 +105,7 @@ export default function ViewMaterialTransferRequestPage() {
 
             // 3. Mark the transfer as completed
             const transferRef = doc(db, 'Material_transfers', transferId);
-            await updateDoc(transferRef, {
+            await updateDocWithAudit(transferRef, {
                 status: 'completed',
                 completedAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),

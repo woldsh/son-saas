@@ -281,12 +281,59 @@ export default function ClerkRegisterForm({ type }: ClerkRegisterFormProps) {
         e.preventDefault();
         setIsSubmitting(true);
         setSubmitStatus({ type: null, message: '' });
-        const filledRows = rows.filter(r => r.description.trim());
-        if (!filledRows.length) {
-            setSubmitStatus({ type: 'error', message: 'Add at least one item.' });
+
+        // Validate Header Fields
+        const requiredHeaders = [
+            { key: 'receiptNo', label: 'Receipt No. (ቁ.)' },
+            { key: 'expenditureRegistryNo', label: 'Item No. In Expenditure Registry (1)' },
+            { key: 'incomingGoodsEntryNo', label: 'Entry in the register of incoming goods (2)' },
+            { key: 'classificationOfStock', label: 'Classification of stock (3)' },
+            { key: 'storeNo', label: 'Store No. (4)' },
+            { key: 'shelfNo', label: 'Shelf No. (5)' },
+            { key: 'department', label: 'Department' },
+            { key: 'recipientName', label: 'Recipient Name' },
+            { key: 'day', label: 'Date Day (ቀን)' },
+            { key: 'fromLocation', label: 'From Location (ከ)' }
+        ];
+
+        for (const field of requiredHeaders) {
+            if (!headerData[field.key as keyof typeof headerData]?.trim()) {
+                setSubmitStatus({ type: 'error', message: `Please fill in the required field: ${field.label}` });
+                setIsSubmitting(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+        }
+
+        if (!delivererDonor.trim()) {
+            setSubmitStatus({ type: 'error', message: `Please fill in: Name of deliverer/donor at the bottom` });
             setIsSubmitting(false);
             return;
         }
+
+        if (!delivererRecipient.trim()) {
+            setSubmitStatus({ type: 'error', message: `Please fill in: Name of recipient/storekeeper at the bottom` });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const filledRows = rows.filter(r => r.description.trim());
+        if (!filledRows.length) {
+            setSubmitStatus({ type: 'error', message: 'Add at least one item description.' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate all fields in filled rows
+        for (let i = 0; i < filledRows.length; i++) {
+            const r = filledRows[i];
+            if (!r.quantity.trim() || !r.unitPriceBirr.trim()) {
+                setSubmitStatus({ type: 'error', message: `Item "${r.description}": Quantity and Unit Price Birr are required.` });
+                setIsSubmitting(false);
+                return;
+            }
+        }
+
         try {
             if (!db) throw new Error('Firebase not initialized');
             const materialsWithOriginalQty = filledRows.map(row => ({

@@ -101,6 +101,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUserRole(foundUserRole);
               setDepartment(foundDept);
               setUser(authUser); // Only set user state if verified
+              
+              if (typeof window !== 'undefined') {
+                if (foundUserRole) sessionStorage.setItem('userRole', foundUserRole);
+                if (foundDept) sessionStorage.setItem('userDepartment', foundDept);
+                if (foundIsAdmin) sessionStorage.setItem('isAdmin', 'true');
+              }
             } else {
               if (db) {
                 console.warn("AuthContext: Access denied for unverified identity.");
@@ -109,6 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setIsAdmin(false);
                 setUserRole(null);
                 setDepartment(null);
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('userRole');
+                  sessionStorage.removeItem('userDepartment');
+                  sessionStorage.removeItem('isAdmin');
+                }
               }
             }
 
@@ -226,6 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false);
       setUserRole(null);
       setDepartment(null);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('userDepartment');
+        sessionStorage.removeItem('isAdmin');
+      }
       router.push('/login');
     } catch (error: any) {
       throw new Error(error.message || 'Logout failed');

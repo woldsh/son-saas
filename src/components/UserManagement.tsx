@@ -36,6 +36,7 @@ export default function UserManagement() {
     const [editForm, setEditForm] = useState({
         displayName: '',
         email: '',
+        username: '',
         password: ''
     });
     const [isUpdating, setIsUpdating] = useState(false);
@@ -108,6 +109,7 @@ export default function UserManagement() {
         setEditForm({
             displayName: user.displayName || '',
             email: user.email || '',
+            username: user.username || '',
             password: '' // Don't show password
         });
     };
@@ -125,6 +127,7 @@ export default function UserManagement() {
                     uid: editingUser.uid,
                     displayName: editForm.displayName,
                     email: editForm.email,
+                    username: editForm.username,
                     password: editForm.password || undefined // Only send if not empty
                 }),
             });
@@ -134,7 +137,8 @@ export default function UserManagement() {
                 setUsers(users.map(u => u.uid === editingUser.uid ? {
                     ...u,
                     displayName: editForm.displayName,
-                    email: editForm.email
+                    email: editForm.email,
+                    username: editForm.username
                 } : u));
                 setNotification({ type: 'success', message: 'Personnel record updated successfully.' });
                 setEditingUser(null);
@@ -474,31 +478,7 @@ export default function UserManagement() {
                                                     <FiEdit2 />
                                                 </button>
 
-                                                {confirmDelete === user.uid ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={() => handleDelete(user.uid)}
-                                                            disabled={deletingId === user.uid}
-                                                            className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
-                                                        >
-                                                            {deletingId === user.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setConfirmDelete(null)}
-                                                            className="w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors"
-                                                        >
-                                                            <FiX />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => setConfirmDelete(user.uid)}
-                                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                                        title="Delete Record"
-                                                    >
-                                                        <FiTrash2 />
-                                                    </button>
-                                                )}
+
                                             </div>
                                         </td>
                                     </tr>
@@ -590,6 +570,16 @@ export default function UserManagement() {
                                     value={editForm.email}
                                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                                     required
+                                    className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Username (Login identifier)</label>
+                                <input
+                                    type="text"
+                                    value={editForm.username}
+                                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
                                     className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm text-gray-900"
                                 />
                             </div>

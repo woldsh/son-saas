@@ -4,7 +4,7 @@ import { initializeFirebaseAdmin } from '@/lib/firebase-admin';
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { uid, email, password, displayName, firstName, lastName } = body;
+        const { uid, email, password, displayName, firstName, lastName, username } = body;
 
         if (!uid) {
             return NextResponse.json({ success: false, error: 'User UID is required' }, { status: 400 });
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
         if (email) firestoreData.email = email;
+        if (username) firestoreData.username = username;
         if (displayName || firstName || lastName) {
             firestoreData.displayName = updateData.displayName;
             if (firstName) firestoreData.firstName = firstName;

@@ -20,9 +20,13 @@ import {
   FiCommand,
   FiEye,
   FiEyeOff,
-  FiRefreshCw
+  FiRefreshCw,
+  FiUploadCloud,
+  FiDownload,
+  FiUsers
 } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
+import Papa from 'papaparse';
 
 interface RegisterUserProps {
   onSuccess?: () => void;
@@ -88,6 +92,11 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+
+  const [enrollmentMode, setEnrollmentMode] = useState<'single' | 'bulk'>('single');
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, successful: 0, failed: 0 });
+  const [bulkErrors, setBulkErrors] = useState<{ row: number, error: string }[]>([]);
 
   // Fetch Configurations (Admin & Academic)
   useEffect(() => {
@@ -332,6 +341,113 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
     setConfirmPassword(pass);
     setShowPassword(true);
     setShowConfirmPassword(true);
+    return pass;
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent = "firstName,middleName,lastName,email\nAbebe,Kebede,Tessema,abebe@example.com\n";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'bulk_enrollment_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const generateBulkUsername = (first: string, middle: string) => {
+    let base = first.toLowerCase().trim();
+    if (middle) base += `_${middle.toLowerCase().trim()}`;
+    base += Math.floor(10 + Math.random() * 90);
+    return base.replace(/\s+/g, '');
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!bulkFile) {
+      setError('Please select a CSV file first.');
+      return;
+    }
+    if (!currentRoleData) {
+      setError('Please complete role selection for this batch.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    setBulkErrors([]);
+    setBulkProgress({ current: 0, total: 0, successful: 0, failed: 0 });
+
+    Papa.parse(bulkFile, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as any[];
+        setBulkProgress(prev => ({ ...prev, total: rows.length }));
+
+        let successful = 0;
+        let failed = 0;
+        const currentErrors: { row: number, error: string }[] = [];
+
+        for (let i = 0; i < rows.length; i++) {
+          setBulkProgress(prev => ({ ...prev, current: i + 1 }));
+          const row = rows[i];
+          
+          if (!row.firstName || !row.lastName || !row.email) {
+            failed++;
+            currentErrors.push({ row: i + 2, error: 'Missing required fields (firstName, lastName, email)' });
+            continue;
+          }
+
+          const username = generateBulkUsername(row.firstName, row.middleName || '');
+          const password = generateStrongPassword();
+
+          try {
+            const response = await fetch('/api/auth/create-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                firstName: row.firstName,
+                middleName: row.middleName || '',
+                lastName: row.lastName,
+                username,
+                email: row.email.trim(),
+                password,
+                displayName: `${row.firstName} ${row.middleName || ''} ${row.lastName}`.replace(/\s+/g, ' ').trim(),
+                ...currentRoleData,
+              }),
+            });
+
+            const result = await response.json();
+            if (!result.success) {
+              throw new Error(result.error || 'Failed to register user.');
+            }
+            successful++;
+          } catch (err: any) {
+            failed++;
+            currentErrors.push({ row: i + 2, error: err.message });
+          }
+        }
+
+        setBulkProgress(prev => ({ ...prev, successful, failed }));
+        setBulkErrors(currentErrors);
+        setLoading(false);
+
+        if (successful > 0) {
+          setSuccess(`Successfully registered ${successful} users.`);
+          if (failed === 0 && onSuccess) {
+            setTimeout(() => onSuccess(), 1500);
+          }
+        } else {
+          setError('Failed to register any users from the file.');
+        }
+      },
+      error: (err) => {
+        setError(`Error parsing CSV: ${err.message}`);
+        setLoading(false);
+      }
+    });
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -448,18 +564,43 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
   return (
     <div className="w-full max-w-4xl mx-auto bg-white">
       <div className="mb-8 border-b border-gray-100 pb-6">
-        <h2 className="text-2xl font-semibold text-gray-900">{t('system_registration_header')}</h2>
-        <p className="mt-1 text-sm text-gray-500">{t('registration_desc')}</p>
+        <h2 className="text-2xl font-semibold text-gray-900 flex items-center justify-between">
+          <span>{t('system_registration_header')}</span>
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              type="button"
+              onClick={() => setEnrollmentMode('single')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                enrollmentMode === 'single' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Single
+            </button>
+            <button
+              type="button"
+              onClick={() => setEnrollmentMode('bulk')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                enrollmentMode === 'bulk' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Bulk
+            </button>
+          </div>
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          {enrollmentMode === 'single' ? t('registration_desc') : 'Upload a CSV file to enroll multiple users at once.'}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={(e) => { e.preventDefault(); enrollmentMode === 'single' ? handleSubmit(e) : handleBulkSubmit(); }} className="space-y-8">
         <div className="space-y-4">
           <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
-            <FiUser className="text-gray-400" />
-            {t('core_identity_header')}
+            {enrollmentMode === 'single' ? <FiUser className="text-gray-400" /> : <FiUsers className="text-gray-400" />}
+            {enrollmentMode === 'single' ? t('core_identity_header') : 'Bulk Upload Data'}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {enrollmentMode === 'single' ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('first_name_label')}</label>
               <input
@@ -541,6 +682,38 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               </div>
             </div>
           </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="flex-1 w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">CSV File Upload</label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Maximum file size: 5MB. Ensure headers exactly match the template.</p>
+                </div>
+                <div className="md:w-64 shrink-0 space-y-3">
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 text-sm">
+                    <p className="font-medium text-gray-900 mb-1">Need the format?</p>
+                    <p className="text-xs text-gray-500 mb-3">Download the template to see the required column headers.</p>
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      className="w-full px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <FiDownload />
+                      Download Template
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 pt-4 border-t border-gray-100">
@@ -727,7 +900,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
             {currentRoleData && (
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Assigned System Role</p>
+                  <p className="text-xs text-gray-500 mb-0.5">Assigned System Role {enrollmentMode === 'bulk' && '(For Batch)'}</p>
                   <p className="font-medium text-sm text-gray-900">
                     {currentRoleData.userRole.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                   </p>
@@ -738,6 +911,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
           </div>
         </div>
 
+        {enrollmentMode === 'single' && (
         <div className="space-y-4 pt-4 border-t border-gray-100">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
@@ -803,6 +977,48 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
             </div>
           </div>
         </div>
+        )}
+
+        {enrollmentMode === 'bulk' && bulkProgress.total > 0 && (
+          <div className="pt-4 border-t border-gray-100">
+            <h4 className="text-sm font-medium text-gray-900 mb-3">Processing Status</h4>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-gray-600">Progress</span>
+                <span className="font-medium">{bulkProgress.current} / {bulkProgress.total}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="bg-green-50 text-green-700 p-2 rounded border border-green-100 text-center">
+                  <span className="block text-lg font-semibold">{bulkProgress.successful}</span>
+                  <span className="text-xs">Successful</span>
+                </div>
+                <div className="bg-red-50 text-red-700 p-2 rounded border border-red-100 text-center">
+                  <span className="block text-lg font-semibold">{bulkProgress.failed}</span>
+                  <span className="text-xs">Failed</span>
+                </div>
+              </div>
+
+              {bulkErrors.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-red-600 mb-2">Errors Details (Row # - Message):</p>
+                  <div className="max-h-32 overflow-y-auto bg-white border border-red-100 rounded text-xs text-gray-600 p-2">
+                    {bulkErrors.map((err, idx) => (
+                      <div key={idx} className="mb-1 border-b border-gray-50 pb-1 last:border-0 last:mb-0">
+                        <span className="font-medium">Row {err.row}:</span> {err.error}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="p-3 bg-red-50 text-red-600 rounded-lg flex items-center gap-2 text-sm border border-red-100">
@@ -830,7 +1046,7 @@ export default function RegisterUser({ onSuccess }: RegisterUserProps) {
               </>
             ) : (
               <>
-                {t('complete_registration_btn')}
+                {enrollmentMode === 'single' ? t('complete_registration_btn') : 'Process Bulk Registration'}
               </>
             )}
           </button>

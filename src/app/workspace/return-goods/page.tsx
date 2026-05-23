@@ -5,7 +5,6 @@ import { FiRefreshCcw } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import PendingTransferOrders from '@/components/PendingTransferOrders';
 import PendingOverseerReceipts from '@/components/PendingOverseerReceipts';
-import TransferInitiator from '@/components/TransferInitiator';
 
 export default function ReturnGoodsPage() {
     const { t } = useLanguage();
@@ -41,17 +40,6 @@ export default function ReturnGoodsPage() {
                 <PendingTransferOrders />
 
                 <div className="h-px bg-slate-200" />
-
-                {/* Sender Section: Initiate New Transfer */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2">
-                        <div className="w-2 h-6 bg-indigo-600 rounded-full" />
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-                            {t('initiate_transfer') || "Initiate New Transfer"}
-                        </h2>
-                    </div>
-                    <TransferInitiator />
-                </div>
             </div>
         </div>
     );

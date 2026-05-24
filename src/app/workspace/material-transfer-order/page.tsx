@@ -186,11 +186,11 @@ export default function MaterialTransferOrderPage() {
             setIsLoadingMaterials(true);
             try {
                 // First, fetch all materials once to efficiently look up true material types by name.
-                const allMaterialsSnap = await getDocs(collection(db, 'materials'));
+                const allMaterialsSnap = await getDocs(collection(db!, 'materials'));
                 const allMaterials = allMaterialsSnap.docs.map(d => d.data());
 
                 const userReportQuery = query(
-                    collection(db, 'User-Report'),
+                    collection(db!, 'User-Report'),
                     where('requesterId', '==', recipientId),
                     where('status', '==', 'accepted')
                 );

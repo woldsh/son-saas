@@ -122,12 +122,34 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
     const [requestToReject, setRequestToReject] = useState<MaterialRequest | null>(null);
     const [rejectReason, setRejectReason] = useState('');
 
+    // Low-Stock Confirmation State
+    const [lowStockModalOpen, setLowStockModalOpen] = useState(false);
+    const [lowStockRequest, setLowStockRequest] = useState<MaterialRequest | null>(null);
+    const [lowStockItemsCount, setLowStockItemsCount] = useState<number>(0);
+    const [pendingApproveArgs, setPendingApproveArgs] = useState<any>(null);
+    const [conflictErrorMsg, setConflictErrorMsg] = useState<string | null>(null);
+    const [zeroStockConfirmCount, setZeroStockConfirmCount] = useState<number>(0);
+
     // AC Adjustment State
     const [modifiedRequests, setModifiedRequests] = useState<Record<string, RequestItem[]>>({});
     const [adjustmentReasons, setAdjustmentReasons] = useState<Record<string, string>>({});
+    const [storeCapacities, setStoreCapacities] = useState<Record<string, number>>({});
 
     const handleItemQuantityChange = (requestId: string, itemIdx: number, newQty: number, originalItems: RequestItem[]) => {
-        const sanitizedQty = Math.max(0, newQty);
+        const item = originalItems[itemIdx];
+        const materialKey = item.materialName?.trim().toLowerCase() || '';
+        const storeQty = storeCapacities[materialKey];
+        const originalReqQty = parseInt(String(item.quantity), 10) || 0;
+        
+        // Determine the absolute maximum: the lower of requested qty and store qty
+        let maxAllowed = originalReqQty;
+        if (storeQty !== undefined && storeQty < maxAllowed) {
+            maxAllowed = storeQty;
+        }
+        
+        // Hard clamp: between 0 and maxAllowed
+        let sanitizedQty = Math.max(0, Math.min(parseInt(String(newQty), 10) || 0, maxAllowed));
+
         const currentModified = modifiedRequests[requestId] || JSON.parse(JSON.stringify(originalItems));
         currentModified[itemIdx].quantity = sanitizedQty;
         setModifiedRequests({
@@ -233,21 +255,33 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
     };
 
     useEffect(() => {
-        // Fetch material images for fallback
-        const fetchMaterialImages = async () => {
+        // Fetch material data for fallback images and store capacities
+        const fetchMaterialsData = async () => {
             if (!db) return;
             const materialsSnap = await getDocs(collection(db!, 'materials'));
             const imageMap: Record<string, string> = {};
+            const capacityMap: Record<string, number> = {};
             materialsSnap.docs.forEach(doc => {
                 const data = doc.data();
                 if (data.image) {
                     imageMap[doc.id] = data.image;
                 }
+                if (data.materialName) {
+                    capacityMap[data.materialName.trim().toLowerCase()] = Number(data.quantity) || 0;
+                }
+                if (data.items && Array.isArray(data.items)) {
+                    data.items.forEach((i: any) => {
+                        if (i.description) {
+                            capacityMap[i.description.trim().toLowerCase()] = Number(i.quantity) || Number(data.quantity) || 0;
+                        }
+                    });
+                }
             });
             setMaterialImages(imageMap);
+            setStoreCapacities(capacityMap);
         };
-        fetchMaterialImages();
-    }, []); // Run once on mount to fetch material images
+        fetchMaterialsData();
+    }, []); // Run once on mount to fetch material data
 
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -382,11 +416,89 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         return () => unsubscribe();
     }, [userData, effectiveRole]);
 
-    const handleApprove = async (request: MaterialRequest, updatedItems?: RequestItem[], adjustmentNote?: string, signature?: string) => {
+    const handleApprove = async (request: MaterialRequest, updatedItems?: RequestItem[], adjustmentNote?: string, signature?: string, skipLowStockCheck = false) => {
         if (!user || !userData || !db) return;
         setProcessingId(request.id);
 
         try {
+            // Check for low stock items for AC and MD
+            if (!skipLowStockCheck && (effectiveRole === 'managing_director' || effectiveRole === 'academic_coordinator')) {
+                const finalItemsToCheck = updatedItems || modifiedRequests[request.id] || request.items;
+                const zeroStockWarningItemNames: string[] = [];
+                const insufficientStockItemNames: string[] = [];
+                
+                const allMaterialsSnap = await getDocs(collection(db!, 'materials'));
+                const allMaterials = allMaterialsSnap.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
+
+                const allReqSnap = await getDocs(collection(db!, 'Request_materials'));
+                const allActiveReqs = allReqSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((d: any) => d.status !== 'rejected' && d.status !== 'completed' && d.status !== 'fulfilled' && d.id !== request.id);
+
+                let approvedBy = 'another approver';
+
+                for (const item of finalItemsToCheck) {
+                    let currentQty = 0;
+                    for (const mat of allMaterials) {
+                        const mData = mat.data;
+                        if (mData.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase() ||
+                            (item.materialCode && mData.materialCode?.trim().toLowerCase() === item.materialCode?.trim().toLowerCase())) {
+                            currentQty = Number(mData.quantity) || 0;
+                            break;
+                        }
+                        if (mData.items && Array.isArray(mData.items)) {
+                            const matchedIdx = mData.items.findIndex((i: any) => i.description?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
+                            if (matchedIdx !== -1) {
+                                currentQty = Number(mData.items[matchedIdx].quantity) || Number(mData.quantity) || 0;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Calculate total approved quantity from other active requests for this item
+                    let totalApprovedQty = 0;
+                    let lastApprover = '';
+                    allActiveReqs.forEach((req: any) => {
+                        const preApprovalStatuses = ['pending', 'pending_department_leader', 'pending_student_service_leader', 'pending_managing_director', 'pending_academic_coordinator', 'approved_by_head', 'approved_by_coordinator'];
+                        if (preApprovalStatuses.includes(req.status)) return;
+
+                        const reqItems = req.items || [];
+                        reqItems.forEach((i: any) => {
+                            if (i.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase()) {
+                                totalApprovedQty += Number(i.quantity) || 0;
+                                if (req.mdApproverName || req.status === 'approved_by_md' || req.history?.some((h: any) => h.userRole === 'Managing Director')) {
+                                    lastApprover = 'Managing Director';
+                                } else if (req.acApproverName || req.status === 'approved_by_academic_coordinator' || req.history?.some((h: any) => h.userRole === 'Academic Coordinator')) {
+                                    lastApprover = 'Academic Coordinator';
+                                }
+                            }
+                        });
+                    });
+
+                    const reqQty = Number(item.quantity) || 0;
+                    const effectiveStock = currentQty - totalApprovedQty;
+
+                    if (effectiveStock < reqQty) {
+                        insufficientStockItemNames.push(item.materialName || '');
+                        if (lastApprover) approvedBy = lastApprover;
+                    } else if (effectiveStock === reqQty) {
+                        zeroStockWarningItemNames.push(item.materialName || '');
+                    }
+                }
+
+                if (insufficientStockItemNames.length > 0) {
+                    setConflictErrorMsg(`This item (${insufficientStockItemNames.join(', ')}) has already been approved by ${approvedBy} and is currently under processing, leaving insufficient stock. You cannot approve this request.`);
+                    setProcessingId(null);
+                    return;
+                }
+
+                if (zeroStockWarningItemNames.length > 0) {
+                    setLowStockItemsCount(zeroStockWarningItemNames.length);
+                    setLowStockRequest(request);
+                    setPendingApproveArgs({ updatedItems, adjustmentNote, signature });
+                    setLowStockModalOpen(true);
+                    setProcessingId(null);
+                    return;
+                }
+            }
 
             const requestRef = doc(db!, 'Request_materials', request.id);
 
@@ -1215,6 +1327,20 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         }
     };
 
+    const confirmLowStockApprove = async () => {
+        if (zeroStockConfirmCount === 0) {
+            setZeroStockConfirmCount(1);
+            return;
+        }
+
+        if (!lowStockRequest || !pendingApproveArgs) return;
+        setLowStockModalOpen(false);
+        setZeroStockConfirmCount(0);
+        await handleApprove(lowStockRequest, pendingApproveArgs.updatedItems, pendingApproveArgs.adjustmentNote, pendingApproveArgs.signature, true);
+        setLowStockRequest(null);
+        setPendingApproveArgs(null);
+    };
+
     const generateVerificationCode = () => {
         return Math.floor(100000 + Math.random() * 900000).toString();
     };
@@ -1687,8 +1813,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                                 {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
                                                                     <input
                                                                         type="number"
+                                                                        min="0"
+                                                                        max={(() => { const s = storeCapacities[item.materialName?.trim().toLowerCase() || '']; const r = parseInt(String(item.quantity), 10) || 0; return s !== undefined ? Math.min(r, s) : r; })()}
                                                                         value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
                                                                         onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
+                                                                        onBlur={(e) => { const maxVal = (() => { const s = storeCapacities[item.materialName?.trim().toLowerCase() || '']; const r = parseInt(String(item.quantity), 10) || 0; return s !== undefined ? Math.min(r, s) : r; })(); if (Number(e.target.value) > maxVal) handleItemQuantityChange(request.id, idx, maxVal, request.items); }}
                                                                         className={`w-14 px-2 py-1 border rounded text-right font-bold text-sm outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
                                                                             ? 'text-rose-600 border-rose-200 bg-rose-50'
                                                                             : 'text-slate-800 border-slate-200 bg-white'
@@ -1803,8 +1932,11 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                                 {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
                                                                     <input
                                                                         type="number"
+                                                                        min="0"
+                                                                        max={(() => { const s = storeCapacities[item.materialName?.trim().toLowerCase() || '']; const r = parseInt(String(item.quantity), 10) || 0; return s !== undefined ? Math.min(r, s) : r; })()}
                                                                         value={modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity}
                                                                         onChange={(e) => handleItemQuantityChange(request.id, idx, Number(e.target.value), request.items)}
+                                                                        onBlur={(e) => { const maxVal = (() => { const s = storeCapacities[item.materialName?.trim().toLowerCase() || '']; const r = parseInt(String(item.quantity), 10) || 0; return s !== undefined ? Math.min(r, s) : r; })(); if (Number(e.target.value) > maxVal) handleItemQuantityChange(request.id, idx, maxVal, request.items); }}
                                                                         className={`w-14 px-2 py-1 bg-white border rounded text-right font-bold text-sm outline-none ${(modifiedRequests[request.id]?.[idx]?.quantity ?? item.quantity) !== item.quantity
                                                                             ? 'text-rose-600 border-rose-200 bg-rose-50'
                                                                             : 'text-slate-800 border-slate-200'
@@ -1914,6 +2046,86 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                         }`}
                                 >
                                     Confirm Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            {/* Low Stock Confirmation Modal */}
+            {lowStockModalOpen && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-6 bg-amber-50 border-b border-amber-100 flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
+                                <FiAlertCircle className="text-2xl" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-amber-900">Zero Stock Warning</h3>
+                                <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider">AC / MD Decision Required</p>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-slate-600 font-medium mb-4">
+                                Approving this will leave 0 items in the store (out of stock) for {lowStockItemsCount} item(s). It may require AC decision, so are you sure to approve?
+                            </p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setLowStockModalOpen(false);
+                                    setLowStockRequest(null);
+                                    setPendingApproveArgs(null);
+                                    setZeroStockConfirmCount(0);
+                                }}
+                                className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (zeroStockConfirmCount === 0) {
+                                        setZeroStockConfirmCount(1);
+                                    } else {
+                                        confirmLowStockApprove();
+                                    }
+                                }}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${zeroStockConfirmCount === 0
+                                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                        : 'bg-rose-600 text-white hover:bg-rose-700 shadow-lg scale-105'
+                                    }`}
+                            >
+                                {zeroStockConfirmCount === 0 ? 'Click to Confirm' : 'Are you sure? Click to Approve!'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+                {/* Conflict Error Modal */}
+                {conflictErrorMsg && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="p-6 bg-rose-50 border-b border-rose-100 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-rose-500">
+                                    <FiAlertCircle className="text-2xl" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-rose-900">Approval Blocked</h3>
+                                    <p className="text-xs font-bold text-rose-700/70 uppercase tracking-wider">Item Unavailable</p>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                <p className="text-sm text-slate-600 font-medium mb-4">
+                                    {conflictErrorMsg}
+                                </p>
+                            </div>
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                                <button
+                                    onClick={() => setConflictErrorMsg(null)}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold transition-colors bg-slate-900 text-white hover:bg-slate-800"
+                                >
+                                    Understood
                                 </button>
                             </div>
                         </div>

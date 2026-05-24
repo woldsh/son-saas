@@ -234,8 +234,36 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 }
 
                 if (found) {
-                    if (reqQty > storeQty) {
-                        setCooldownAlert(`❌ በስቶር ውስጥ በቂ ዕቃ የለም! (Insufficient Stock)\n\nዕቃ (Item): ${item.itemType}\nየተጠየቀው (Requested): ${reqQty}\nበስቶር ያለው (Available): ${storeQty}\n\nእባክዎ ብዛቱን እስኪስተካከል ይጠብቁ።`);
+                    const allReqSnap = await getDocs(collection(db, 'Request_materials'));
+                    const allActiveReqs = allReqSnap.docs.map(d => d.data()).filter(d => d.status !== 'rejected' && d.status !== 'completed' && d.status !== 'fulfilled');
+                    
+                    let totalApprovedQty = 0;
+                    allActiveReqs.forEach(req => {
+                        const preApprovalStatuses = ['pending', 'pending_department_leader', 'pending_student_service_leader', 'pending_managing_director', 'pending_academic_coordinator', 'approved_by_head', 'approved_by_coordinator'];
+                        if (preApprovalStatuses.includes(req.status)) return;
+                        
+                        const reqItems = req.items || [];
+                        reqItems.forEach((i: any) => {
+                            if (i.materialName?.trim().toLowerCase() === item.itemType?.trim().toLowerCase() || i.materialId === item.itemType) {
+                                totalApprovedQty += Number(i.quantity) || 0;
+                            }
+                        });
+                    });
+
+                    const effectiveStock = storeQty - totalApprovedQty;
+
+                    if (effectiveStock <= 0) {
+                        if (storeQty === 1) {
+                            setCooldownAlert(`⏳ "${item.itemType}" it is under processing due to its quantity is one please wait.`);
+                        } else {
+                            setCooldownAlert(`⏳ "${item.itemType}" it is under processing due to its quantity is finished please wait.`);
+                        }
+                        setIsSubmitting(false);
+                        return;
+                    }
+
+                    if (reqQty > effectiveStock) {
+                        setCooldownAlert(`❌ በስቶር ውስጥ በቂ ዕቃ የለም! (Insufficient Stock)\n\nዕቃ (Item): ${item.itemType}\nየተጠየቀው (Requested): ${reqQty}\nበስቶር ያለው (Available): ${effectiveStock} (Some are under processing)\n\nእባክዎ ብዛቱን እስኪስተካከል ይጠብቁ።`);
                         setIsSubmitting(false);
                         return;
                     }

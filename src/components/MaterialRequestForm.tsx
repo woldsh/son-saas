@@ -1,7 +1,7 @@
 import { addDocWithAudit } from '@/utils/auditTrail';
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs,  serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useInventory, Material } from '../contexts/InventoryContext';
 import {
@@ -242,6 +242,40 @@ export default function MaterialRequestForm() {
         }
         if (user && db) {
             try {
+                // 0. Global Check for Effective Stock (Store Qty - Approved Pending Fulfillment)
+                const allReqSnap = await getDocs(collection(db, 'Request_materials'));
+                const allActiveReqs = allReqSnap.docs.map(d => d.data()).filter(d => d.status !== 'rejected' && d.status !== 'completed' && d.status !== 'fulfilled');
+                
+                let totalApprovedQty = 0;
+                allActiveReqs.forEach(req => {
+                    const preApprovalStatuses = ['pending', 'pending_department_leader', 'pending_student_service_leader', 'pending_managing_director', 'pending_academic_coordinator', 'approved_by_head', 'approved_by_coordinator'];
+                    if (preApprovalStatuses.includes(req.status)) return;
+                    
+                    const items = req.items || [];
+                    items.forEach((i: any) => {
+                        if (i.materialId === material.id || i.materialName === material.materialName) {
+                            totalApprovedQty += Number(i.quantity) || 0;
+                        }
+                    });
+                });
+
+                const storeQty = Number(material.quantity) || 0;
+                const effectiveStock = storeQty - totalApprovedQty;
+
+                if (effectiveStock <= 0) {
+                    if (storeQty === 1) {
+                        setCooldownAlert(`⏳ "${material.materialName}" it is under processing due to its quantity is one please wait.`);
+                    } else {
+                        setCooldownAlert(`⏳ "${material.materialName}" it is under processing due to its quantity is finished please wait.`);
+                    }
+                    return;
+                }
+                
+                if (nextQty > effectiveStock) {
+                    setCooldownAlert(`❌ You cannot request ${nextQty} of "${material.materialName}". Only ${effectiveStock} are effectively available (others are under processing).`);
+                    return;
+                }
+
                 // 1. Check if the user already has a pending/active request for this material (Applies to ALL materials)
                 const reqQuery = query(
                     collection(db, 'Request_materials'),

@@ -29,6 +29,7 @@ interface TransferOrder {
     refNumber: string;
     date: string;
     status: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createdAt: any;
 }
 
@@ -59,6 +60,21 @@ export default function MaterialTransferOrderPage() {
     const [isSearchingRecipient, setIsSearchingRecipient] = useState(false);
     const [isSearchingTransferee, setIsSearchingTransferee] = useState(false);
     const [isSearchingReceiver, setIsSearchingReceiver] = useState(false);
+
+    // Material selection
+    interface MaterialItem {
+        id: string;
+        name: string;
+        model: string;
+        quantity: number;
+        unitPrice: number;
+        totalPrice: number;
+        serialNumber: string;
+        materialType: string;
+    }
+    const [senderMaterials, setSenderMaterials] = useState<MaterialItem[]>([]);
+    const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set());
+    const [isLoadingMaterials, setIsLoadingMaterials] = useState(false);
 
     // Submit & history
     const [submitting, setSubmitting] = useState(false);
@@ -158,54 +174,101 @@ export default function MaterialTransferOrderPage() {
         setShowReceiverResults(false);
     };
 
+    // Fetch materials when recipient is selected
+    useEffect(() => {
+        if (!recipientId || !db) {
+            setSenderMaterials([]);
+            setSelectedMaterials(new Set());
+            return;
+        }
+
+        const fetchUserMaterials = async () => {
+            setIsLoadingMaterials(true);
+            try {
+                // First, fetch all materials once to efficiently look up true material types by name.
+                const allMaterialsSnap = await getDocs(collection(db, 'materials'));
+                const allMaterials = allMaterialsSnap.docs.map(d => d.data());
+
+                const userReportQuery = query(
+                    collection(db, 'User-Report'),
+                    where('requesterId', '==', recipientId),
+                    where('status', '==', 'accepted')
+                );
+                const userReportSnap = await getDocs(userReportQuery);
+
+                const items = await Promise.all(userReportSnap.docs.map(async (reportDoc) => {
+                    const data = reportDoc.data();
+                    let unitPrice = 0;
+                    let model = data.model || '';
+                    let serialNumber = data.serialNumber || '';
+                    let actualMaterialType = data.materialType || '';
+
+                    // Try to find the true material type by name
+                    const searchName = (data.materialName || '').trim().toLowerCase();
+                    if (searchName) {
+                        for (const matData of allMaterials) {
+                            // Check top-level
+                            if (matData.materialName?.trim().toLowerCase() === searchName) {
+                                actualMaterialType = matData.materialType || actualMaterialType;
+                                const birr = parseFloat(matData.unitPriceBirr) || 0;
+                                const cents = parseFloat(matData.unitPriceCents) || 0;
+                                unitPrice = birr + (cents / 100);
+                                model = model || matData.model || '';
+                                serialNumber = serialNumber || matData.serialNumber || '';
+                                break;
+                            }
+                            // Check inside items array (Model 19)
+                            if (matData.items && Array.isArray(matData.items)) {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const found = matData.items.find((i: any) => i.description?.trim().toLowerCase() === searchName);
+                                if (found) {
+                                    actualMaterialType = found.materialType || matData.materialType || actualMaterialType;
+                                    const birr = parseFloat(found.unitPriceBirr) || parseFloat(matData.unitPriceBirr) || 0;
+                                    const cents = parseFloat(found.unitPriceCents) || parseFloat(matData.unitPriceCents) || 0;
+                                    unitPrice = birr + (cents / 100);
+                                    model = model || found.model || matData.model || '';
+                                    serialNumber = serialNumber || found.serie || matData.serialNumber || '';
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    const qty = Number(data.quantity) || 1;
+                    return {
+                        id: reportDoc.id,
+                        name: data.materialName || '',
+                        model,
+                        quantity: qty,
+                        unitPrice,
+                        totalPrice: qty * unitPrice,
+                        serialNumber,
+                        materialType: actualMaterialType
+                    };
+                }));
+
+                // Show ALL items and auto-select all
+                setSenderMaterials(items);
+                setSelectedMaterials(new Set(items.map(item => item.id)));
+            } catch (e) {
+                console.error('Error fetching user materials:', e);
+            } finally {
+                setIsLoadingMaterials(false);
+            }
+        };
+
+        fetchUserMaterials();
+    }, [recipientId]);
+
     const handleApproveAndSend = async () => {
         if (!user || !db || !recipientId || !recipient) return;
+        if (selectedMaterials.size === 0) {
+            alert("Please select at least one material to transfer.");
+            return;
+        }
         setSubmitting(true);
         try {
-            // Fetch materials currently held by the recipient
-            const userReportQuery = query(
-                collection(db, 'User-Report'),
-                where('requesterId', '==', recipientId),
-                where('status', '==', 'accepted')
-            );
-            const userReportSnap = await getDocs(userReportQuery);
-
-            // Build items with price/model from the materials collection
-            const items = await Promise.all(userReportSnap.docs.map(async (reportDoc) => {
-                const data = reportDoc.data();
-                let unitPrice = 0;
-                let model = data.model || '';
-                let serialNumber = data.serialNumber || '';
-
-                // Look up price and model from the materials collection
-                if (data.materialId) {
-                    try {
-                        const matDoc = await getDoc(doc(db!, 'materials', data.materialId));
-                        if (matDoc.exists()) {
-                            const matData = matDoc.data();
-                            const birr = parseFloat(matData.unitPriceBirr) || 0;
-                            const cents = parseFloat(matData.unitPriceCents) || 0;
-                            unitPrice = birr + (cents / 100);
-                            model = model || matData.model || '';
-                            serialNumber = serialNumber || matData.serialNumber || '';
-                        }
-                    } catch (e) {
-                        console.error('Error fetching material details:', e);
-                    }
-                }
-
-                const qty = Number(data.quantity) || 1;
-                return {
-                    id: reportDoc.id,
-                    name: data.materialName || '',
-                    model,
-                    quantity: qty,
-                    unitPrice,
-                    totalPrice: qty * unitPrice,
-                    serialNumber,
-                    materialType: data.materialType || ''
-                };
-            }));
+            const itemsToTransfer = senderMaterials.filter(item => selectedMaterials.has(item.id));
 
             await addDocWithAudit(collection(db!, 'Transfer_Orders'), {
                 recipientId,
@@ -220,7 +283,7 @@ export default function MaterialTransferOrderPage() {
                 refNumber,
                 date,
                 ccName,
-                items, // Attached the fetched materials here
+                items: itemsToTransfer, // Only attached selected fixed_asset materials
                 status: 'pending_handover',
                 createdBy: user.uid,
                 createdByName: currentUserName || user.displayName || 'PTL',
@@ -231,6 +294,7 @@ export default function MaterialTransferOrderPage() {
             setRefNumber(''); setDate(''); setRecipient(''); setRecipientId(''); setRecipientEmail('');
             setFromPosition(''); setToPosition(''); setTransfereeName(''); setTransfereeId('');
             setReceiverName(''); setReceiverId(''); setCcName('');
+            setSenderMaterials([]); setSelectedMaterials(new Set());
             setTimeout(() => setSubmitted(false), 4000);
         } catch (e) {
             console.error('Error saving transfer order:', e);
@@ -392,6 +456,68 @@ export default function MaterialTransferOrderPage() {
                     />
                 </div>
 
+                {/* ===== MATERIALS CHECKLIST ===== */}
+                {recipientId && (
+                    <div className="mb-4 p-4 border border-slate-200 rounded-lg bg-slate-50 print:hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
+                        <h3 className="text-sm font-bold text-slate-800 mb-3">Select Materials to Transfer:</h3>
+                        {isLoadingMaterials ? (
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <Loader2 className="w-4 h-4 animate-spin" /> Fetching items...
+                            </div>
+                        ) : senderMaterials.length === 0 ? (
+                            <p className="text-sm text-amber-600">This user has no materials registered.</p>
+                        ) : (
+                            <div>
+                                {/* Select All */}
+                                <label className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-200 cursor-pointer hover:bg-slate-100 p-1.5 rounded">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        checked={senderMaterials.every(i => selectedMaterials.has(i.id))}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedMaterials(new Set(senderMaterials.map(i => i.id)));
+                                            } else {
+                                                setSelectedMaterials(new Set());
+                                            }
+                                        }}
+                                    />
+                                    <span className="text-sm font-bold text-slate-700">Select All</span>
+                                </label>
+                                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                {senderMaterials.map((item) => {
+                                    const isFixed = item.materialType === 'fixed_asset';
+                                    return (
+                                        <label key={item.id} className="flex items-start gap-2 p-1.5 rounded cursor-pointer hover:bg-slate-100">
+                                            <input 
+                                                type="checkbox" 
+                                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                checked={selectedMaterials.has(item.id)}
+                                                onChange={(e) => {
+                                                    const newSet = new Set(selectedMaterials);
+                                                    if (e.target.checked) newSet.add(item.id);
+                                                    else newSet.delete(item.id);
+                                                    setSelectedMaterials(newSet);
+                                                }}
+                                            />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-slate-800 leading-tight">{item.name} {item.model ? `(${item.model})` : ''}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-xs text-slate-500">Qty: {item.quantity} | S/N: {item.serialNumber || 'N/A'}</p>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${isFixed ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                                        {item.materialType?.replace('_', ' ') || 'unknown'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* ===== SUB-REFERENCE ===== */}
                 <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', fontWeight: 'bold', textDecoration: 'underline' }}>ደ/ማ/ዩ፡</span>
@@ -541,7 +667,7 @@ export default function MaterialTransferOrderPage() {
             )}
 
             {/* ============ PRINT STYLES ============ */}
-            <style jsx global>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     body { background: white !important; padding: 0 !important; margin: 0 !important; }
                     body * { visibility: hidden; }
@@ -556,7 +682,7 @@ export default function MaterialTransferOrderPage() {
                     input::placeholder { color: transparent !important; }
                     @page { size: A4; margin: 0; }
                 }
-            `}</style>
+            `}} />
         </div>
     );
 }

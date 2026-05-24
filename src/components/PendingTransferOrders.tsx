@@ -42,6 +42,9 @@ interface TransferOrder {
     receiverAcknowledged?: boolean;
     overseerAcknowledged?: boolean;
     overseerAcknowledgedAt?: any;
+    rejectReason?: string;
+    rejectedBy?: string;
+    rejectedAt?: any;
 }
 
 export default function PendingTransferOrders() {
@@ -56,20 +59,23 @@ export default function PendingTransferOrders() {
     const router = useRouter();
 
     useEffect(() => {
-        if (!user || !db) { setLoading(false); return; }
+        if (!user || !db) { 
+            const t = setTimeout(() => setLoading(false), 0);
+            return () => clearTimeout(t);
+        }
 
         // Listen for orders where user is the DELIVERER (recipientId)
         const q1 = query(
             collection(db!, 'Transfer_Orders'),
             where('recipientId', '==', user.uid),
-            where('status', '==', 'pending_handover')
+            where('status', 'in', ['pending_handover', 'rejected'])
         );
 
         // Listen for orders where user is the RECEIVER (itemReceiverId)
         const q2 = query(
             collection(db!, 'Transfer_Orders'),
             where('itemReceiverId', '==', user.uid),
-            where('status', '==', 'pending_handover')
+            where('status', 'in', ['pending_handover', 'rejected'])
         );
 
         let delivererOrders: TransferOrder[] = [];
@@ -104,6 +110,14 @@ export default function PendingTransferOrders() {
 
     const handleAcknowledge = async (orderId: string, signatureData: string) => {
         if (!db || !user) return;
+        
+        // Find the specific order to validate signatures
+        const order = orders.find(o => o.id === orderId);
+        if (order && (!order.receiverSignatureData || !order.overseerSignatureData || !signatureData)) {
+            alert("Cannot confirm: All three signatures (አስረካቢ, ተረካቢ, አረጋጋጭ) must be signed and captured first.");
+            return;
+        }
+
         try {
             const userDoc = await getDoc(doc(db!, 'users', user.uid));
             const userData = userDoc.data();
@@ -185,6 +199,17 @@ export default function PendingTransferOrders() {
         }
     };
 
+    const handleDismissRejection = async (orderId: string) => {
+        if (!db) return;
+        try {
+            await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
+                status: 'rejected_acknowledged'
+            });
+        } catch (e) {
+            console.error('Error dismissing rejection:', e);
+        }
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -243,9 +268,15 @@ export default function PendingTransferOrders() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-xs font-semibold flex items-center gap-1">
-                                        <FiClock className="text-[10px]" /> Pending
-                                    </span>
+                                    {order.status === 'rejected' ? (
+                                        <span className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-xs font-semibold flex items-center gap-1">
+                                            <FiClock className="text-[10px]" /> Rejected
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-xs font-semibold flex items-center gap-1">
+                                            <FiClock className="text-[10px]" /> Pending
+                                        </span>
+                                    )}
                                     <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
                                 </div>
                             </button>
@@ -253,6 +284,22 @@ export default function PendingTransferOrders() {
                             {/* Expanded content */}
                             {isExpanded && (
                                 <div className="border-t border-slate-200">
+                                    {order.status === 'rejected' && (
+                                        <div className="m-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                                            <h3 className="text-red-800 font-bold mb-2">Transfer Rejected</h3>
+                                            <p className="text-sm text-red-700 mb-4">
+                                                <span className="font-semibold">Reason:</span> {order.rejectReason || 'No specific reason provided.'}
+                                                {order.rejectedBy && <span className="block mt-1 text-xs opacity-80">Rejected by: {order.rejectedBy.replace(/_/g, ' ')}</span>}
+                                            </p>
+                                            <button
+                                                onClick={() => handleDismissRejection(order.id)}
+                                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors"
+                                            >
+                                                Dismiss Notification
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Action buttons */}
                                     <div className="flex items-center gap-3 px-6 py-3 bg-slate-50 border-b border-slate-200 print:hidden justify-end">
                                         <button onClick={handlePrint}
@@ -389,7 +436,7 @@ export default function PendingTransferOrders() {
                                     </div>
 
                                     {/* Inline Action Area */}
-                                    {order.status !== 'completed' && (
+                                    {order.status !== 'completed' && order.status !== 'rejected' && (
                                         <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col items-center justify-center print:hidden">
                                             {/* Case 1: Current user is RECEIVER and hasn't signed yet */}
                                             {user?.uid === order.itemReceiverId && !order.receiverAcknowledged ? (
@@ -511,7 +558,7 @@ export default function PendingTransferOrders() {
                 })}
             </AnimatePresence>
 
-            <style jsx global>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     body { background: white !important; padding: 0 !important; margin: 0 !important; }
                     body * { visibility: hidden; }
@@ -524,7 +571,7 @@ export default function PendingTransferOrders() {
                     }
                     @page { size: A4; margin: 0; }
                 }
-            `}</style>
+            `}} />
         </div>
     );
 }

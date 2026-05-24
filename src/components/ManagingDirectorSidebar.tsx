@@ -73,8 +73,8 @@ export default function ManagingDirectorSidebar() {
             subItems: [
                 { label: 'Material List', href: `${basePath}/full-inventory`, icon: Layers },
                 { label: t('report_data') || 'Report Data', href: `${basePath}/report-data`, icon: FileText },
-                { label: t('employee_report') || 'Employee Report', href: `${basePath}/employee-report`, icon: FileText },
                 { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart3 },
+                { label: "Upload AC Rules", href: `${basePath}/upload-ac-rules`, icon: FilePlus },
             ]
         },
         { isHeader: true, label: t('personal_account') || "Personal Account" },

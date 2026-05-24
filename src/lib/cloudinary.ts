@@ -41,11 +41,12 @@ export interface CloudinaryUploadResult {
 export const uploadImage = async (
   filePath: string,
   folder?: string,
-  publicId?: string
+  publicId?: string,
+  resourceType: 'auto' | 'image' | 'video' | 'raw' = 'auto'
 ): Promise<CloudinaryUploadResult> => {
   try {
     const uploadOptions: any = {
-      resource_type: 'auto',
+      resource_type: resourceType,
       overwrite: true,
       invalidate: true,
     };
@@ -72,11 +73,12 @@ export const uploadImage = async (
 export const uploadImageFromBuffer = async (
   buffer: Buffer,
   folder?: string,
-  publicId?: string
+  publicId?: string,
+  resourceType: 'auto' | 'image' | 'video' | 'raw' = 'auto'
 ): Promise<CloudinaryUploadResult> => {
   return new Promise((resolve, reject) => {
     const uploadOptions: any = {
-      resource_type: 'auto',
+      resource_type: resourceType,
       overwrite: true,
       invalidate: true,
     };

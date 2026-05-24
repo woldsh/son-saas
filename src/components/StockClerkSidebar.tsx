@@ -106,6 +106,7 @@ export default function StockClerkSidebar({ stockType }: StockClerkSidebarProps)
                 { label: t('report_data'), href: `${basePath}/report-data`, icon: BarChart },
                 { label: t('analytics') || 'Analytics', href: `${basePath}/analytics`, icon: BarChart2 },
                 { label: t('material_transfer_report') || "Material Transfer Report", href: `${basePath}/material-transfer-report`, icon: FileText },
+                { label: "View AC Rules", href: `${basePath}/view-ac-rules`, icon: FileText },
                 {
                     label: t('stock_alert') || "Stock Alert",
                     icon: Bell,

@@ -20,10 +20,16 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        // Determine the optimal resource_type
+        let resourceType: 'auto' | 'image' | 'video' | 'raw' = 'auto';
+        if (file.type === 'application/pdf' || file.type.includes('csv') || file.type.includes('excel')) {
+            resourceType = 'raw';
+        }
+
         // Upload to Cloudinary
         let result;
         try {
-            result = await uploadImageFromBuffer(buffer, folder, publicId);
+            result = await uploadImageFromBuffer(buffer, folder, publicId, resourceType);
             console.log('Cloudinary upload successful:', result.secure_url);
         } catch (uploadError: any) {
             console.error('Cloudinary upload error in API:', uploadError);

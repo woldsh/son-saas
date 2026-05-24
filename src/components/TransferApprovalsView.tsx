@@ -24,6 +24,8 @@ export default function TransferApprovalsView() {
     const [userData, setUserData] = useState<any>(null);
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+    const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [activeFormPage, setActiveFormPage] = useState(1);
     const ordersPerPage = 5;
@@ -145,6 +147,12 @@ export default function TransferApprovalsView() {
     const handleApprove = async (order: any) => {
         if (!db || processingIds.has(order.id)) return;
 
+        // Strict signature validation
+        if (!order.delivererSignatureData || !order.receiverSignatureData || !order.overseerSignatureData) {
+            alert("Approval blocked! All three signatures (አስረካቢ, ተረካቢ, አረጋጋጭ) must be completed before you can approve this transfer.");
+            return;
+        }
+
         setProcessingIds(prev => new Set(prev).add(order.id));
         try {
             let nextStatus = '';
@@ -257,17 +265,31 @@ export default function TransferApprovalsView() {
         }
     };
 
-    const handleReject = async (orderId: string) => {
+    const handleReject = (orderId: string) => {
+        setRejectingOrderId(orderId);
+        setRejectReason('');
+    };
+
+    const confirmReject = async (orderId: string) => {
         if (!db || processingIds.has(orderId)) return;
+        if (!rejectReason.trim()) {
+            alert("Please provide a reason or feedback for rejection.");
+            return;
+        }
+        
         setProcessingIds(prev => new Set(prev).add(orderId));
         try {
             await updateDocWithAudit(doc(db!, 'Transfer_Orders', orderId), {
                 status: 'rejected',
                 rejectedAt: serverTimestamp(),
-                rejectedBy: effectiveRole
+                rejectedBy: effectiveRole,
+                rejectReason: rejectReason.trim()
             });
+            setRejectingOrderId(null);
+            setRejectReason('');
         } catch (e) {
             console.error('Error rejecting transfer:', e);
+            alert("Failed to reject. Check console.");
         } finally {
             setProcessingIds(prev => {
                 const newSet = new Set(prev);
@@ -469,21 +491,52 @@ export default function TransferApprovalsView() {
                                     {/* Approve / Reject Action Area */}
                                     <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-center gap-4 print:hidden">
                                         {(effectiveRole === 'managing_director' || effectiveRole === 'academic_coordinator') && (
+                                            rejectingOrderId === order.id ? (
+                                                <div className="flex flex-col gap-2 w-full max-w-md bg-white p-4 rounded-xl border border-red-200 shadow-sm">
+                                                    <label className="text-sm font-bold text-slate-700">Reason for Rejection / Feedback:</label>
+                                                    <textarea 
+                                                        value={rejectReason}
+                                                        onChange={(e) => setRejectReason(e.target.value)}
+                                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+                                                        rows={3}
+                                                        placeholder="Explain why this transfer is being rejected..."
+                                                    />
+                                                    <div className="flex gap-2 justify-end mt-2">
+                                                        <button 
+                                                            onClick={() => { setRejectingOrderId(null); setRejectReason(''); }}
+                                                            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => confirmReject(order.id)}
+                                                            disabled={processingIds.has(order.id) || !rejectReason.trim()}
+                                                            className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+                                                        >
+                                                            {processingIds.has(order.id) ? 'Processing...' : 'Confirm Reject'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleReject(order.id)}
+                                                    disabled={processingIds.has(order.id)}
+                                                    className={`px-8 py-3 border rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${processingIds.has(order.id) ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
+                                                >
+                                                    <FiX /> Reject
+                                                </button>
+                                            )
+                                        )}
+                                        
+                                        {rejectingOrderId !== order.id && (
                                             <button
-                                                onClick={() => handleReject(order.id)}
+                                                onClick={() => handleApprove(order)}
                                                 disabled={processingIds.has(order.id)}
-                                                className={`px-8 py-3 border rounded-xl font-bold text-sm transition-colors flex items-center gap-2 ${processingIds.has(order.id) ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}`}
+                                                className={`px-8 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-sm ${processingIds.has(order.id) ? 'bg-indigo-300 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                                             >
-                                                <FiX /> Reject
+                                                <FiCheck /> {processingIds.has(order.id) ? 'Processing...' : (effectiveRole.includes('stock_clerk') ? 'Finalize Transfer' : 'Approve Transfer')}
                                             </button>
                                         )}
-                                        <button
-                                            onClick={() => handleApprove(order)}
-                                            disabled={processingIds.has(order.id)}
-                                            className={`px-8 py-3 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-sm ${processingIds.has(order.id) ? 'bg-indigo-300 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
-                                        >
-                                            <FiCheck /> {processingIds.has(order.id) ? 'Processing...' : (effectiveRole.includes('stock_clerk') ? 'Finalize Transfer' : 'Approve Transfer')}
-                                        </button>
                                     </div>
 
                                     {/* Form Pagination Controls */}
@@ -579,7 +632,7 @@ export default function TransferApprovalsView() {
                 </div>
             )}
 
-            <style jsx global>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     body { background: white !important; padding: 0 !important; margin: 0 !important; }
                     body * { visibility: hidden; }
@@ -592,7 +645,7 @@ export default function TransferApprovalsView() {
                     }
                     @page { size: A4; margin: 0; }
                 }
-            `}</style>
+            `}} />
         </div>
     );
 }

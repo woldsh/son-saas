@@ -28,6 +28,7 @@ interface MaterialRequestReviewModalProps {
     onApprove: () => void;
     onReject: () => void;
     isProcessing: boolean;
+    canReject?: boolean;
 }
 
 export default function MaterialRequestReviewModal({
@@ -35,7 +36,8 @@ export default function MaterialRequestReviewModal({
     onClose,
     onApprove,
     onReject,
-    isProcessing
+    isProcessing,
+    canReject = true
 }: MaterialRequestReviewModalProps) {
     const [mounted, setMounted] = useState(false);
 
@@ -169,13 +171,15 @@ export default function MaterialRequestReviewModal({
 
                 {/* Footer Actions */}
                 <div className="px-8 py-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-                    <button
-                        onClick={onReject}
-                        disabled={isProcessing}
-                        className="px-8 py-3.5 bg-white text-slate-400 hover:text-red-500 rounded-[1.25rem] font-black text-xs uppercase tracking-widest transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50"
-                    >
-                        Reject
-                    </button>
+                    {canReject && (
+                        <button
+                            onClick={onReject}
+                            disabled={isProcessing}
+                            className="px-8 py-3.5 bg-white text-slate-400 hover:text-red-500 rounded-[1.25rem] font-black text-xs uppercase tracking-widest transition-all border border-slate-200 hover:border-red-200 hover:bg-red-50"
+                        >
+                            Reject
+                        </button>
+                    )}
                     <button
                         onClick={onApprove}
                         disabled={isProcessing}

@@ -30,6 +30,7 @@ interface ReadOnlyPaperForm20Props {
         createdAt?: any;
         status?: string;
         history?: { status: string; note: string; timestamp: string; user: string }[];
+        requesterRole?: string;
     };
     onClose: () => void;
     onApprove: (updatedItems: RequestItem[], signature?: string, adjustmentNote?: string) => void;
@@ -48,8 +49,9 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
     const { receiptNo, requesterName, department, items, signature, headSignature, managingDirectorSignature, ptlSignature, acSignature, acApproverName, mdApproverName, createdAt, status, history } = request;
 
     const rejectionNote = history?.filter(h => h.status === 'rejected').pop()?.note;
-    const canAdjust = isAcademicCoordinator || isManagingDirector;
-
+    const requesterRoleStr = request.requesterRole?.toLowerCase() || '';
+    const requesterIsMdorAc = requesterRoleStr.includes('managing_director') || requesterRoleStr === 'chief' || requesterRoleStr === 'academic_coordinator';
+    const canAdjust = isAcademicCoordinator || isManagingDirector || (isProcurementTeamLeader && requesterIsMdorAc);
     // Signature
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -148,15 +150,12 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
         }
 
         if (canAdjust && isQuantityChanged && !adjustmentNote.trim()) {
-            alert("Please provide a reason for the quantity adjustment.");
+            alert("Please provide a reason for the quantity adjustment (e.g. why an item is reduced or rejected).");
             return;
         }
 
-        const zeroQuantityItems = editableItems.filter(i => i.materialName && i.quantity <= 0);
-        if (zeroQuantityItems.length > 0) {
-            alert("Quantity must be greater than 0 for all items.");
-            return;
-        }
+        // We allow quantity 0 now as a way to reject specific items!
+
 
         onApprove(editableItems, signatureData || undefined, adjustmentNote);
     };
@@ -313,25 +312,43 @@ export default function ReadOnlyPaperForm20({ request, onClose, onApprove, onRej
                                     {item.quantity ? <span style={textStyle}>{items[idx]?.quantity}</span> : ''}
                                 </td>
                                 <td style={tdStyle}>
-                                    {item.materialName ? <span style={textStyle}>{item.materialName}</span> : ''}
+                                    {item.materialName ? <span style={{ ...textStyle, textDecoration: item.quantity === 0 ? 'line-through' : 'none', color: item.quantity === 0 ? '#94a3b8' : textStyle.color }}>{item.materialName}</span> : ''}
                                 </td>
                                 <td style={tdStyle}>
                                     {item.model ? <span style={textStyle}>{item.model}</span> : ''}
                                 </td>
                                 <td style={tdStyle}>
                                     {canAdjust && item.materialName ? (
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={item.quantity || ''}
-                                            onChange={(e) => handleQuantityChange(idx, Math.max(0, parseInt(e.target.value) || 0).toString())}
-                                            style={{
-                                                width: '100%', border: 'none', background: '#f0f9ff',
-                                                textAlign: 'center', fontWeight: 'bold', fontSize: 18,
-                                                color: item.quantity !== items[idx]?.quantity ? '#e11d48' : '#0033aa',
-                                                fontFamily: "'Comic Sans MS', 'Kalam', cursive"
-                                            }}
-                                        />
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4px 0' }}>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={item.quantity === 0 ? '0' : item.quantity || ''}
+                                                onChange={(e) => handleQuantityChange(idx, Math.max(0, parseInt(e.target.value) || 0).toString())}
+                                                disabled={item.quantity === 0}
+                                                style={{
+                                                    width: '100%', border: 'none', background: '#f0f9ff',
+                                                    textAlign: 'center', fontWeight: 'bold', fontSize: 18,
+                                                    color: item.quantity !== items[idx]?.quantity ? '#e11d48' : '#0033aa',
+                                                    fontFamily: "'Comic Sans MS', 'Kalam', cursive",
+                                                    textDecoration: item.quantity === 0 ? 'line-through' : 'none'
+                                                }}
+                                            />
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, cursor: 'pointer', fontSize: 11, color: '#e11d48', fontWeight: 'bold' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={item.quantity === 0}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            handleQuantityChange(idx, "0");
+                                                        } else {
+                                                            handleQuantityChange(idx, items[idx]?.quantity.toString());
+                                                        }
+                                                    }}
+                                                />
+                                                Reject Item
+                                            </label>
+                                        </div>
                                     ) : (
                                         item.quantity !== items[idx]?.quantity ? <span style={{ ...textStyle, color: '#e11d48' }}>{item.quantity}</span> : ''
                                     )}

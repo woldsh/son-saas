@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection,  serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { FiPlus, FiRefreshCw, FiCheck, FiX, FiInfo } from 'react-icons/fi';
 
 interface RequestItem {
@@ -48,6 +48,7 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [cooldownAlert, setCooldownAlert] = useState<string | null>(null);
+    const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
 
     useEffect(() => {
         if (cooldownAlert) {
@@ -236,12 +237,12 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                 if (found) {
                     const allReqSnap = await getDocs(collection(db, 'Request_materials'));
                     const allActiveReqs = allReqSnap.docs.map(d => d.data()).filter(d => d.status !== 'rejected' && d.status !== 'completed' && d.status !== 'fulfilled');
-                    
+
                     let totalApprovedQty = 0;
                     allActiveReqs.forEach(req => {
                         const preApprovalStatuses = ['pending', 'pending_department_leader', 'pending_student_service_leader', 'pending_managing_director', 'pending_academic_coordinator', 'approved_by_head', 'approved_by_coordinator'];
                         if (preApprovalStatuses.includes(req.status)) return;
-                        
+
                         const reqItems = req.items || [];
                         reqItems.forEach((i: any) => {
                             if (i.materialName?.trim().toLowerCase() === item.itemType?.trim().toLowerCase() || i.materialId === item.itemType) {
@@ -616,13 +617,6 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                     <p>የተመለከቱት ዕቃዎች ወጪ ሆነው እንዲሰጡኝ እጠይቃለሁ፡፡</p>
                 </div>
 
-                {/* TABLE */}
-                <datalist id="registered-items-list">
-                    {availableItems.map((ai, idx) => (
-                        <option key={idx} value={ai.name} />
-                    ))}
-                </datalist>
-
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24, border: '1.5px solid #000' }}>
                     <thead>
                         <tr>
@@ -664,13 +658,13 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                                         style={inputStyle}
                                     />
                                 </td>
-                                <td style={tdStyle}>
+                                <td style={{ ...tdStyle, position: 'relative' }}>
                                     <input
-                                        list="registered-items-list"
                                         value={item.itemType}
+                                        onFocus={() => setFocusedRowId(item.id)}
+                                        onBlur={() => setTimeout(() => setFocusedRowId(null), 200)}
                                         onChange={e => {
                                             const val = e.target.value;
-                                            // Check if selected from dropdown and auto-fill model
                                             const matched = availableItems.find(ai => ai.name === val);
                                             if (matched && matched.model && !item.model) {
                                                 const newItems = items.map(i => i.id === item.id ? { ...i, itemType: val, model: matched.model } : i);
@@ -680,7 +674,33 @@ export default function PaperMaterialRequestForm({ initialItem, onBack }: PaperM
                                             }
                                         }}
                                         style={inputStyle}
+                                        autoComplete="off"
                                     />
+                                    {focusedRowId === item.id && item.itemType && (
+                                        <div className="absolute top-full left-0 w-full bg-slate-800 text-white rounded-lg mt-1 shadow-2xl z-50 max-h-48 overflow-y-auto print:hidden">
+                                            {availableItems
+                                                .filter(ai => ai.name.toLowerCase().includes(item.itemType.toLowerCase()))
+                                                .map(ai => (
+                                                    <div
+                                                        key={ai.name}
+                                                        className="px-4 py-2 hover:bg-slate-700 cursor-pointer text-left text-sm"
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            const newItems = items.map(i => i.id === item.id ? { ...i, itemType: ai.name, model: ai.model || i.model } : i);
+                                                            setItems(newItems);
+                                                            setFocusedRowId(null);
+                                                        }}
+                                                    >
+                                                        {ai.name}
+                                                    </div>
+                                                ))}
+                                            {availableItems.filter(ai => ai.name.toLowerCase().includes(item.itemType.toLowerCase())).length === 0 && (
+                                                <div className="px-4 py-2 text-slate-400 text-sm italic text-left">
+                                                    No materials found
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </td>
                                 <td style={tdStyle}>
                                     <input value={item.model} onChange={e => updateItem(item.id, 'model', e.target.value)}

@@ -140,13 +140,13 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
         const materialKey = item.materialName?.trim().toLowerCase() || '';
         const storeQty = storeCapacities[materialKey];
         const originalReqQty = parseInt(String(item.quantity), 10) || 0;
-        
+
         // Determine the absolute maximum: the lower of requested qty and store qty
         let maxAllowed = originalReqQty;
         if (storeQty !== undefined && storeQty < maxAllowed) {
             maxAllowed = storeQty;
         }
-        
+
         // Hard clamp: between 0 and maxAllowed
         let sanitizedQty = Math.max(0, Math.min(parseInt(String(newQty), 10) || 0, maxAllowed));
 
@@ -161,7 +161,21 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
     const isRequestAdjusted = (request: MaterialRequest) => {
         const modified = modifiedRequests[request.id];
         if (!modified) return false;
-        return modified.some((item, idx) => item.quantity !== request.items[idx].quantity);
+        return modified.some((item, idx) => item.quantity !== request.items[idx]?.quantity);
+    };
+
+    const isRequestFromMDorAC = (req: MaterialRequest) => {
+        const roleStr = req.requesterRole?.toLowerCase() || '';
+        return roleStr.includes('managing_director') || roleStr === 'chief' || roleStr === 'academic_coordinator';
+    };
+
+    const canUserAdjustDigitalRequest = (req: MaterialRequest) => {
+        return effectiveRole === 'academic_coordinator' || 
+               effectiveRole === 'managing_director' || 
+               (effectiveRole === 'team_leader' && isRequestFromMDorAC(req));
+    };
+
+    const handleRejectClick = (request: MaterialRequest) => {
     };
 
 
@@ -426,7 +440,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                 const finalItemsToCheck = updatedItems || modifiedRequests[request.id] || request.items;
                 const zeroStockWarningItemNames: string[] = [];
                 const insufficientStockItemNames: string[] = [];
-                
+
                 const allMaterialsSnap = await getDocs(collection(db!, 'materials'));
                 const allMaterials = allMaterialsSnap.docs.map(d => ({ id: d.id, ref: d.ref, data: d.data() }));
 
@@ -474,6 +488,9 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     });
 
                     const reqQty = Number(item.quantity) || 0;
+                    
+                    if (reqQty === 0) continue; // Skip stock check if the item is being rejected
+
                     const effectiveStock = currentQty - totalApprovedQty;
 
                     if (effectiveStock < reqQty) {
@@ -572,6 +589,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     currentApproverName: nextApproverName,
                     currentApproverRole: 'academic_coordinator',
                     headApproverName: userData.displayName || 'Department Head',
+                    items: (updatedItems || modifiedRequests[request.id] || request.items).filter((i: any) => Number(i.quantity) > 0),
                     history: [
                         ...request.history,
                         {
@@ -605,77 +623,131 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
 
                 if (requesterIsPTL || requesterIsStoreStaff) {
                     // PTL or Store Staff requests: MD -> Clerk
-                    // If requester IS a specific clerk type, route back to that same type
-                    let clerkRole = '';
-                    let clerkLabel = '';
+                    const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                    const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
 
-                    if (request.requesterRole?.includes('fixed_asset_stock_clerk')) {
-                        clerkRole = 'fixed_asset_stock_clerk';
-                        clerkLabel = 'Fixed Asset Stock Clerk';
-                    } else if (request.requesterRole?.includes('consumable_item_stock_clerk')) {
-                        clerkRole = 'consumable_item_stock_clerk';
-                        clerkLabel = 'Consumable Stock Clerk';
+                    const changes = finalItems.map((item, i) => {
+                        const original = request.items[i].quantity;
+                        return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
+                    }).filter(Boolean);
+                    const hasChanges = changes.length > 0;
+
+                    const consumableItems = finalItems.filter(i => (i.materialType || '').toLowerCase().includes('consumable') && Number(i.quantity) > 0);
+                    const fixedItems = finalItems.filter(i => !(i.materialType || '').toLowerCase().includes('consumable') && Number(i.quantity) > 0);
+
+                    const createMDClerkPayload = async (itemsList: RequestItem[], isConsumable: boolean, suffix: string) => {
+                        let cRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+                        let cLabel = isConsumable ? 'Consumable Stock Clerk' : 'Fixed Asset Stock Clerk';
+
+                        // Override if requester was a specific clerk
+                        if (request.requesterRole?.includes('fixed_asset_stock_clerk')) {
+                            cRole = 'fixed_asset_stock_clerk';
+                            cLabel = 'Fixed Asset Stock Clerk';
+                        } else if (request.requesterRole?.includes('consumable_item_stock_clerk')) {
+                            cRole = 'consumable_item_stock_clerk';
+                            cLabel = 'Consumable Stock Clerk';
+                        }
+
+                        const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', cRole));
+                        const clerkSnapshot = await getDocs(clerkQuery);
+                        const cApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
+                        const cApproverName = clerkSnapshot.empty ? cLabel : clerkSnapshot.docs[0].data().displayName;
+
+                        let noteToSave = `Approved by Managing Director. Forwarded to ${cApproverName}.${suffix}`;
+                        if (hasChanges || finalAdjustmentNote) {
+                            const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
+                            noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'} (Forwarded to ${cApproverName}${suffix})`;
+                        }
+
+                        return {
+                            status: 'approved_by_md',
+                            currentApproverId: cApproverId,
+                            currentApproverName: cApproverName,
+                            currentApproverRole: cRole,
+                            items: itemsList,
+                            isAdjusted: hasChanges || !!finalAdjustmentNote,
+                            isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
+                            history: [
+                                ...request.history,
+                                {
+                                    status: 'approved_by_md',
+                                    user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
+                                    timestamp: new Date().toISOString(),
+                                    note: noteToSave
+                                }
+                            ],
+                            ...(signature && { managingDirectorSignature: signature }),
+                            mdApproverName: userData.displayName || 'Managing Director'
+                        };
+                    };
+
+                    if (consumableItems.length > 0 && fixedItems.length > 0 && !(request.requesterRole?.includes('fixed_asset_stock_clerk')) && !(request.requesterRole?.includes('consumable_item_stock_clerk'))) {
+                        // Split into Consumable and Fixed requests!
+                        const consumablePayload = await createMDClerkPayload(consumableItems, true, ' [Consumable Part]');
+                        await updateDocWithAudit(requestRef, consumablePayload);
+
+                        const fixedPayload = await createMDClerkPayload(fixedItems, false, ' [Fixed Asset Part]');
+                        const { id: _removedId, ...requestWithoutId } = request;
+                        await addDocWithAudit(collection(db!, 'Request_materials'), {
+                            ...requestWithoutId,
+                            ...fixedPayload
+                        });
+                        setSuccessMessage({ text: `Request split and forwarded to Consumable and Fixed Stock Clerks`, type: 'md' });
                     } else {
-                        // For store keepers or PTL, determine by material type
-                        const firstItem = request.items[0];
-                        const type = firstItem?.materialType?.toLowerCase() || '';
-                        const isConsumable = type.includes('consumable');
-                        clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
-                        clerkLabel = isConsumable ? 'Consumable Stock Clerk' : 'Fixed Asset Stock Clerk';
+                        // All consumable or all fixed
+                        const isConsumable = consumableItems.length > 0;
+                        const payload = await createMDClerkPayload(finalItems, isConsumable, '');
+                        await updateDocWithAudit(requestRef, payload);
+                        setSuccessMessage({ text: `Request approved and forwarded to Stock Clerk`, type: 'md' });
                     }
 
-                    nextRole = clerkRole;
-                    nextStatus = 'approved_by_md';
-
-                    const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
-                    const clerkSnapshot = await getDocs(clerkQuery);
-                    nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
-                    nextApproverName = clerkSnapshot.empty ? clerkLabel : clerkSnapshot.docs[0].data().displayName;
                 } else {
                     const ptlQuery = query(collection(db!, 'users'), where('userRole', '==', 'procurement_team_leader'));
                     const ptlSnapshot = await getDocs(ptlQuery);
-                    nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
-                    nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
+                    const nextApproverId = ptlSnapshot.empty ? 'PENDING_PTL_ASSIGNMENT' : ptlSnapshot.docs[0].id;
+                    const nextApproverName = ptlSnapshot.empty ? 'Procurement Team Leader' : ptlSnapshot.docs[0].data().displayName;
+
+                    const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                    const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
+
+                    const changes = finalItems.map((item, i) => {
+                        const original = request.items[i].quantity;
+                        return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
+                    }).filter(Boolean);
+                    const hasChanges = changes.length > 0;
+
+                    let noteToSave = `Approved by Managing Director. Forwarded to ${nextApproverName}.`;
+                    if (hasChanges || finalAdjustmentNote) {
+                        const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
+                        noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
+                    }
+
+                    await updateDocWithAudit(requestRef, {
+                        status: 'pending_procurement', // Changed from approved_by_md to pending_procurement so PTL can see it
+                        currentApproverId: nextApproverId,
+                        currentApproverName: nextApproverName,
+                        currentApproverRole: 'procurement_team_leader',
+                        items: finalItems.filter((i: any) => Number(i.quantity) > 0),
+                        isAdjusted: hasChanges || !!finalAdjustmentNote,
+                        isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
+                        history: [
+                            ...request.history,
+                            {
+                                status: 'pending_procurement', // Changed to match the request status
+                                user: user.uid,
+                                userName: userData.displayName || 'Anonymous',
+                                userRole: getRoleTitle(effectiveRole),
+                                timestamp: new Date().toISOString(),
+                                note: noteToSave
+                            }
+                        ],
+                        ...(signature && { managingDirectorSignature: signature }),
+                        mdApproverName: userData.displayName || 'Managing Director'
+                    });
+                    setSuccessMessage({ text: `Request approved and forwarded to ${nextApproverName}`, type: 'md' });
                 }
-
-                const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
-                const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
-
-                const changes = finalItems.map((item, i) => {
-                    const original = request.items[i].quantity;
-                    return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
-                }).filter(Boolean);
-                const hasChanges = changes.length > 0;
-
-                let noteToSave = `Approved by Managing Director. Forwarded to ${nextApproverName}.`;
-                if (hasChanges || finalAdjustmentNote) {
-                    const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
-                    noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
-                }
-
-                await updateDocWithAudit(requestRef, {
-                    status: nextStatus,
-                    currentApproverId: nextApproverId,
-                    currentApproverName: nextApproverName,
-                    currentApproverRole: nextRole,
-                    items: finalItems,
-                    isAdjusted: hasChanges || !!finalAdjustmentNote,
-                    isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
-                    history: [
-                        ...request.history,
-                        {
-                            status: nextStatus,
-                            user: user.uid,
-                            userName: userData.displayName || 'Anonymous',
-                            userRole: getRoleTitle(effectiveRole),
-                            timestamp: new Date().toISOString(),
-                            note: noteToSave
-                        }
-                    ],
-                    ...(signature && { managingDirectorSignature: signature }),
-                    mdApproverName: userData.displayName || 'Managing Director'
-                });
-                setSuccessMessage({ text: `Request approved and forwarded to ${nextApproverName}`, type: 'md' });
             } else if (effectiveRole === 'team_leader') {
                 const requesterIsStoreStaff = request.requesterRole?.includes('stock_clerk') || request.requesterRole?.includes('store_keeper');
 
@@ -707,36 +779,100 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     setSuccessMessage({ text: "Request approved and forwarded to Managing Director", type: 'general' });
                 } else {
                     // Normal flow: PTL -> Stock Clerk
-                    const firstItem = request.items[0];
-                    const type = firstItem?.materialType?.toLowerCase() || '';
-                    const isConsumable = type.includes('consumable');
+                    const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                    const validItems = finalItems.filter((i: any) => Number(i.quantity) > 0);
 
-                    const clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+                    if (validItems.length === 0) {
+                        // Effectively rejected by setting all quantities to 0
+                        const rejectNote = adjustmentNote || adjustmentReasons[request.id] || 'All quantities adjusted to 0 by Procurement Team Leader.';
+                        await updateDocWithAudit(requestRef, {
+                            status: 'rejected',
+                            isFeedbackSeen: false,
+                            history: [
+                                ...request.history,
+                                {
+                                    status: 'rejected',
+                                    user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
+                                    timestamp: new Date().toISOString(),
+                                    note: rejectNote
+                                }
+                            ]
+                        });
+                        setSuccessMessage({ text: "Request rejected because all item quantities were reduced to 0.", type: 'general' });
+                        return;
+                    }
 
-                    const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
-                    const clerkSnapshot = await getDocs(clerkQuery);
-                    const nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
-                    const nextApproverName = clerkSnapshot.empty ? (isConsumable ? 'Consumable Stock Clerk' : 'Fixed Stock Clerk') : clerkSnapshot.docs[0].data().displayName;
+                    const consumableItems = validItems.filter((i: any) => (i.materialType || '').toLowerCase().includes('consumable'));
+                    const fixedItems = validItems.filter((i: any) => !(i.materialType || '').toLowerCase().includes('consumable'));
 
-                    await updateDocWithAudit(requestRef, {
-                        status: 'approved_by_procurement_team_leader',
-                        currentApproverId: nextApproverId,
-                        currentApproverName: nextApproverName,
-                        currentApproverRole: clerkRole,
-                        history: [
-                            ...request.history,
-                            {
-                                status: 'approved_by_procurement_team_leader',
-                                user: user.uid,
-                                userName: userData.displayName || 'Anonymous',
-                                userRole: getRoleTitle(effectiveRole),
-                                timestamp: new Date().toISOString(),
-                                note: `Approved by Procurement Team Leader. Forwarded to ${nextApproverName}.`
-                            }
-                        ],
-                        ...(signature && { ptlSignature: signature })
-                    });
-                    setSuccessMessage({ text: "Request approved and forwarded to Stock Clerk", type: 'general' });
+                    const createClerkPayload = async (items: RequestItem[], isConsumable: boolean, suffix: string) => {
+                        const clerkRole = isConsumable ? 'consumable_item_stock_clerk' : 'fixed_asset_stock_clerk';
+                        const clerkQuery = query(collection(db!, 'users'), where('userRole', '==', clerkRole));
+                        const clerkSnapshot = await getDocs(clerkQuery);
+                        const nextApproverId = clerkSnapshot.empty ? 'PENDING_CLERK_ASSIGNMENT' : clerkSnapshot.docs[0].id;
+                        const nextApproverName = clerkSnapshot.empty ? (isConsumable ? 'Consumable Stock Clerk' : 'Fixed Stock Clerk') : clerkSnapshot.docs[0].data().displayName;
+
+                        const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
+                        const changes = finalItems.map((item: any, i: number) => {
+                            const original = request.items[i].quantity;
+                            return original !== item.quantity ? `${item.materialName} (${original} -> ${item.quantity})` : null;
+                        }).filter(Boolean);
+                        const hasChanges = changes.length > 0;
+
+                        let noteToSave = `Approved by Procurement Team Leader. Forwarded to ${nextApproverName}.${suffix}`;
+                        if (hasChanges || finalAdjustmentNote) {
+                            const prefix = hasChanges ? `Quantity adjusted: ${changes.join(', ')}. Note: ` : `Quantity adjusted. Note: `;
+                            noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
+                        }
+
+                        return {
+                            status: 'approved_by_procurement_team_leader',
+                            currentApproverId: nextApproverId,
+                            currentApproverName: nextApproverName,
+                            currentApproverRole: clerkRole,
+                            items,
+                            isAdjusted: hasChanges || !!finalAdjustmentNote,
+                            isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
+                            history: [
+                                ...request.history,
+                                {
+                                    status: 'approved_by_procurement_team_leader',
+                                    user: user.uid,
+                                    userName: userData.displayName || 'Anonymous',
+                                    userRole: getRoleTitle(effectiveRole),
+                                    timestamp: new Date().toISOString(),
+                                    note: noteToSave
+                                }
+                            ],
+                            ...(signature && { ptlSignature: signature })
+                        };
+                    };
+
+                    if (consumableItems.length > 0 && fixedItems.length > 0) {
+                        // Mixed items: Split into two requests!
+
+                        // 1. Update current request to be the Consumable request
+                        const consumablePayload = await createClerkPayload(consumableItems, true, ' [Consumable Part]');
+                        await updateDocWithAudit(requestRef, consumablePayload);
+
+                        // 2. Create a NEW request for the Fixed items
+                        const fixedPayload = await createClerkPayload(fixedItems, false, ' [Fixed Asset Part]');
+                        const { id: _removedId, ...requestWithoutId } = request;
+                        await addDocWithAudit(collection(db!, 'Request_materials'), {
+                            ...requestWithoutId,
+                            ...fixedPayload
+                        });
+
+                        setSuccessMessage({ text: "Request split and forwarded to both Consumable and Fixed Stock Clerks", type: 'general' });
+                    } else {
+                        // Monolithic: All consumable or all fixed
+                        const isConsumable = consumableItems.length > 0;
+                        const payload = await createClerkPayload(validItems, isConsumable, '');
+                        await updateDocWithAudit(requestRef, payload);
+                        setSuccessMessage({ text: "Request approved and forwarded to Stock Clerk", type: 'general' });
+                    }
                 }
 
             } else if (effectiveRole === 'stock_clerk' || effectiveRole.includes('stock_clerk')) {
@@ -943,6 +1079,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
             } else {
                 // Academic Coordinator Logic
                 const finalItems = updatedItems || modifiedRequests[request.id] || request.items;
+                const validItems = finalItems.filter((i: any) => Number(i.quantity) > 0);
                 const finalAdjustmentNote = adjustmentNote || adjustmentReasons[request.id] || '';
 
                 const changes = finalItems.map((item, i) => {
@@ -957,12 +1094,13 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     noteToSave = `${prefix}${finalAdjustmentNote || 'No additional reasoning provided'}`;
                 }
 
-                const itemsWithACRule = finalItems.filter(item => item.AC_decition === 'need AC decision');
+                const validItemsForAC = finalItems.filter((i: any) => Number(i.quantity) > 0);
+                const itemsWithACRule = validItemsForAC.filter(item => item.AC_decition === 'need AC decision');
 
                 if (itemsWithACRule.length > 0) {
                     await addDocWithAudit(collection(db!, 'Need_AC_decition'), {
                         ...request,
-                        items: finalItems,
+                        items: validItemsForAC,
                         originalRequestId: request.id,
                         coordinatorId: user.uid,
                         coordinatorName: userData.displayName || 'Academic Coordinator',
@@ -973,7 +1111,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     await updateDocWithAudit(requestRef, {
                         status: 'forwarded_to_chief',
                         currentApproverRole: 'chief_executive',
-                        items: finalItems,
+                        items: validItems,
                         isAdjusted: hasChanges || !!finalAdjustmentNote,
                         isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                         history: [
@@ -1005,7 +1143,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                         currentApproverId: nextApproverId,
                         currentApproverName: nextApproverName,
                         currentApproverRole: 'procurement_team_leader',
-                        items: finalItems,
+                        items: validItems,
                         isAdjusted: hasChanges || !!finalAdjustmentNote,
                         isFeedbackSeen: (hasChanges || !!finalAdjustmentNote) ? false : true,
                         history: [
@@ -1532,6 +1670,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                             setSelectedRequest(null);
                         }}
                         isProcessing={processingId === selectedRequest.id}
+                        canReject={canUserAdjustDigitalRequest(selectedRequest)}
                     />
                 )}
                 {/* Notification Bar */}
@@ -1810,7 +1949,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
+                                                                {canUserAdjustDigitalRequest(request) ? (
                                                                     <input
                                                                         type="number"
                                                                         min="0"
@@ -1832,7 +1971,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     ))}
                                                 </div>
 
-                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
+                                                {canUserAdjustDigitalRequest(request) && isRequestAdjusted(request) && (
                                                     <div className="mt-2 p-3 bg-rose-50 border border-rose-100 rounded-lg">
                                                         <label className="text-[10px] font-bold text-rose-600 uppercase flex items-center gap-1 mb-1">
                                                             <FiAlertCircle /> Adjustment Reason
@@ -1859,7 +1998,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                             Process Request <FiArrowRight />
                                                         </button>
                                                     )}
-                                                    {canReject && (
+                                                    {canUserAdjustDigitalRequest(request) && (
                                                         <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
                                                             <FiXCircle size={16} />
                                                         </button>
@@ -1929,7 +2068,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                                 </div>
                                                             </div>
                                                             <div className="text-right">
-                                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') ? (
+                                                                {canUserAdjustDigitalRequest(request) ? (
                                                                     <input
                                                                         type="number"
                                                                         min="0"
@@ -1950,7 +2089,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     ))}
                                                 </div>
 
-                                                {(effectiveRole === 'academic_coordinator' || effectiveRole === 'managing_director') && isRequestAdjusted(request) && (
+                                                {canUserAdjustDigitalRequest(request) && isRequestAdjusted(request) && (
                                                     <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg space-y-1">
                                                         <label className="text-[10px] font-bold text-rose-600 uppercase flex items-center gap-1">
                                                             <FiAlertCircle /> Adjustment Reason
@@ -1971,7 +2110,7 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                                                     >
                                                         {effectiveRole.includes('stock_clerk') ? 'Proceed to Model 22' : 'Process Request'} <FiArrowRight />
                                                     </button>
-                                                    {canReject && (
+                                                    {canUserAdjustDigitalRequest(request) && (
                                                         <button onClick={() => handleReject(request)} className="px-3 py-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-red-500 hover:border-red-300 transition-all">
                                                             <FiXCircle size={16} />
                                                         </button>
@@ -2052,59 +2191,59 @@ export default function MaterialRequestView({ roleOverride, materialTypeFilter }
                     </div>
                 )}
 
-            {/* Low Stock Confirmation Modal */}
-            {lowStockModalOpen && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 bg-amber-50 border-b border-amber-100 flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
-                                <FiAlertCircle className="text-2xl" />
+                {/* Low Stock Confirmation Modal */}
+                {lowStockModalOpen && (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="p-6 bg-amber-50 border-b border-amber-100 flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
+                                    <FiAlertCircle className="text-2xl" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-amber-900">Zero Stock Warning</h3>
+                                    <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider">AC / MD Decision Required</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-black text-amber-900">Zero Stock Warning</h3>
-                                <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider">AC / MD Decision Required</p>
+                            <div className="p-6">
+                                <p className="text-sm text-slate-600 font-medium mb-4">
+                                    Approving this will leave 0 items in the store (out of stock) for {lowStockItemsCount} item(s). It may require AC decision, so are you sure to approve?
+                                </p>
                             </div>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-sm text-slate-600 font-medium mb-4">
-                                Approving this will leave 0 items in the store (out of stock) for {lowStockItemsCount} item(s). It may require AC decision, so are you sure to approve?
-                            </p>
-                        </div>
-                        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                            <button
-                                onClick={() => {
-                                    setLowStockModalOpen(false);
-                                    setLowStockRequest(null);
-                                    setPendingApproveArgs(null);
-                                    setZeroStockConfirmCount(0);
-                                }}
-                                className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (zeroStockConfirmCount === 0) {
-                                        setZeroStockConfirmCount(1);
-                                    } else {
-                                        confirmLowStockApprove();
-                                    }
-                                }}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${zeroStockConfirmCount === 0
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                                <button
+                                    onClick={() => {
+                                        setLowStockModalOpen(false);
+                                        setLowStockRequest(null);
+                                        setPendingApproveArgs(null);
+                                        setZeroStockConfirmCount(0);
+                                    }}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (zeroStockConfirmCount === 0) {
+                                            setZeroStockConfirmCount(1);
+                                        } else {
+                                            confirmLowStockApprove();
+                                        }
+                                    }}
+                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${zeroStockConfirmCount === 0
                                         ? 'bg-amber-500 text-white hover:bg-amber-600'
                                         : 'bg-rose-600 text-white hover:bg-rose-700 shadow-lg scale-105'
-                                    }`}
-                            >
-                                {zeroStockConfirmCount === 0 ? 'Click to Confirm' : 'Are you sure? Click to Approve!'}
-                            </button>
+                                        }`}
+                                >
+                                    {zeroStockConfirmCount === 0 ? 'Click to Confirm' : 'Are you sure? Click to Approve!'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
                 {/* Conflict Error Modal */}
                 {conflictErrorMsg && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
                             <div className="p-6 bg-rose-50 border-b border-rose-100 flex items-center gap-4">
                                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-rose-500">
